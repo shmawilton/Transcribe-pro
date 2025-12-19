@@ -115,16 +115,35 @@ For more detailed workflow information, see [GIT_WORKFLOW.md](./GIT_WORKFLOW.md)
 ## Project Structure
 
 ```
+transcribe-pro/
 ├── src/
-│   ├── main/          # Electron main process
-│   │   ├── main.ts    # Main entry point
-│   │   └── preload.ts # Preload script
-│   ├── App.tsx        # React root component
-│   ├── main.tsx       # React entry point
-│   └── index.css      # Global styles
-├── dist/              # Build output
-└── package.json       # Dependencies and scripts
+│   ├── main/                    # Electron main process
+│   │   ├── main.ts              # Main entry point
+│   │   └── preload.ts           # Preload script
+│   ├── renderer/                # React renderer process
+│   │   ├── App.tsx              # Main app component
+│   │   ├── components/           # React components
+│   │   │   ├── audio/           # Audio components
+│   │   │   ├── controls/        # Control panels
+│   │   │   ├── markers/         # Marker components
+│   │   │   ├── ui/              # UI components
+│   │   │   └── project/         # Project management
+│   │   ├── store/               # Zustand store
+│   │   ├── types/               # TypeScript types
+│   │   └── styles/              # CSS styles
+│   ├── main.tsx                 # React entry point
+│   └── index.css                # Tailwind imports
+├── dist/                        # Build output (don't commit)
+├── node_modules/                # Dependencies (don't commit)
+└── package.json                 # Dependencies and scripts
 ```
+
+## For Developers
+
+**New to the project?** Start here:
+1. Read [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) - Complete setup and workflow guide
+2. Read [GIT_WORKFLOW.md](./GIT_WORKFLOW.md) - Detailed Git commands
+3. Check [WEEK0_CHECKLIST.md](./WEEK0_CHECKLIST.md) - Project setup status
 
 ## License
 

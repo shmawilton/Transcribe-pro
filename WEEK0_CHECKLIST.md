@@ -132,7 +132,16 @@ transcribe-pro/
 
 - All components are currently placeholder skeletons
 - The app should run and display the layout structure
-- African theme colors are defined and ready to use
+- Kenyan theme colors are defined and ready to use (dark & light modes)
 - Store is set up with all necessary state and actions
 - Type definitions are complete
+
+## Documentation
+
+- ✅ [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) - Complete setup and workflow guide
+- ✅ [QUICK_START.md](./QUICK_START.md) - Quick reference for daily workflow
+- ✅ [GIT_WORKFLOW.md](./GIT_WORKFLOW.md) - Detailed Git commands
+- ✅ [README.md](./README.md) - Project overview
+
+**For new developers:** Start with [QUICK_START.md](./QUICK_START.md) for immediate setup, then read [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) for complete understanding.
 

@@ -35,6 +35,11 @@ interface AppStore {
   // Project Management
   loadProject: (project: ProjectData) => void;
   resetProject: () => void;
+
+  // Theme
+  theme: 'dark' | 'light';
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
 }
 
 const initialAudioState: AudioState = {
@@ -135,5 +140,31 @@ export const useAppStore = create<AppStore>((set) => ({
       ui: initialUIState,
       globalControls: initialGlobalControls,
     }),
+
+  // Theme
+  theme: 'dark',
+  setTheme: (theme) => {
+    set({ theme });
+    document.documentElement.setAttribute('data-theme', theme);
+    // Save to localStorage
+    localStorage.setItem('theme', theme);
+  },
+  toggleTheme: () => {
+    set((state) => {
+      const newTheme = state.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+      return { theme: newTheme };
+    });
+  },
 }));
+
+// Initialize theme from localStorage
+const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' | null;
+if (savedTheme) {
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  useAppStore.setState({ theme: savedTheme });
+} else {
+  document.documentElement.setAttribute('data-theme', 'dark');
+}
 

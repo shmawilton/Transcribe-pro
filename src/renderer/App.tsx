@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import MenuBar from './components/ui/MenuBar';
 import Waveform from './components/audio/Waveform';
 import MarkerTimeline from './components/markers/MarkerTimeline';
@@ -7,8 +7,15 @@ import GlobalControlsPanel from './components/controls/GlobalControlsPanel';
 import MarkerPanel from './components/controls/MarkerPanel';
 import SettingsModal from './components/ui/SettingsModal';
 import HelpModal from './components/ui/HelpModal';
+import { useAppStore } from './store/store';
 
 const App: React.FC = () => {
+  const theme = useAppStore((state) => state.theme);
+
+  // Initialize theme on mount
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
   return (
     <div className="app-container">
       {/* Menu Bar */}
