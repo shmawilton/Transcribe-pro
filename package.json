@@ -1,0 +1,44 @@
+{
+  "name": "transcription-pro",
+  "version": "1.0.0",
+  "description": "A transcription application built with Electron, React, and TypeScript",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:react\" \"wait-on http://localhost:3000 && npm run dev:electron\"",
+    "dev:react": "vite",
+    "dev:electron": "cross-env NODE_ENV=development npm run build:electron && electron .",
+    "build": "npm run build:electron && vite build",
+    "build:electron": "tsc -p tsconfig.main.json",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "electron",
+    "react",
+    "typescript",
+    "transcription"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^28.0.0",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tone": "^14.7.77",
+    "zustand": "^4.4.7"
+  }
+}
+
