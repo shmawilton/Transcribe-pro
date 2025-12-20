@@ -3,6 +3,10 @@ import * as path from 'path';
 
 let mainWindow: BrowserWindow | null = null;
 
+// Enable audio features for Electron
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('disable-features', 'AudioServiceOutOfProcess');
+
 const createWindow = (): void => {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -12,6 +16,11 @@ const createWindow = (): void => {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
+      // Enable Web Audio API and other media features
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      // These help with audio in Electron
+      backgroundThrottling: false, // Prevent audio issues when window is in background
     },
   });
 

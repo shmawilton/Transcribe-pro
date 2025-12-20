@@ -9,6 +9,7 @@ interface AppStore {
   setIsPlaying: (isPlaying: boolean) => void;
   setDuration: (duration: number) => void;
   setAudioBuffer: (buffer: AudioBuffer) => void;
+  clearAudioBuffer: () => void;
 
   // Markers State
   markers: Marker[];
@@ -69,19 +70,67 @@ const initialGlobalControls: GlobalControls = {
 export const useAppStore = create<AppStore>((set) => ({
   // Audio State
   audio: initialAudioState,
-  setAudioFile: (file) =>
+  setAudioFile: (file) => {
+    console.log('[Store] setAudioFile called:', file ? { name: file.name, size: file.size } : 'null');
+    set((state) => {
+      const newState = {
+        // IMPORTANT: isLoaded should NOT be set here - it's set by setAudioBuffer after decode completes
+        audio: { ...state.audio, file, isLoaded: false },
+      };
+      console.log('[Store] setAudioFile - new state:', {
+        hasFile: !!newState.audio.file,
+        isLoaded: newState.audio.isLoaded
+      });
+      return newState;
+    });
+  },
+  setCurrentTime: (time) => {
+    // Only log every 10th update to avoid spam
+    if (Math.floor(time * 10) % 10 === 0) {
+      console.log('[Store] setCurrentTime:', time);
+    }
+    set((state) => ({ audio: { ...state.audio, currentTime: time } }));
+  },
+  setIsPlaying: (isPlaying) => {
+    console.log('[Store] setIsPlaying:', isPlaying);
+    set((state) => ({ audio: { ...state.audio, isPlaying } }));
+  },
+  setDuration: (duration) => {
+    console.log('[Store] setDuration:', duration);
+    set((state) => ({ audio: { ...state.audio, duration } }));
+  },
+  setAudioBuffer: (buffer) => {
+    console.log('[Store] setAudioBuffer called:', {
+      hasBuffer: !!buffer,
+      sampleRate: buffer?.sampleRate,
+      duration: buffer?.duration,
+      length: buffer?.length
+    });
+    set((state) => {
+      const newState = {
+        audio: { 
+          ...state.audio, 
+          buffer, 
+          sampleRate: buffer?.sampleRate,
+          isLoaded: buffer !== null && buffer !== undefined,
+        },
+      };
+      console.log('[Store] setAudioBuffer - new state:', {
+        hasBuffer: !!newState.audio.buffer,
+        isLoaded: newState.audio.isLoaded,
+        sampleRate: newState.audio.sampleRate
+      });
+      return newState;
+    });
+  },
+  clearAudioBuffer: () =>
     set((state) => ({
-      audio: { ...state.audio, file, isLoaded: file !== null },
-    })),
-  setCurrentTime: (time) =>
-    set((state) => ({ audio: { ...state.audio, currentTime: time } })),
-  setIsPlaying: (isPlaying) =>
-    set((state) => ({ audio: { ...state.audio, isPlaying } })),
-  setDuration: (duration) =>
-    set((state) => ({ audio: { ...state.audio, duration } })),
-  setAudioBuffer: (buffer) =>
-    set((state) => ({
-      audio: { ...state.audio, buffer, sampleRate: buffer.sampleRate },
+      audio: { 
+        ...state.audio, 
+        buffer: undefined,
+        sampleRate: undefined,
+        isLoaded: false,
+      },
     })),
 
   // Markers State
