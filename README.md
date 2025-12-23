@@ -110,7 +110,21 @@ git tag -a v1.0.0 -m "Release version 1.0.0"
 git push origin v1.0.0
 ```
 
-For more detailed workflow information, see [GIT_WORKFLOW.md](./GIT_WORKFLOW.md).
+For more detailed workflow information, see [docs/workflow/GIT_WORKFLOW.md](./docs/workflow/GIT_WORKFLOW.md).
+
+## Documentation
+
+All documentation is organized in the `docs/` folder:
+
+- **Workflow Documentation**: [docs/workflow/](./docs/workflow/)
+  - [Git Workflow](./docs/workflow/GIT_WORKFLOW.md) - Detailed Git commands and branching strategy
+  - [GitHub Setup](./docs/workflow/GITHUB_SETUP.md) - GitHub repository setup and configuration
+
+- **Developer Guides**: [docs/guides/](./docs/guides/)
+  - [Developer Guide](./docs/guides/DEVELOPER_GUIDE.md) - Complete setup and development workflow
+
+- **Component Documentation**: [docs/components/](./docs/components/)
+  - [Audio Engine](./docs/components/audio-engine/) - Audio engine implementation, API, and usage
 
 ## Project Structure
 
@@ -141,9 +155,9 @@ transcribe-pro/
 ## For Developers
 
 **New to the project?** Start here:
-1. Read [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) - Complete setup and workflow guide
-2. Read [GIT_WORKFLOW.md](./GIT_WORKFLOW.md) - Detailed Git commands
-3. Check [WEEK0_CHECKLIST.md](./WEEK0_CHECKLIST.md) - Project setup status
+1. Read [docs/guides/DEVELOPER_GUIDE.md](./docs/guides/DEVELOPER_GUIDE.md) - Complete setup and workflow guide
+2. Read [docs/workflow/GIT_WORKFLOW.md](./docs/workflow/GIT_WORKFLOW.md) - Detailed Git commands
+3. Read [docs/workflow/GITHUB_SETUP.md](./docs/workflow/GITHUB_SETUP.md) - GitHub setup instructions
 
 ## License
 
