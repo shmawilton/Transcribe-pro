@@ -180,15 +180,15 @@ html, body {
 }
 
 .waveform-section {
-  flex: 1;
-  min-height: 50%;
+  flex: 0 0 60%;
+  max-height: 60%;
   background: var(--glass-bg);
   backdrop-filter: blur(var(--blur-lg));
   -webkit-backdrop-filter: blur(var(--blur-lg));
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
-  overflow: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
@@ -198,14 +198,15 @@ html, body {
 }
 
 .panels-section {
-  min-height: var(--panel-height);
-  height: auto;
+  flex: 0 0 35%;
+  max-height: 35%;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 50% 25% 25%;
   gap: var(--spacing-md);
   padding: 0;
   background: transparent;
   flex-shrink: 0;
+  min-height: 0;
 }
 
 .panel {
@@ -405,5 +406,476 @@ button, a, [role="button"] {
   0% { transform: rotate(0deg); }
   50% { transform: rotate(180deg); }
   100% { transform: rotate(360deg); }
+}
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+}
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+}
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+}
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+}
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+}
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+}
+
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+}
+
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
+}
+
+
+
+
+/* Marker Timeline Container */
+.marker-timeline {
+  position: relative;
+  width: 100%;
+  min-height: 60px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 102, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  overflow: visible;
+  z-index: 10;
+  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Marker Tooltip */
+.marker-tooltip {
+  white-space: nowrap;
+  font-family: 'Gochi Hand', 'Annie Use Your Telescope', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  animation: tooltipFadeIn 0.15s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Smooth transitions for marker interactions */
+.marker-timeline rect {
+  transition: opacity 0.2s ease, stroke-width 0.2s ease, stroke 0.2s ease;
+}
+
+.marker-timeline rect:hover {
+  opacity: 0.95 !important;
+}
+
+/* Marker text styling */
+.marker-timeline text {
+  font-family: 'Gochi Hand', 'Annie Use Your Telescope', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  user-select: none;
 }
 

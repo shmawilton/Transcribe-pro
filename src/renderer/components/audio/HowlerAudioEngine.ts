@@ -314,4 +314,3 @@ export function getHowlerAudioEngine(): HowlerAudioEngine {
   }
   return howlerEngineInstance;
 }
-

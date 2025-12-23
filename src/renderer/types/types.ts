@@ -2,8 +2,9 @@
 
 export interface Marker {
   id: string;
-  timestamp: number; // in seconds
-  label: string;
+  start: number; // start time in seconds
+  end: number; // end time in seconds
+  name: string; // marker name/label
   color?: string;
   notes?: string;
 }
@@ -44,4 +45,20 @@ export interface ProjectData {
     version: string;
   };
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

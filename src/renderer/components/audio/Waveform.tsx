@@ -7,19 +7,20 @@ const Waveform: React.FC = () => {
   return (
     <div className="waveform-container" style={{ 
       width: '100%', 
-      height: '100%', 
-      minHeight: '200px',
-      background: 'rgba(26, 26, 26, 0.5)',
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
-      border: '1px solid rgba(255, 255, 255, 0.1)',
+      flex: '0 0 45%',
+      minHeight: '0',
+      background: 'rgba(222, 41, 16, 0.15)',
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
+      border: '1px solid rgba(222, 41, 16, 0.3)',
       borderRadius: 'var(--radius-md)',
       padding: '1.5rem',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
-      transition: 'all var(--transition-normal)'
+      boxShadow: '0 4px 16px rgba(222, 41, 16, 0.2)',
+      transition: 'all var(--transition-normal)',
+      overflow: 'hidden'
     }}>
       <div style={{ 
         color: 'var(--text-accent-red)', 
@@ -34,4 +35,12 @@ const Waveform: React.FC = () => {
 };
 
 export default Waveform;
+
+
+
+
+
+
+
+
 
