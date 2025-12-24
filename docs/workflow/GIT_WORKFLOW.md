@@ -2,7 +2,7 @@
 
 This document outlines the Git workflow used in this project. We follow a **Git Flow** branching strategy with three main branch types: `main`, `develop`, and `feature` branches.
 
-> **For new developers:** See [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md) for complete setup instructions including forking and initial configuration.
+> **For new developers:** See [DEVELOPER_GUIDE.md](../guides/DEVELOPER_GUIDE.md) for complete setup instructions including forking and initial configuration.
 
 ## Branch Overview
 
