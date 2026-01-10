@@ -10,8 +10,8 @@ const KENYAN_RED = '#DE2910';
 const KENYAN_GREEN = '#006644';
 const KENYAN_WHITE = '#FFFFFF';
 
-// Handwritten font family
-const HANDWRITTEN_FONT = "'Caveat', 'Patrick Hand', 'Kalam', 'Indie Flower', cursive";
+// Handwritten font family - Merienda from Google Fonts
+const HANDWRITTEN_FONT = "'Merienda', 'Caveat', 'Patrick Hand', cursive";
 
 const PlaybackPanel: React.FC = () => {
   const { 
@@ -19,14 +19,13 @@ const PlaybackPanel: React.FC = () => {
     pause, 
     stop, 
     seek,
-    isAudioLoaded,
-    isPlaying,
     resumeAudioContext
   } = useAudioEngine();
   
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
   
+  // Use store state for reactive updates (not hook's ref-based values)
   const audio = useAppStore((state) => state.audio) || {
     file: null,
     duration: 0,
@@ -34,6 +33,10 @@ const PlaybackPanel: React.FC = () => {
     isPlaying: false,
     isLoaded: false,
   };
+  
+  // Get isAudioLoaded and isPlaying from store for reactivity
+  const isAudioLoaded = audio.isLoaded;
+  const isPlaying = audio.isPlaying;
   
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   
@@ -499,7 +502,7 @@ const PlaybackPanel: React.FC = () => {
 
       {/* CSS Animations */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Kalam:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Merienda:wght@300;400;500;600;700&display=swap');
         
         @keyframes backgroundPulse {
           0% { opacity: 0.5; }

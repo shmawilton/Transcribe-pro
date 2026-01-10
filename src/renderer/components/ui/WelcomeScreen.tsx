@@ -11,8 +11,8 @@ const KENYAN_GREEN = '#006644';
 const KENYAN_BLACK = '#0F0F0F';
 const KENYAN_WHITE = '#FFFFFF';
 
-// Handwritten font family
-const HANDWRITTEN_FONT = "'Caveat', 'Patrick Hand', 'Kalam', 'Indie Flower', cursive";
+// Handwritten font family - Merienda from Google Fonts
+const HANDWRITTEN_FONT = "'Merienda', 'Caveat', cursive";
 
 interface WelcomeScreenProps {
   onAudioLoaded: () => void;
@@ -393,7 +393,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded }) => {
 
       {/* CSS Animations */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&family=Kalam:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Merienda:wght@300;400;500;600;700&display=swap');
         
         @keyframes float {
           0%, 100% { transform: translate(0, 0); }
