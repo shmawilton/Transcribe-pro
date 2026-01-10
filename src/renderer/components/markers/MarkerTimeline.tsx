@@ -39,6 +39,14 @@ export function MarkerTimeline() {
   const setActiveMarker = useAppStore((state) => state.setSelectedMarkerId);
   const addMarker = useAppStore((state) => state.addMarker);
   
+  // Get viewport state for synchronized zoom/scroll with Waveform
+  const viewportStart = useAppStore((state) => state.ui.viewportStart);
+  const viewportEnd = useAppStore((state) => state.ui.viewportEnd);
+  const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
+  
+  // Calculate visible duration based on viewport
+  const visibleDuration = viewportEnd > viewportStart ? viewportEnd - viewportStart : duration;
+  
   // Measure initial width on mount
   useEffect(() => {
     if (containerRef.current) {
@@ -65,20 +73,23 @@ export function MarkerTimeline() {
     return Math.max(0, containerWidth - (TIME_LABEL_PADDING * 2));
   }, [containerWidth]);
   
-  // Pixel-to-time conversion function (uses usable width)
+  // Pixel-to-time conversion function (uses viewport for zoomed view)
   const pixelToTime = useCallback((pixelX: number): number => {
-    if (duration === 0 || usableWidth === 0) return 0;
+    if (visibleDuration === 0 || usableWidth === 0) return 0;
     // Adjust for padding
     const adjustedX = pixelX - TIME_LABEL_PADDING;
     const clampedX = Math.max(0, Math.min(adjustedX, usableWidth));
-    return (clampedX / usableWidth) * duration;
-  }, [duration, usableWidth]);
+    // Convert to time within the visible viewport
+    return viewportStart + (clampedX / usableWidth) * visibleDuration;
+  }, [visibleDuration, usableWidth, viewportStart]);
   
-  // Time-to-pixel conversion function (uses usable width)
+  // Time-to-pixel conversion function (uses viewport for zoomed view)
   const timeToPixel = useCallback((timeInSeconds: number): number => {
-    if (duration === 0 || usableWidth === 0) return TIME_LABEL_PADDING;
-    return TIME_LABEL_PADDING + (timeInSeconds / duration) * usableWidth;
-  }, [duration, usableWidth]);
+    if (visibleDuration === 0 || usableWidth === 0) return TIME_LABEL_PADDING;
+    // Convert time to position within the visible viewport
+    const relativeTime = timeInSeconds - viewportStart;
+    return Math.round(TIME_LABEL_PADDING + (relativeTime / visibleDuration) * usableWidth);
+  }, [visibleDuration, usableWidth, viewportStart]);
   
   // Calculate marker dimensions
   const getMarkerDimensions = useCallback((marker: Marker) => {
@@ -151,27 +162,36 @@ export function MarkerTimeline() {
   
   const svgHeight = TIME_GRID_HEIGHT + markerAreaHeight;
   
-  // Generate time grid markers
+  // Generate time grid markers (uses viewport for zoomed view)
   const timeGridMarkers = useMemo(() => {
-    if (duration === 0 || usableWidth === 0) return [];
+    if (duration === 0 || usableWidth === 0 || visibleDuration === 0) return [];
     
-    // Calculate appropriate interval based on duration
+    // Calculate appropriate interval based on VISIBLE duration (not total)
     let interval = 30; // default 30 seconds
-    if (duration > 600) interval = 60; // 1 minute for > 10 min
-    if (duration > 1800) interval = 300; // 5 minutes for > 30 min
-    if (duration < 60) interval = 10; // 10 seconds for < 1 min
-    if (duration < 30) interval = 5; // 5 seconds for < 30 sec
+    if (visibleDuration > 600) interval = 60; // 1 minute for > 10 min visible
+    if (visibleDuration > 1800) interval = 300; // 5 minutes for > 30 min visible
+    if (visibleDuration < 60) interval = 10; // 10 seconds for < 1 min visible
+    if (visibleDuration < 30) interval = 5; // 5 seconds for < 30 sec visible
+    if (visibleDuration < 10) interval = 2; // 2 seconds for < 10 sec visible (when very zoomed)
+    if (visibleDuration < 5) interval = 1; // 1 second for < 5 sec visible
     
     const markers = [];
-    for (let time = 0; time <= duration; time += interval) {
+    
+    // Start from first interval point at or after viewportStart
+    const firstMarkerTime = Math.ceil(viewportStart / interval) * interval;
+    
+    for (let time = firstMarkerTime; time <= viewportEnd; time += interval) {
       const x = timeToPixel(time);
-      const minutes = Math.floor(time / 60);
-      const seconds = Math.floor(time % 60);
-      const label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-      markers.push({ time, x, label });
+      // Only include if within visible area
+      if (x >= TIME_LABEL_PADDING && x <= containerWidth - TIME_LABEL_PADDING) {
+        const minutes = Math.floor(time / 60);
+        const seconds = Math.floor(time % 60);
+        const label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        markers.push({ time, x, label });
+      }
     }
     return markers;
-  }, [duration, usableWidth, timeToPixel]);
+  }, [duration, usableWidth, visibleDuration, viewportStart, viewportEnd, timeToPixel, containerWidth]);
   
   // Handle SVG mouse move (for hover tooltip and drag)
   const handleSvgMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {

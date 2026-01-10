@@ -1,8 +1,9 @@
 // Waveform.tsx - Julius - Week 1
 // Waveform rendering component using Canvas
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../../store/store';
+import { useAudioEngine } from './useAudioEngine';
 
 /**
  * Peak data structure
@@ -38,9 +39,26 @@ const Waveform: React.FC = () => {
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const animationFrameRef = useRef<number | null>(null);
   
+  // Hover state for interactive time display
+  const [hoverInfo, setHoverInfo] = useState<{ x: number; time: number; visible: boolean }>({
+    x: 0,
+    time: 0,
+    visible: false
+  });
+  
+  // Click feedback state
+  const [clickFeedback, setClickFeedback] = useState(false);
+  
+  // Get audio engine for seek functionality
+  const { seek } = useAudioEngine();
+  
   // Get audio buffer, zoom level, and playback state from Zustand store
   const audioBuffer = useAppStore((state) => state.audio.buffer);
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
+  const setZoomLevel = useAppStore((state) => state.setZoomLevel);
+  const viewportStart = useAppStore((state) => state.ui.viewportStart);
+  const viewportEnd = useAppStore((state) => state.ui.viewportEnd);
+  const setViewport = useAppStore((state) => state.setViewport);
   const currentTime = useAppStore((state) => state.audio.currentTime);
   const duration = useAppStore((state) => state.audio.duration);
   const isPlaying = useAppStore((state) => state.audio.isPlaying);
@@ -258,6 +276,107 @@ const Waveform: React.FC = () => {
   };
 
   /**
+   * Calculate appropriate time interval based on VISIBLE duration
+   * MUST match MarkerTimeline intervals exactly for alignment
+   */
+  const getTimeInterval = (visibleDuration: number): number => {
+    // Match MarkerTimeline.tsx intervals exactly
+    if (visibleDuration > 1800) return 300;    // 5 minutes for > 30 min visible
+    if (visibleDuration > 600) return 60;      // 1 minute for > 10 min visible
+    if (visibleDuration < 5) return 1;         // 1 second for < 5 sec visible (very zoomed)
+    if (visibleDuration < 10) return 2;        // 2 seconds for < 10 sec visible
+    if (visibleDuration < 30) return 5;        // 5 seconds for < 30 sec visible
+    if (visibleDuration < 60) return 10;       // 10 seconds for < 1 min visible
+    return 30;                                  // default 30 seconds
+  };
+
+  /**
+   * Draw time grid overlay on canvas
+   * Draws only vertical reference lines (no labels - they're in MarkerTimeline)
+   * Lines align exactly with MarkerTimeline below (uses viewport for zoom)
+   */
+  const drawTimeGrid = (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    visibleDuration: number,
+    offsetX: number,
+    usableWidth: number,
+    viewportStart: number,
+    viewportEnd: number
+  ) => {
+    if (visibleDuration <= 0 || usableWidth <= 0) return;
+
+    // Calculate interval based on visible duration (matches MarkerTimeline)
+    const interval = getTimeInterval(visibleDuration);
+    
+    ctx.save();
+    
+    // Start from first interval point at or after viewportStart
+    const firstMarkerTime = Math.ceil(viewportStart / interval) * interval;
+    
+    // Draw grid lines at each interval within viewport (matching MarkerTimeline)
+    for (let time = firstMarkerTime; time <= viewportEnd; time += interval) {
+      // Calculate X position relative to viewport
+      const relativeTime = time - viewportStart;
+      const x = Math.round(offsetX + (relativeTime / visibleDuration) * usableWidth);
+      
+      // Only draw if within visible area
+      if (x >= offsetX && x <= width - offsetX) {
+        // Subtle grid lines - no labels needed
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1;
+        
+        // Draw vertical line at half-pixel offset for crisp 1px lines
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, height);
+        ctx.stroke();
+      }
+    }
+    
+    ctx.restore();
+  };
+
+  /**
+   * Draw playhead indicator showing current playback position
+   * 
+   * @param ctx - 2D rendering context
+   * @param height - Canvas height
+   * @param progressX - X position of the playhead
+   */
+  const drawPlayhead = (
+    ctx: CanvasRenderingContext2D,
+    height: number,
+    progressX: number
+  ) => {
+    ctx.save();
+    
+    // Draw playhead line
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+    ctx.shadowBlur = 4;
+    
+    ctx.beginPath();
+    ctx.moveTo(progressX, 0);
+    ctx.lineTo(progressX, height);
+    ctx.stroke();
+    
+    // Draw playhead triangle at top
+    ctx.fillStyle = '#FFFFFF';
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(progressX - 6, 0);
+    ctx.lineTo(progressX + 6, 0);
+    ctx.lineTo(progressX, 8);
+    ctx.closePath();
+    ctx.fill();
+    
+    ctx.restore();
+  };
+
+  /**
    * Draw waveform on canvas using cached peaks
    * @param ctx - 2D rendering context
    * @param width - Canvas width in CSS pixels
@@ -295,6 +414,16 @@ const Waveform: React.FC = () => {
     const TIME_LABEL_PADDING = 50;
     const usableWidth = Math.max(0, width - (TIME_LABEL_PADDING * 2));
     
+    // Get fresh values from store for animation frame updates
+    const storeState = useAppStore.getState();
+    const actualCurrentTime = storeState.audio.currentTime;
+    const actualDuration = storeState.audio.duration;
+    const vpStart = storeState.ui.viewportStart;
+    const vpEnd = storeState.ui.viewportEnd;
+    
+    // Calculate visible duration (viewport)
+    const visibleDuration = vpEnd > vpStart ? vpEnd - vpStart : actualDuration;
+    
     // Get cached peaks (or generate if needed) - use usableWidth to match timeline
     const peaks = getPeaks(bufferToUse, usableWidth, zoomLevel);
     
@@ -305,13 +434,10 @@ const Waveform: React.FC = () => {
     const isStereo = bufferToUse.numberOfChannels > 1;
     const maxAmplitude = 1.0; // Use full amplitude range for maximum visibility
     
-    // Get fresh values from store for animation frame updates
-    const storeState = useAppStore.getState();
-    const actualCurrentTime = storeState.audio.currentTime;
-    const actualDuration = storeState.audio.duration;
-    
-    // Calculate playback progress for gradient (using usableWidth to match timeline)
-    const progress = actualDuration > 0 ? actualCurrentTime / actualDuration : 0;
+    // Calculate playback progress for gradient (using viewport)
+    // Progress is relative to the visible viewport, not the full duration
+    const relativeTime = actualCurrentTime - vpStart;
+    const progress = visibleDuration > 0 ? Math.max(0, Math.min(relativeTime / visibleDuration, 1)) : 0;
     const progressX = TIME_LABEL_PADDING + (usableWidth * progress);
 
     if (isStereo && !Array.isArray(peaks) && 'left' in peaks && 'right' in peaks) {
@@ -360,6 +486,17 @@ const Waveform: React.FC = () => {
         ctx.lineTo(width, height / 2);
         ctx.stroke();
       }
+    }
+
+    // LAYER 2: Draw time grid overlay (after waveform, before playhead)
+    // This ensures grid is visible but doesn't obscure waveform detail
+    // Use viewport for zoomed view
+    drawTimeGrid(ctx, width, height, visibleDuration, TIME_LABEL_PADDING, usableWidth, vpStart, vpEnd);
+
+    // LAYER 3: Draw playhead (on top of everything)
+    // Only draw if there's actual playback progress
+    if (actualCurrentTime > 0 || storeState.audio.isPlaying) {
+      drawPlayhead(ctx, height, progressX);
     }
   };
 
@@ -570,6 +707,133 @@ const Waveform: React.FC = () => {
     };
   }, [isPlaying, canvasSize, audioBuffer]);
 
+  /**
+   * Format time as M:SS for hover tooltip
+   */
+  const formatHoverTime = (seconds: number): string => {
+    const totalSeconds = Math.floor(seconds);
+    const minutes = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  /**
+   * Handle mouse move over canvas - show time position
+   */
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || duration <= 0) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const width = rect.width;
+    
+    // Use same padding as MarkerTimeline
+    const TIME_LABEL_PADDING = 50;
+    const usableWidth = Math.max(0, width - (TIME_LABEL_PADDING * 2));
+    
+    // Get current viewport
+    const vpStart = viewportStart;
+    const vpEnd = viewportEnd > 0 ? viewportEnd : duration;
+    const visibleDuration = vpEnd - vpStart;
+    
+    // Convert pixel to time (relative to viewport)
+    const adjustedX = x - TIME_LABEL_PADDING;
+    const clampedX = Math.max(0, Math.min(adjustedX, usableWidth));
+    const time = vpStart + (clampedX / usableWidth) * visibleDuration;
+    
+    setHoverInfo({
+      x: e.clientX - rect.left,
+      time: Math.max(0, Math.min(time, duration)),
+      visible: true
+    });
+  };
+
+  /**
+   * Handle mouse leave - hide hover indicator
+   */
+  const handleMouseLeave = () => {
+    setHoverInfo(prev => ({ ...prev, visible: false }));
+  };
+
+  /**
+   * Handle click on waveform - seek to clicked position
+   */
+  const handleClick = useCallback(async (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current || duration <= 0) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const width = rect.width;
+    
+    // Use same padding as MarkerTimeline
+    const TIME_LABEL_PADDING = 50;
+    const usableWidth = Math.max(0, width - (TIME_LABEL_PADDING * 2));
+    
+    // Get current viewport
+    const vpStart = viewportStart;
+    const vpEnd = viewportEnd > 0 ? viewportEnd : duration;
+    const visibleDuration = vpEnd - vpStart;
+    
+    // Convert pixel to time (relative to viewport)
+    const adjustedX = x - TIME_LABEL_PADDING;
+    const clampedX = Math.max(0, Math.min(adjustedX, usableWidth));
+    const seekTime = vpStart + (clampedX / usableWidth) * visibleDuration;
+    
+    // Clamp to valid range
+    const clampedTime = Math.max(0, Math.min(seekTime, duration));
+    
+    // Seek to the clicked time
+    await seek(clampedTime);
+    
+    // Visual feedback - brief flash
+    setClickFeedback(true);
+    setTimeout(() => setClickFeedback(false), 150);
+    
+    console.log('[Waveform] Seeked to:', formatHoverTime(clampedTime));
+  }, [duration, seek, viewportStart, viewportEnd]);
+
+  /**
+   * Auto-scroll viewport during playback to keep playhead visible
+   */
+  useEffect(() => {
+    if (!isPlaying || zoomLevel <= 1 || duration <= 0) return;
+    
+    const visibleDuration = viewportEnd - viewportStart;
+    
+    // Check if playhead is near the edge of viewport (within 10%)
+    const margin = visibleDuration * 0.1;
+    
+    if (currentTime > viewportEnd - margin) {
+      // Playhead approaching right edge - scroll forward
+      let newStart = currentTime - visibleDuration * 0.2; // Keep playhead at 20% from left
+      let newEnd = newStart + visibleDuration;
+      
+      // Clamp to valid range
+      if (newEnd > duration) {
+        newEnd = duration;
+        newStart = Math.max(0, newEnd - visibleDuration);
+      }
+      
+      setViewport(newStart, newEnd);
+    } else if (currentTime < viewportStart + margin) {
+      // Playhead approaching left edge - scroll backward
+      let newStart = Math.max(0, currentTime - visibleDuration * 0.8);
+      let newEnd = newStart + visibleDuration;
+      
+      setViewport(newStart, newEnd);
+    }
+  }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, setViewport]);
+
+  /**
+   * Initialize viewport when duration changes (new audio loaded)
+   */
+  useEffect(() => {
+    if (duration > 0 && (viewportEnd === 0 || viewportEnd > duration)) {
+      setViewport(0, duration);
+      setZoomLevel(1);
+    }
+  }, [duration, viewportEnd, setViewport, setZoomLevel]);
+
   return (
     <div 
       ref={containerRef}
@@ -583,7 +847,7 @@ const Waveform: React.FC = () => {
         WebkitBackdropFilter: 'blur(20px)',
         border: '1px solid rgba(222, 41, 16, 0.3)',
         borderRadius: 'var(--radius-md)',
-        padding: '1.5rem',
+        padding: '0', // Removed padding - canvas handles all spacing to match MarkerTimeline
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -599,9 +863,74 @@ const Waveform: React.FC = () => {
         style={{
           width: '100%',
           height: '100%',
-          display: 'block'
+          display: 'block',
+          cursor: 'crosshair',
+          filter: clickFeedback ? 'brightness(1.2)' : 'none',
+          transition: 'filter 0.1s ease-out'
         }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleClick}
       />
+      
+      
+      {/* Hover indicator - green vertical line */}
+      {hoverInfo.visible && duration > 0 && (
+        <>
+          {/* Thin green line */}
+          <div
+            style={{
+              position: 'absolute',
+              left: `${hoverInfo.x}px`,
+              top: 0,
+              bottom: 0,
+              width: '1px',
+              background: 'linear-gradient(to bottom, rgba(0, 255, 128, 0.8), rgba(0, 255, 128, 0.3))',
+              pointerEvents: 'none',
+              transform: 'translateX(-0.5px)',
+              boxShadow: '0 0 6px rgba(0, 255, 128, 0.6)',
+              animation: 'pulse 1.5s ease-in-out infinite'
+            }}
+          />
+          
+          {/* Time tooltip */}
+          <div
+            style={{
+              position: 'absolute',
+              left: `${hoverInfo.x}px`,
+              top: '8px',
+              transform: 'translateX(-50%)',
+              background: 'rgba(0, 20, 10, 0.95)',
+              color: '#00FF80',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              fontFamily: 'monospace',
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+              border: '1px solid rgba(0, 255, 128, 0.4)',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 255, 128, 0.2)',
+              animation: 'fadeIn 0.15s ease-out',
+              zIndex: 10
+            }}
+          >
+            {formatHoverTime(hoverInfo.time)}
+          </div>
+        </>
+      )}
+      
+      {/* CSS animations */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.7; }
+          50% { opacity: 1; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(-5px); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+      `}</style>
     </div>
   );
 };

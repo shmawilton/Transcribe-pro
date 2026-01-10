@@ -3,7 +3,7 @@
 // Uses HowlerAudioEngine for reliable Electron support
 
 import { useEffect, useRef, useState } from 'react';
-import { HowlerAudioEngine, getHowlerAudioEngine } from './HowlerAudioEngine';
+import { HowlerAudioEngine, getHowlerAudioEngine, resetHowlerAudioEngine } from './HowlerAudioEngine';
 import { useAppStore } from '../../store/store';
 
 /**
@@ -153,6 +153,24 @@ export function useAudioEngine() {
     return engineRef.current?.getCurrentTime() || 0;
   };
 
+  /**
+   * Unload current audio and reset state
+   */
+  const unloadAudio = () => {
+    console.log('[useAudioEngine] Unloading audio');
+    // Stop playback first
+    if (engineRef.current) {
+      engineRef.current.stop();
+    }
+    // Reset the singleton (this also disposes it)
+    resetHowlerAudioEngine();
+    // Clear our reference
+    engineRef.current = null;
+    // Clear errors
+    setError(null);
+    setIsLoading(false);
+  };
+
   return {
     audioEngine: engineRef.current,
     isLoading,
@@ -169,6 +187,7 @@ export function useAudioEngine() {
     stop,
     seek,
     getCurrentTime,
+    unloadAudio,
     isPlaying: engineRef.current?.getIsPlaying() || false,
   };
 }

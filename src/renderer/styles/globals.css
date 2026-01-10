@@ -50,7 +50,7 @@
   --spacing-xl: 2rem;
   
   /* Layout */
-  --header-height: 3rem;
+  --header-height: 3.5rem;
   --panel-height: 8rem;
   
   /* Glassmorphism blur */
@@ -905,4 +905,83 @@ button, a, [role="button"] {
 .waveform-container:hover .waveform-canvas {
   opacity: 0.95;
   transition: opacity var(--transition-fast);
+}
+
+/* Global Range Slider Styles for Kenyan Theme */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]:focus {
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Playback Panel specific animations */
+@keyframes playbackPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(0, 102, 68, 0.3); }
+  50% { box-shadow: 0 0 25px rgba(0, 102, 68, 0.5); }
+}
+
+/* Welcome screen loading animation */
+@keyframes welcomeFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Glassmorphism utility class */
+.glass-panel {
+  background: rgba(26, 26, 26, 0.8);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Kenyan flag colors utility classes */
+.kenyan-red { color: #DE2910; }
+.kenyan-green { color: #006644; }
+.kenyan-black { color: #000000; }
+.kenyan-white { color: #FFFFFF; }
+
+.kenyan-red-bg { background-color: #DE2910; }
+.kenyan-green-bg { background-color: #006644; }
+.kenyan-black-bg { background-color: #000000; }
+.kenyan-white-bg { background-color: #FFFFFF; }
+
+/* Glow effects */
+.glow-red { box-shadow: 0 0 20px rgba(222, 41, 16, 0.4); }
+.glow-green { box-shadow: 0 0 20px rgba(0, 102, 68, 0.4); }
+
+/* Button hover animations */
+.glass-button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-button:hover {
+  transform: translateY(-2px);
+}
+
+.glass-button:active {
+  transform: translateY(0);
 }

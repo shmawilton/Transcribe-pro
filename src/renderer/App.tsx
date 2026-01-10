@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import MenuBar from './components/ui/MenuBar';
 import Waveform from './components/audio/Waveform';
 import MarkerTimeline from './components/markers/MarkerTimeline';
@@ -7,6 +7,7 @@ import GlobalControlsPanel from './components/controls/GlobalControlsPanel';
 import MarkerPanel from './components/controls/MarkerPanel';
 import SettingsModal from './components/ui/SettingsModal';
 import HelpModal from './components/ui/HelpModal';
+import WelcomeScreen from './components/ui/WelcomeScreen';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import { useAppStore } from './store/store';
 
@@ -14,13 +15,26 @@ const App: React.FC = () => {
   console.log('[App] Component rendering...');
   
   const theme = useAppStore((state) => state.theme);
-  console.log('[App] Theme:', theme);
+  const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
+  const [showWelcome, setShowWelcome] = useState(true);
+  
+  console.log('[App] Theme:', theme, 'Audio loaded:', isAudioLoaded);
 
   // Initialize theme on mount
   useEffect(() => {
     console.log('[App] Setting theme attribute:', theme);
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+  
+  // Show/hide welcome screen based on audio loaded state
+  useEffect(() => {
+    if (isAudioLoaded) {
+      setShowWelcome(false);
+    } else {
+      // Show welcome screen when audio is unloaded (e.g., after Close Audio)
+      setShowWelcome(true);
+    }
+  }, [isAudioLoaded]);
   
   useEffect(() => {
     console.log('[App] Component mounted');
@@ -29,7 +43,20 @@ const App: React.FC = () => {
     };
   }, []);
   
-  console.log('[App] About to render JSX');
+  const handleAudioLoaded = () => {
+    setShowWelcome(false);
+  };
+  
+  console.log('[App] About to render JSX, showWelcome:', showWelcome, 'isAudioLoaded:', isAudioLoaded);
+  
+  // Show welcome screen if no audio is loaded
+  if (showWelcome || !isAudioLoaded) {
+    return (
+      <ErrorBoundary>
+        <WelcomeScreen onAudioLoaded={handleAudioLoaded} />
+      </ErrorBoundary>
+    );
+  }
   
   return (
     <ErrorBoundary>

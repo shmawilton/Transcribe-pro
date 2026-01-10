@@ -479,3 +479,14 @@ export function getHowlerAudioEngine(): HowlerAudioEngine {
   }
   return howlerEngineInstance;
 }
+
+/**
+ * Reset the HowlerAudioEngine singleton (for use when closing audio)
+ */
+export function resetHowlerAudioEngine(): void {
+  if (howlerEngineInstance) {
+    howlerEngineInstance.dispose();
+    howlerEngineInstance = null;
+  }
+  console.log('[HowlerAudioEngine] Singleton reset');
+}
