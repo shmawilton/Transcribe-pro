@@ -1,5 +1,20 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, net } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import { spawn } from 'child_process';
+import { pathToFileURL } from 'url';
+
+// Get FFmpeg path - works with ffmpeg-static
+let ffmpegPath: string;
+try {
+  // ffmpeg-static provides the path to the bundled ffmpeg binary
+  ffmpegPath = require('ffmpeg-static');
+  console.log('[Main] FFmpeg path:', ffmpegPath);
+} catch (e) {
+  console.error('[Main] ffmpeg-static not found, falling back to system ffmpeg');
+  ffmpegPath = 'ffmpeg';
+}
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -69,7 +84,100 @@ const createWindow = (): void => {
   });
 };
 
+/**
+ * Apply pitch shift to audio file using native FFmpeg
+ * Works directly with file paths - no buffer transfer needed!
+ * @param inputPath - Path to the input audio file
+ * @param semitones - Pitch shift in semitones (-2 to +2)
+ * @returns Promise<string> - Path to the pitch-shifted output file
+ */
+async function applyPitchShiftFile(inputPath: string, semitones: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const tempDir = os.tmpdir();
+    const outputPath = path.join(tempDir, `pitch_output_${Date.now()}_${semitones}.mp3`);
+
+    // Calculate pitch shift parameters
+    const pitchFactor = Math.pow(2, semitones / 12);
+    const sampleRate = 44100;
+    const newRate = Math.round(sampleRate * pitchFactor);
+    const tempoFactor = 1 / pitchFactor;
+
+    // Build atempo filter chain (atempo only accepts 0.5-2.0)
+    let atempoFilters: string[] = [];
+    let tempo = tempoFactor;
+    while (tempo < 0.5 || tempo > 2.0) {
+      if (tempo < 0.5) {
+        atempoFilters.push('atempo=0.5');
+        tempo = tempo / 0.5;
+      } else if (tempo > 2.0) {
+        atempoFilters.push('atempo=2.0');
+        tempo = tempo / 2.0;
+      }
+    }
+    atempoFilters.push(`atempo=${tempo.toFixed(6)}`);
+
+    const filterComplex = `asetrate=${newRate},${atempoFilters.join(',')},aresample=${sampleRate}`;
+
+    console.log('[Main] FFmpeg pitch shift:', semitones, 'semitones');
+
+    // Run FFmpeg directly on file paths - FAST!
+    const ffmpeg = spawn(ffmpegPath, [
+      '-i', inputPath,
+      '-af', filterComplex,
+      '-ar', '44100',
+      '-y',
+      outputPath
+    ]);
+
+    let stderr = '';
+    ffmpeg.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    ffmpeg.on('close', (code) => {
+      if (code === 0 && fs.existsSync(outputPath)) {
+        resolve(outputPath);
+      } else {
+        try { fs.unlinkSync(outputPath); } catch (e) {}
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on('error', (err) => {
+      try { fs.unlinkSync(outputPath); } catch (e) {}
+      reject(new Error(`FFmpeg error: ${err.message}`));
+    });
+  });
+}
+
+// Register custom protocol for serving local audio files
+protocol.registerSchemesAsPrivileged([
+  { 
+    scheme: 'audio-file', 
+    privileges: { 
+      standard: true, 
+      secure: true, 
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true
+    } 
+  }
+]);
+
 app.whenReady().then(() => {
+  // Register protocol handler for audio files
+  protocol.handle('audio-file', (request) => {
+    // URL format: audio-file:///C:/path/to/file.mp3 (note triple slash)
+    let filePath = decodeURIComponent(request.url.replace('audio-file:///', ''));
+    // Handle Windows paths
+    if (process.platform === 'win32' && !filePath.includes(':')) {
+      // If colon is missing, it might be parsed incorrectly
+      filePath = filePath.replace(/^([a-zA-Z])\//, '$1:/');
+    }
+    console.log('[Main] Serving audio file:', filePath);
+    return net.fetch(pathToFileURL(filePath).toString());
+  });
+
   createWindow();
 
   // IPC handlers for window controls
@@ -89,6 +197,76 @@ app.whenReady().then(() => {
     }
   });
 
+  // IPC handler for pitch shifting - FILE PATH based (fast, no data transfer)
+  ipcMain.handle('pitch-shift-file', async (_event, inputFilePath: string, semitones: number) => {
+    try {
+      console.log('[Main] Pitch shift request:', semitones, 'semitones, file:', inputFilePath);
+      
+      if (semitones === 0) {
+        return inputFilePath; // No change needed
+      }
+
+      const outputPath = await applyPitchShiftFile(inputFilePath, semitones);
+      console.log('[Main] Pitch shift complete:', outputPath);
+      return outputPath;
+    } catch (error) {
+      console.error('[Main] Pitch shift error:', error);
+      throw error;
+    }
+  });
+
+  // IPC handler to save audio data to temp file (only called once per file load)
+  ipcMain.handle('save-temp-audio', async (_event, audioData: number[], fileName: string) => {
+    try {
+      const tempDir = os.tmpdir();
+      const ext = path.extname(fileName) || '.mp3';
+      const tempPath = path.join(tempDir, `transcribe_original_${Date.now()}${ext}`);
+      
+      fs.writeFileSync(tempPath, Buffer.from(audioData));
+      console.log('[Main] Saved temp audio:', tempPath, 'size:', audioData.length);
+      
+      return tempPath;
+    } catch (error) {
+      console.error('[Main] Save temp audio error:', error);
+      throw error;
+    }
+  });
+
+  // IPC handler to read processed file back
+  ipcMain.handle('read-audio-file', async (_event, filePath: string) => {
+    try {
+      const data = fs.readFileSync(filePath);
+      return Array.from(data);
+    } catch (error) {
+      console.error('[Main] Read audio file error:', error);
+      throw error;
+    }
+  });
+
+  // Cleanup temp files
+  ipcMain.handle('cleanup-temp-file', async (_event, filePath: string) => {
+    try {
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  });
+
+  // Check if FFmpeg is available
+  ipcMain.handle('check-ffmpeg', async () => {
+    return new Promise((resolve) => {
+      const ffmpeg = spawn(ffmpegPath, ['-version']);
+      ffmpeg.on('close', (code) => {
+        resolve(code === 0);
+      });
+      ffmpeg.on('error', () => {
+        resolve(false);
+      });
+    });
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -101,4 +279,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-

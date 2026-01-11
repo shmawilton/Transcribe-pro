@@ -565,7 +565,7 @@ export class AudioEngine {
   }
 
   /**
-   * Seek to a specific time position
+   * Seek to a specific time position - preserves playback state
    */
   public async seek(time: number): Promise<void> {
     if (!this.audioBuffer) {
@@ -576,22 +576,38 @@ export class AudioEngine {
     const seekTime = Math.max(0, Math.min(time, duration));
     const wasPlaying = this.isPlaying;
 
-    // If playing, stop first
-    if (wasPlaying && this.player) {
-      this.player.stop();
-      this.stopPositionTracking();
-    }
-
-    // Update position
+    // Update position first
     this.playbackStartPosition = seekTime;
     useAppStore.getState().setCurrentTime(seekTime);
 
-    // If was playing, resume from new position
-    if (wasPlaying) {
-      await this.play();
+    // If playing, seek without stopping (Tone.Player supports seeking during playback)
+    if (wasPlaying && this.player && this.player.state === 'started') {
+      // Tone.Player can seek while playing - just restart from new position
+      try {
+        this.player.stop();
+        this.stopPositionTracking();
+        
+        // Immediately restart from new position
+        this.playbackStartTime = Tone.now();
+        this.player.start(Tone.now(), seekTime);
+        
+        // Restart position tracking
+        this.startPositionTracking();
+        
+        console.log('[AudioEngine] Seeked to', seekTime, 'while playing - playback continued');
+      } catch (error) {
+        console.error('[AudioEngine] Error seeking during playback:', error);
+        // Fallback: stop and restart
+        if (this.player) {
+          this.player.stop();
+        }
+        this.stopPositionTracking();
+        await this.play();
+      }
+    } else {
+      // Not playing, just update position
+      console.log('[AudioEngine] Seeked to', seekTime, '(not playing)');
     }
-
-    console.log('[AudioEngine] Seeked to', seekTime);
   }
 
   /**
@@ -688,16 +704,55 @@ export class AudioEngine {
 
   /**
    * Set pitch shift in semitones - independent of speed
+   * Limited to ±2 semitones for quality preservation
+   * Supports fractional values (e.g., 0.6, 1.3) for fine control
+   * Does NOT interrupt playback - pitch changes smoothly during playback
    */
   public setPitch(semitones: number): void {
-    const clampedPitch = Math.max(-12, Math.min(12, semitones));
+    // Clamp to ±2 semitones, allow fractional values (round to 0.1 precision)
+    const clampedPitch = Math.max(-2, Math.min(2, Math.round(semitones * 10) / 10));
     this.currentPitch = clampedPitch;
 
-    if (this.pitchShift) {
-      this.pitchShift.pitch = clampedPitch;
+    if (!this.pitchShift) {
+      console.warn('[AudioEngine] PitchShift node not initialized. Cannot set pitch.');
+      // Update store anyway so UI reflects the change
+      useAppStore.getState().setPitch(clampedPitch);
+      return;
     }
 
-    console.log('[AudioEngine] Pitch set to', clampedPitch, 'semitones');
+    try {
+      // Ensure Tone.js context is running (only if suspended)
+      if (Tone.context.state === 'suspended') {
+        console.log('[AudioEngine] Tone.js context suspended, attempting to start...');
+        Tone.start().catch(() => {
+          // Ignore errors - might already be starting
+        });
+      }
+
+      // Apply pitch change smoothly - Tone.js PitchShift supports real-time changes
+      // This does NOT stop playback - pitch changes smoothly during playback
+      this.pitchShift.pitch = clampedPitch;
+      
+      console.log('[AudioEngine] Pitch set to', clampedPitch, 'semitones (playback continues)', {
+        pitchShiftExists: !!this.pitchShift,
+        pitchShiftPitch: this.pitchShift.pitch,
+        isPlaying: this.isPlaying,
+        playerConnected: !!this.player
+      });
+    } catch (error) {
+      console.error('[AudioEngine] Error setting pitch:', error);
+    }
+
+    // Update store with new pitch value
+    useAppStore.getState().setPitch(clampedPitch);
+  }
+
+  /**
+   * Reset pitch to original (0 semitones)
+   */
+  public resetPitch(): void {
+    this.setPitch(0);
+    console.log('[AudioEngine] Pitch reset to 0');
   }
 
   /**

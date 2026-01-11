@@ -194,21 +194,82 @@ const PlaybackPanel: React.FC = () => {
         animation: 'backgroundPulse 4s ease-in-out infinite alternate'
       }} />
 
-      {/* Title */}
+      {/* Animated File Name */}
       <div style={{ 
-        color: textColor, 
-        fontSize: '1.1rem', 
-        fontWeight: '700',
-        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
         flexShrink: 0,
-        letterSpacing: '0.05em',
-        textShadow: isLightMode ? 'none' : `0 0 10px ${KENYAN_RED}60`,
         position: 'relative',
         zIndex: 1,
-        fontFamily: HANDWRITTEN_FONT
+        overflow: 'hidden',
+        maxWidth: '100%',
+        padding: '0.25rem 0.5rem',
+        borderRadius: '8px',
+        backgroundImage: isPlaying 
+          ? `linear-gradient(90deg, ${KENYAN_RED}20, ${KENYAN_GREEN}20, ${KENYAN_RED}20)`
+          : 'none',
+        backgroundColor: isPlaying ? 'transparent' : 'transparent',
+        backgroundSize: isPlaying ? '200% 100%' : 'auto',
+        animation: isPlaying ? 'gradientSlide 3s ease-in-out infinite' : 'none'
       }}>
-        Playback Controls
+        {/* File name with marquee effect for long names */}
+        <div style={{
+          color: isPlaying 
+            ? KENYAN_GREEN
+            : textColor,
+          fontSize: '0.85rem',
+          fontWeight: '600',
+          textAlign: 'center',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          maxWidth: '200px',
+          fontFamily: HANDWRITTEN_FONT,
+          textShadow: isPlaying 
+            ? `0 0 10px ${KENYAN_GREEN}80, 0 0 20px ${KENYAN_GREEN}40`
+            : 'none',
+          animation: isPlaying ? 'textGlow 2s ease-in-out infinite' : 'none',
+          transition: 'all 0.3s ease'
+        }}>
+          {audio.file?.name || 'No audio loaded'}
+        </div>
+        
+        {/* Animated equalizer bars when playing */}
+        {isPlaying && (
+          <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', height: '14px' }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                style={{
+                  width: '3px',
+                  background: `linear-gradient(to top, ${KENYAN_RED}, ${KENYAN_GREEN})`,
+                  borderRadius: '2px',
+                  animation: `equalizer 0.${4 + i}s ease-in-out infinite alternate`,
+                  animationDelay: `${i * 0.1}s`
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
+      
+      {/* CSS Animations for file name */}
+      <style>{`
+        @keyframes gradientSlide {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        @keyframes textGlow {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+        @keyframes equalizer {
+          0% { height: 4px; }
+          100% { height: 14px; }
+        }
+      `}</style>
 
       {/* Time Progress Display - Now at top */}
       <div style={{

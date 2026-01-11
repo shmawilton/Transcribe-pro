@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/store';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
+import PitchControl from '../controls/PitchControl';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -180,6 +181,9 @@ interface DropdownItem {
 const MenuBar: React.FC = () => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [pitch, setPitch] = useState(0);
+  const [volume, setVolume] = useState(0);
+  const [isPitchAnimating, setIsPitchAnimating] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   
   // Store state
@@ -190,10 +194,21 @@ const MenuBar: React.FC = () => {
   const openHelpModal = useAppStore((state) => state.openHelpModal);
   
   // Audio engine
-  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext } = useAudioEngine();
+  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, setVolume: setAudioVolume, resetPitch } = useAudioEngine();
   
   // Project reset
   const resetProject = useAppStore((state) => state.resetProject);
+  
+  // Get pitch from store
+  const storedPitch = useAppStore((state) => state.globalControls.pitch);
+  const storePitch = useAppStore((state) => state.setPitch);
+  
+  // Sync pitch with store
+  useEffect(() => {
+    if (storedPitch !== undefined) {
+      setPitch(storedPitch);
+    }
+  }, [storedPitch]);
   
   // Zoom controls state
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
@@ -331,6 +346,34 @@ const MenuBar: React.FC = () => {
   const zoomColor = getZoomColor();
   const zoomPercent = ((zoomLevel - 1) / 7) * 100;
 
+  // Handle pitch change (continuous, supports fractional values like 0.6)
+  const handlePitchChange = (newPitch: number) => {
+    if (!isAudioLoaded) return;
+    
+    // Round to 0.1 precision for smooth continuous control
+    const clampedPitch = Math.max(-2, Math.min(2, Math.round(newPitch * 10) / 10));
+    setPitch(clampedPitch);
+    setAudioPitch(clampedPitch);
+    storePitch(clampedPitch);
+    
+    setIsPitchAnimating(true);
+    setTimeout(() => setIsPitchAnimating(false), 400);
+  };
+
+  // Handle volume change
+  const handleVolumeChange = (newVolume: number) => {
+    const clampedVolume = Math.max(-60, Math.min(6, newVolume));
+    setVolume(clampedVolume);
+    setAudioVolume(clampedVolume);
+  };
+
+  // Get pitch color
+  const getPitchColor = (value: number): string => {
+    if (value === 0) return isLightMode ? '#666' : '#aaa';
+    if (value > 0) return KENYAN_GREEN;
+    return KENYAN_RED;
+  };
+
   // Menu items with their dropdown content
   const menuItems = [
     { 
@@ -361,27 +404,16 @@ const MenuBar: React.FC = () => {
       ] as DropdownItem[]
     },
     { 
-      id: 'view', 
-      label: 'View', 
-      icon: ViewIcon, 
-      color: 'var(--text-primary)',
-      items: [
-        { id: 'theme', label: isLightMode ? 'Dark Mode' : 'Light Mode', icon: isLightMode ? MoonIcon : ThemeIcon, action: () => { toggleTheme(); setOpenMenu(null); }, checked: isLightMode },
-        { id: 'divider1', label: '', divider: true },
-        { id: 'zoomin', label: 'Zoom In', icon: ZoomInIcon, shortcut: 'Ctrl++', action: handleZoomIn },
-        { id: 'zoomout', label: 'Zoom Out', icon: ZoomOutIcon, shortcut: 'Ctrl+-', action: handleZoomOut },
-        { id: 'zoomreset', label: 'Reset Zoom', shortcut: 'Ctrl+0', action: handleZoomReset },
-      ] as DropdownItem[]
-    },
-    { 
-      id: 'window', 
-      label: 'Window', 
-      icon: WindowIcon, 
-      color: 'var(--text-primary)',
-      items: [
-        { id: 'fullscreen', label: 'Fullscreen', icon: FullscreenIcon, shortcut: 'F11', action: () => document.documentElement.requestFullscreen?.() },
-        { id: 'minimize', label: 'Minimize', icon: MinimizeIcon, action: () => window.electronAPI?.minimizeWindow?.() },
-      ] as DropdownItem[]
+      id: 'effects', 
+      label: 'Audio Effects', 
+      icon: () => (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+      ), 
+      color: KENYAN_GREEN,
+      items: [] as DropdownItem[] // Will be populated dynamically
     },
     { 
       id: 'help', 
@@ -395,12 +427,38 @@ const MenuBar: React.FC = () => {
       ] as DropdownItem[]
     },
   ];
+  
+  // Build Audio Effects menu dynamically
+  const effectsMenu = menuItems.find(m => m.id === 'effects');
+  if (effectsMenu) {
+    effectsMenu.items = [
+      {
+        id: 'pitch-control',
+        label: 'Pitch Control',
+        action: undefined,
+        customRender: true,
+      },
+      { id: 'divider1', label: '', divider: true },
+      {
+        id: 'volume-header',
+        label: 'Volume',
+        action: undefined,
+        customRender: true,
+      },
+      {
+        id: 'volume-control',
+        label: '',
+        action: undefined,
+        customRender: true,
+      },
+    ] as any[];
+  }
 
   const iconButtons = [
     { id: 'undo', icon: UndoIcon, label: 'Undo', action: () => console.log('Undo') },
     { id: 'redo', icon: RedoIcon, label: 'Redo', action: () => console.log('Redo') },
-    { id: 'settings', icon: SettingsIcon, label: 'Settings', action: () => openSettingsModal() },
     { id: 'theme', icon: isLightMode ? MoonIcon : ThemeIcon, label: isLightMode ? 'Dark Mode' : 'Light Mode', action: () => toggleTheme() },
+    { id: 'settings', icon: SettingsIcon, label: 'Settings', action: () => openSettingsModal() },
   ];
 
   // Theme-aware colors
@@ -529,6 +587,154 @@ const MenuBar: React.FC = () => {
                         />
                       );
                     }
+                    
+                    // Custom render for Audio Effects controls
+                    if ((dropItem as any).customRender) {
+                      if (dropItem.id === 'pitch-control') {
+                        return (
+                          <div key={dropItem.id}>
+                            <PitchControl 
+                              onPitchChange={handlePitchChange}
+                              isAudioLoaded={isAudioLoaded}
+                            />
+                          </div>
+                        );
+                      }
+                      
+                      if (dropItem.id === 'volume-header') {
+                        return (
+                          <div key={dropItem.id} style={{ 
+                            padding: '12px 16px', 
+                            background: `linear-gradient(135deg, ${KENYAN_GREEN}15, ${KENYAN_GREEN}08)`,
+                            backdropFilter: 'blur(10px)',
+                            borderTop: `2px solid ${KENYAN_GREEN}30`,
+                            marginTop: '8px',
+                            borderRadius: '12px 12px 0 0',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '10px', 
+                              color: textColor, 
+                              fontWeight: '700', 
+                              fontSize: '1rem',
+                              position: 'relative',
+                              zIndex: 1
+                            }}>
+                              <div style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                background: `linear-gradient(135deg, ${KENYAN_GREEN}40, ${KENYAN_GREEN}20)`,
+                                backdropFilter: 'blur(8px)',
+                                border: `2px solid ${KENYAN_GREEN}60`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: `0 0 20px ${KENYAN_GREEN}40`
+                              }}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2.5">
+                                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                                  {volume > -30 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>}
+                                  {volume > -10 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>}
+                                </svg>
+                              </div>
+                              <span style={{ flex: 1 }}>Volume</span>
+                              <span style={{ 
+                                fontSize: '0.9rem', 
+                                fontWeight: '700',
+                                color: volume === 0 ? textColor : (volume > 0 ? KENYAN_GREEN : KENYAN_RED),
+                                textShadow: volume !== 0 ? `0 0 10px ${volume > 0 ? KENYAN_GREEN : KENYAN_RED}50` : 'none'
+                              }}>
+                                {volume > 0 ? '+' : ''}{volume} dB
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      if (dropItem.id === 'volume-control') {
+                        const volumePercent = ((volume + 60) / 66) * 100;
+                        return (
+                          <div key={dropItem.id} style={{ 
+                            padding: '16px', 
+                            minWidth: '320px',
+                            background: `linear-gradient(145deg, ${isLightMode ? 'rgba(255,255,255,0.6)' : 'rgba(20,20,25,0.8)'}, ${isLightMode ? 'rgba(250,250,250,0.4)' : 'rgba(15,15,20,0.6)'})`,
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                            borderRadius: '0 0 12px 12px',
+                            border: `1px solid ${KENYAN_GREEN}20`,
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '10px',
+                              position: 'relative',
+                              zIndex: 1
+                            }}>
+                              <span style={{ 
+                                fontSize: '0.8rem', 
+                                color: textColor, 
+                                opacity: 0.6, 
+                                minWidth: '40px',
+                                fontWeight: '600'
+                              }}>
+                                -60
+                              </span>
+                              <div style={{ flex: 1, position: 'relative', height: '8px' }}>
+                                <input
+                                  type="range"
+                                  min="-60"
+                                  max="6"
+                                  step="1"
+                                  value={volume}
+                                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                                  disabled={!isAudioLoaded}
+                                  style={{
+                                    width: '100%',
+                                    height: '8px',
+                                    borderRadius: '4px',
+                                    background: `linear-gradient(to right, 
+                                      ${KENYAN_GREEN} 0%, 
+                                      ${KENYAN_GREEN} ${Math.max(0, volumePercent - 1)}%, 
+                                      ${isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)'} ${Math.max(0, volumePercent - 1)}%, 
+                                      ${isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)'} ${Math.min(100, volumePercent + 1)}%, 
+                                      ${KENYAN_GREEN} ${Math.min(100, volumePercent + 1)}%, 
+                                      ${KENYAN_GREEN} 100%)`,
+                                    outline: 'none',
+                                    cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+                                    WebkitAppearance: 'none',
+                                    appearance: 'none',
+                                    opacity: isAudioLoaded ? 1 : 0.4,
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0
+                                  }}
+                                  className="volume-slider"
+                                />
+                              </div>
+                              <span style={{ 
+                                fontSize: '0.8rem', 
+                                color: textColor, 
+                                opacity: 0.6, 
+                                minWidth: '30px',
+                                fontWeight: '600'
+                              }}>
+                                +6
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return null;
+                    }
+                    
                     const DropIcon = dropItem.icon;
                     return (
                       <button
@@ -779,6 +985,109 @@ const MenuBar: React.FC = () => {
             opacity: 1;
             transform: translateY(0);
           }
+        }
+        
+        @keyframes pitchPulse {
+          0% { transform: scale(1); box-shadow: 0 0 0 rgba(0, 102, 68, 0); }
+          50% { transform: scale(1.05); box-shadow: 0 0 25px rgba(0, 102, 68, 0.5); }
+          100% { transform: scale(1); box-shadow: 0 0 0 rgba(0, 102, 68, 0); }
+        }
+        
+        @keyframes bubbleFloat {
+          0%, 100% { transform: translateY(0) translateX(0); opacity: 0.6; }
+          50% { transform: translateY(-20px) translateX(10px); opacity: 0.8; }
+        }
+        
+        @keyframes iconPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.2); }
+        }
+        
+        @keyframes shine {
+          0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+          100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+        
+        /* Pitch Slider Thumb - Properly aligned */
+        .pitch-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, ${pitch > 0 ? KENYAN_GREEN : pitch < 0 ? KENYAN_RED : (isLightMode ? '#666' : '#aaa')}, ${pitch > 0 ? KENYAN_GREEN + 'CC' : pitch < 0 ? KENYAN_RED + 'CC' : (isLightMode ? '#666CC' : '#aaaCC')});
+          cursor: pointer;
+          border: 3px solid ${isLightMode ? '#FFFFFF' : '#1a1a1a'};
+          box-shadow: 0 0 15px ${pitch > 0 ? KENYAN_GREEN + '80' : pitch < 0 ? KENYAN_RED + '80' : 'rgba(0,0,0,0.3)'}, 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+          transition: all 0.2s ease;
+          position: relative;
+          top: -7px;
+        }
+        
+        .pitch-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.2);
+          box-shadow: 0 0 20px ${pitch > 0 ? KENYAN_GREEN : pitch < 0 ? KENYAN_RED : 'rgba(0,0,0,0.5)'}, 0 6px 15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4);
+        }
+        
+        .pitch-slider::-webkit-slider-thumb:active {
+          transform: scale(1.15);
+        }
+        
+        .pitch-slider::-moz-range-thumb {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, ${getPitchColor(pitch)}, ${getPitchColor(pitch)}CC);
+          cursor: pointer;
+          border: 3px solid ${isLightMode ? '#FFFFFF' : '#1a1a1a'};
+          box-shadow: 0 0 15px ${getPitchColor(pitch)}80, 0 4px 10px rgba(0,0,0,0.4);
+        }
+        
+        /* Volume Slider Thumb - Properly aligned */
+        .volume-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_GREEN}CC);
+          cursor: pointer;
+          border: 3px solid ${isLightMode ? '#FFFFFF' : '#1a1a1a'};
+          box-shadow: 0 0 15px ${KENYAN_GREEN}80, 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+          transition: all 0.2s ease;
+          position: relative;
+          top: -7px;
+        }
+        
+        .volume-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.2);
+          box-shadow: 0 0 20px ${KENYAN_GREEN}, 0 6px 15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4);
+        }
+        
+        .volume-slider::-webkit-slider-thumb:active {
+          transform: scale(1.15);
+        }
+        
+        .volume-slider::-moz-range-thumb {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_GREEN}CC);
+          cursor: pointer;
+          border: 3px solid ${isLightMode ? '#FFFFFF' : '#1a1a1a'};
+          box-shadow: 0 0 15px ${KENYAN_GREEN}80, 0 4px 10px rgba(0,0,0,0.4);
+        }
+        
+        .menu-bar input[type="range"]:disabled::-webkit-slider-thumb {
+          background: ${isLightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
+          box-shadow: none;
+          cursor: not-allowed;
+        }
+        
+        .menu-bar input[type="range"]:disabled::-moz-range-thumb {
+          background: ${isLightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
+          box-shadow: none;
+          cursor: not-allowed;
         }
       `}</style>
     </div>

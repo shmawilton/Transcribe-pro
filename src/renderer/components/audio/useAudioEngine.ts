@@ -27,6 +27,7 @@ interface IAudioEngine {
   resumeAudioContext(): Promise<void>;
   setPlaybackRate?(rate: number): void;
   setPitch?(semitones: number): void;
+  resetPitch?(): void;
   setVolume?(db: number): void;
   getPlaybackRate?(): number;
   getPitch?(): number;
@@ -44,26 +45,36 @@ interface IAudioEngine {
  * @returns AudioEngine instance and helper functions
  */
 export function useAudioEngine() {
-  console.log('[useAudioEngine] Hook called, isElectron:', isElectron);
-  
   const engineRef = useRef<IAudioEngine | null>(null);
+  const initializedRef = useRef(false);
+  
   // Use global store for loading state (shared across all components)
   const isLoading = useAppStore((state) => state.audio.isLoading);
   const setIsLoading = useAppStore((state) => state.setIsLoading);
   const [error, setError] = useState<string | null>(null);
   
-  // Get store actions
+  // Get store actions (these are stable references, won't cause re-renders)
   const setAudioFile = useAppStore((state) => state.setAudioFile);
   const setDuration = useAppStore((state) => state.setDuration);
   const setAudioBuffer = useAppStore((state) => state.setAudioBuffer);
   
-  // Get reactive state from store
-  const audio = useAppStore((state) => state.audio);
-  const isAudioLoaded = audio.isLoaded;
-  const isPlaying = audio.isPlaying;
+  // Get reactive state from store - use selective subscriptions to avoid re-renders on currentTime updates
+  const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
+  const isPlaying = useAppStore((state) => state.audio.isPlaying);
+  
+  // Only log once on first render
+  if (!initializedRef.current) {
+    console.log('[useAudioEngine] Hook called, isElectron:', isElectron);
+    initializedRef.current = true;
+  }
 
-  // Initialize appropriate engine on mount
+  // Initialize appropriate engine on mount - only once
   useEffect(() => {
+    // Prevent multiple initializations
+    if (engineRef.current) {
+      return;
+    }
+    
     if (isElectron) {
       console.log('[useAudioEngine] Initializing HowlerAudioEngine for Electron');
       try {
@@ -71,6 +82,7 @@ export function useAudioEngine() {
         console.log('[useAudioEngine] HowlerAudioEngine initialized:', engineRef.current ? 'success' : 'failed');
       } catch (err) {
         console.error('[useAudioEngine] Failed to initialize HowlerAudioEngine:', err);
+        setError(err instanceof Error ? err.message : 'Failed to initialize audio engine');
       }
     } else {
       console.log('[useAudioEngine] Initializing AudioEngine with Tone.js for browser');
@@ -79,16 +91,17 @@ export function useAudioEngine() {
         console.log('[useAudioEngine] AudioEngine initialized:', engineRef.current ? 'success' : 'failed');
       } catch (err) {
         console.error('[useAudioEngine] Failed to initialize AudioEngine:', err);
+        setError(err instanceof Error ? err.message : 'Failed to initialize audio engine');
       }
     }
 
     // Cleanup on unmount
     return () => {
-      console.log('[useAudioEngine] Cleaning up');
       // Don't dispose the singleton, just clear reference
+      // The singleton will be reused on next mount
       engineRef.current = null;
     };
-  }, []);
+  }, [isElectron]); // Only depend on isElectron which is constant
 
   /**
    * Load an audio file
@@ -220,15 +233,26 @@ export function useAudioEngine() {
   }, []);
 
   /**
-   * Set pitch shift in semitones - independent of speed (Tone.js only)
-   * Not available in Electron (Howler.js doesn't support independent pitch)
-   * @param semitones - Pitch shift (-12 to +12 semitones)
+   * Set pitch shift in semitones - independent of speed
+   * Works in both browser (Tone.js) and Electron (Howler + Tone.js)
+   * @param semitones - Pitch shift (-2 to +2 semitones)
    */
   const setPitch = useCallback((semitones: number) => {
     if (engineRef.current && engineRef.current.setPitch) {
       engineRef.current.setPitch(semitones);
     } else {
-      console.log('[useAudioEngine] setPitch not available in Electron (Howler)');
+      console.warn('[useAudioEngine] setPitch not available');
+    }
+  }, []);
+
+  /**
+   * Reset pitch to original (0 semitones)
+   */
+  const resetPitch = useCallback(() => {
+    if (engineRef.current && (engineRef.current as any).resetPitch) {
+      (engineRef.current as any).resetPitch();
+    } else if (engineRef.current && engineRef.current.setPitch) {
+      engineRef.current.setPitch(0);
     }
   }, []);
 
@@ -309,6 +333,7 @@ export function useAudioEngine() {
     // Speed/Pitch control (new Tone.js features)
     setPlaybackRate,
     setPitch,
+    resetPitch,
     setVolume,
     getPlaybackRate,
     getPitch,

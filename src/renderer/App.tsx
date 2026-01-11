@@ -3,7 +3,6 @@ import MenuBar from './components/ui/MenuBar';
 import Waveform from './components/audio/Waveform';
 import MarkerTimeline from './components/markers/MarkerTimeline';
 import PlaybackPanel from './components/controls/PlaybackPanel';
-import GlobalControlsPanel from './components/controls/GlobalControlsPanel';
 import MarkerPanel from './components/controls/MarkerPanel';
 import SettingsModal from './components/ui/SettingsModal';
 import HelpModal from './components/ui/HelpModal';
@@ -17,21 +16,17 @@ const KENYAN_RED = '#DE2910';
 const KENYAN_GREEN = '#006644';
 
 const App: React.FC = () => {
-  console.log('[App] Component rendering...');
-  
   const theme = useAppStore((state) => state.theme);
   const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
   const isLoading = useAppStore((state) => state.audio.isLoading); // Use global store
   const [showWelcome, setShowWelcome] = useState(true);
   
   // Initialize audio engine (but don't use its local loading state)
+  // This hook should not cause re-renders
   useAudioEngine();
-  
-  console.log('[App] Theme:', theme, 'Audio loaded:', isAudioLoaded, 'Loading:', isLoading);
 
   // Initialize theme on mount
   useEffect(() => {
-    console.log('[App] Setting theme attribute:', theme);
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
   
@@ -48,18 +43,9 @@ const App: React.FC = () => {
     // When isLoading is true, don't change showWelcome - let render logic handle it
   }, [isAudioLoaded, isLoading]);
   
-  useEffect(() => {
-    console.log('[App] Component mounted');
-    return () => {
-      console.log('[App] Component unmounting');
-    };
-  }, []);
-  
   const handleAudioLoaded = () => {
     setShowWelcome(false);
   };
-  
-  console.log('[App] About to render JSX, showWelcome:', showWelcome, 'isAudioLoaded:', isAudioLoaded, 'isLoading:', isLoading);
   
   // Loading overlay component with blur background
   const LoadingOverlay = ({ withBlur = false }: { withBlur?: boolean }) => (
@@ -233,16 +219,11 @@ const App: React.FC = () => {
             </ErrorBoundary>
           </div>
 
-          {/* Three Panels Section */}
+          {/* Two Panels Section */}
           <div className="panels-section">
             <div className="panel">
               <ErrorBoundary>
                 <PlaybackPanel />
-              </ErrorBoundary>
-            </div>
-            <div className="panel">
-              <ErrorBoundary>
-                <GlobalControlsPanel />
               </ErrorBoundary>
             </div>
             <div className="panel">

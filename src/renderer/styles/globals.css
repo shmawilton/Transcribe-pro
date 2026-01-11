@@ -201,7 +201,7 @@ html, body {
   flex: 0 0 35%;
   max-height: 35%;
   display: grid;
-  grid-template-columns: 50% 25% 25%;
+  grid-template-columns: 1fr 1fr;
   gap: var(--spacing-md);
   padding: 0;
   background: transparent;
