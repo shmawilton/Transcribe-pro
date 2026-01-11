@@ -15,6 +15,7 @@ export interface AudioState {
   currentTime: number; // in seconds
   isPlaying: boolean;
   isLoaded: boolean;
+  isLoading: boolean; // true while audio is being loaded/decoded
   sampleRate?: number;
   buffer?: AudioBuffer;
 }

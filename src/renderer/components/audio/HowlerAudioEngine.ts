@@ -1,19 +1,59 @@
 // HowlerAudioEngine.ts - Reliable audio engine using Howler.js
 // Works reliably in Electron desktop apps
+// Uses ffmpeg.wasm for waveform decoding in Electron (avoids Web Audio API crashes)
 
 import { Howl } from 'howler';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { useAppStore } from '../../store/store';
+
+// Global ffmpeg instance (singleton to avoid reloading)
+let globalFFmpeg: FFmpeg | null = null;
+let ffmpegLoadPromise: Promise<void> | null = null;
+let ffmpegLoaded = false;
+
+/**
+ * Pre-load ffmpeg globally (called once on app start)
+ */
+async function preloadFFmpeg(): Promise<void> {
+  const isElectron = !!(window as any).electronAPI;
+  if (!isElectron || ffmpegLoaded || ffmpegLoadPromise) return;
+  
+  ffmpegLoadPromise = (async () => {
+    try {
+      console.log('[FFmpeg] Pre-loading ffmpeg.wasm globally...');
+      globalFFmpeg = new FFmpeg();
+      
+      await globalFFmpeg.load({
+        coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
+        wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
+      });
+      
+      ffmpegLoaded = true;
+      console.log('[FFmpeg] ✅ ffmpeg.wasm loaded globally');
+    } catch (e) {
+      console.warn('[FFmpeg] Failed to pre-load:', e);
+      ffmpegLoadPromise = null; // Allow retry
+    }
+  })();
+  
+  return ffmpegLoadPromise;
+}
+
+// Start loading ffmpeg immediately in Electron
+if (typeof window !== 'undefined') {
+  preloadFFmpeg();
+}
 
 /**
  * HowlerAudioEngine - Uses Howler.js for reliable cross-platform audio
- * 
- * This is much more reliable than raw Web Audio API in Electron
+ * Uses pre-loaded global ffmpeg for waveform decoding
  */
 export class HowlerAudioEngine {
   private howl: Howl | null = null;
   private blobUrl: string | null = null;
   private timeUpdateInterval: number | null = null;
   private isInitialized: boolean = true;
+  private audioBuffer: AudioBuffer | null = null;
 
   constructor() {
     console.log('[HowlerAudioEngine] Initialized');
@@ -63,6 +103,10 @@ export class HowlerAudioEngine {
       // Load with Howler
       console.log('[HowlerAudioEngine] Step 3: Loading with Howler.js');
       
+      // Store duration for later use
+      let audioDuration = 0;
+      
+      // First, wait for Howler to load
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Audio loading timed out after 30 seconds'));
@@ -77,31 +121,15 @@ export class HowlerAudioEngine {
             clearTimeout(timeout);
             console.log('[HowlerAudioEngine] ✅ Audio loaded successfully!');
             
-            const duration = this.howl!.duration();
-            console.log('[HowlerAudioEngine] Duration:', duration);
+            audioDuration = this.howl!.duration();
+            console.log('[HowlerAudioEngine] Duration:', audioDuration);
             
             // Update store with duration
-            useAppStore.getState().setDuration(duration);
+            useAppStore.getState().setDuration(audioDuration);
             
-            // Decode audio for waveform AFTER Howler loads
-            // Check if running in Electron - decodeAudioData crashes Electron's renderer
-            const isElectron = !!(window as any).electronAPI || !!(window as any).electron || 
-                               (typeof process !== 'undefined' && process.versions && process.versions.electron);
-            
-            if (isElectron) {
-              console.log('[HowlerAudioEngine] Electron detected - using Howler analyser for waveform');
-              // In Electron, extract waveform data from Howler's audio node
-              setTimeout(() => {
-                this.extractWaveformFromHowler(duration);
-              }, 200);
-            } else {
-              // In browser, use standard Web Audio API decoding
-              setTimeout(() => {
-                this.decodeAudioForWaveform(savedArrayBuffer).catch((e) => {
-                  console.warn('[HowlerAudioEngine] Waveform decode failed:', e);
-                });
-              }, 100);
-            }
+            // Reset viewport when loading new audio
+            useAppStore.getState().setViewport(0, audioDuration);
+            useAppStore.getState().setZoomLevel(1);
             
             resolve();
           },
@@ -128,7 +156,21 @@ export class HowlerAudioEngine {
         });
       });
 
-      console.log('[HowlerAudioEngine] ===== LOAD COMPLETE =====');
+      console.log('[HowlerAudioEngine] Howler loaded, now decoding waveform...');
+      
+      // NOW decode the waveform - this must complete BEFORE we return
+      // This keeps loading state true until everything is ready
+      try {
+        console.log('[HowlerAudioEngine] Decoding audio for accurate waveform...');
+        await this.decodeAudioForWaveform(savedArrayBuffer);
+        console.log('[HowlerAudioEngine] ✅ Waveform decode successful!');
+      } catch (e) {
+        console.error('[HowlerAudioEngine] ❌ Waveform decode failed:', e);
+        // Don't throw - audio can still play, just no waveform
+        // The UI should handle the case of missing waveform data
+      }
+
+      console.log('[HowlerAudioEngine] ===== LOAD COMPLETE (including waveform) =====');
     } catch (error) {
       console.error('[HowlerAudioEngine] Load failed:', error);
       
@@ -164,41 +206,235 @@ export class HowlerAudioEngine {
   /**
    * Decode audio file and create AudioBuffer with actual audio data
    * This is needed for waveform visualization
-   * Uses a downsampled approach for faster processing
+   * 
+   * Uses ffmpeg.wasm for Electron (bypasses Web Audio API crashes)
+   * Uses regular Web Audio API for browser
    */
   private async decodeAudioForWaveform(arrayBuffer: ArrayBuffer): Promise<void> {
-    let audioContext: AudioContext | null = null;
+    console.log('[HowlerAudioEngine] Decoding audio for waveform visualization...');
+    const startTime = performance.now();
+    
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      throw new Error('Empty array buffer');
+    }
+    
+    const isElectron = !!(window as any).electronAPI;
+    
+    if (isElectron) {
+      // Use ffmpeg.wasm for Electron (bypasses Web Audio API entirely)
+      console.log('[HowlerAudioEngine] Using ffmpeg.wasm for decode (Electron)...');
+      try {
+        const audioBuffer = await this.decodeWithFFmpeg(arrayBuffer);
+        const decodeTime = performance.now() - startTime;
+        console.log('[HowlerAudioEngine] ✅ Audio decoded with ffmpeg.wasm:', {
+          duration: audioBuffer.duration.toFixed(2) + 's',
+          channels: audioBuffer.numberOfChannels,
+          samples: audioBuffer.length,
+          decodeTime: decodeTime.toFixed(0) + 'ms'
+        });
+        
+        this.audioBuffer = audioBuffer;
+        useAppStore.getState().setAudioBuffer(audioBuffer);
+        return;
+      } catch (e) {
+        console.error('[HowlerAudioEngine] ffmpeg.wasm decode failed:', e);
+        throw e;
+      }
+    } else {
+      // Use regular decoding for browser
+      console.log('[HowlerAudioEngine] Using regular decode (Browser)...');
+      try {
+        const audioBuffer = await this.decodeWithRegularContext(arrayBuffer);
+        const decodeTime = performance.now() - startTime;
+        console.log('[HowlerAudioEngine] ✅ Audio decoded:', {
+          duration: audioBuffer.duration.toFixed(2) + 's',
+          channels: audioBuffer.numberOfChannels,
+          samples: audioBuffer.length,
+          decodeTime: decodeTime.toFixed(0) + 'ms'
+        });
+        
+        this.audioBuffer = audioBuffer;
+        useAppStore.getState().setAudioBuffer(audioBuffer);
+        return;
+      } catch (e) {
+        console.error('[HowlerAudioEngine] Decode failed:', e);
+        throw e;
+      }
+    }
+  }
+  
+  /**
+   * Decode using ffmpeg.wasm - completely bypasses Web Audio API
+   * Works in Electron where decodeAudioData crashes
+   * Uses global pre-loaded ffmpeg instance for speed
+   */
+  private async decodeWithFFmpeg(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
+    // Wait for global ffmpeg to be loaded
+    if (ffmpegLoadPromise) {
+      await ffmpegLoadPromise;
+    }
+    
+    // If still not loaded, load it now
+    if (!globalFFmpeg || !ffmpegLoaded) {
+      console.log('[HowlerAudioEngine] Loading ffmpeg.wasm on demand...');
+      globalFFmpeg = new FFmpeg();
+      await globalFFmpeg.load({
+        coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js',
+        wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm',
+      });
+      ffmpegLoaded = true;
+      console.log('[HowlerAudioEngine] ffmpeg.wasm loaded on demand');
+    }
+    
+    const ffmpeg = globalFFmpeg;
+    
+    // Write input file to ffmpeg's virtual filesystem
+    const inputData = new Uint8Array(arrayBuffer);
+    await ffmpeg.writeFile('input.audio', inputData);
+    
+    // Convert to raw PCM WAV (16-bit, stereo, 22050Hz for efficiency)
+    // -ac 2 = stereo, -ar 22050 = sample rate, -f wav = output format
+    console.log('[HowlerAudioEngine] Converting with ffmpeg...');
+    await ffmpeg.exec([
+      '-i', 'input.audio',
+      '-ac', '2',
+      '-ar', '22050',
+      '-f', 'wav',
+      '-acodec', 'pcm_s16le',
+      'output.wav'
+    ]);
+    
+    // Read the output WAV file
+    const outputData = await ffmpeg.readFile('output.wav');
+    
+    // Clean up ffmpeg's filesystem
+    await ffmpeg.deleteFile('input.audio');
+    await ffmpeg.deleteFile('output.wav');
+    
+    // Parse WAV file to extract PCM data
+    const wavBuffer = (outputData as Uint8Array).buffer;
+    const audioBuffer = this.parseWavToAudioBuffer(wavBuffer);
+    
+    return audioBuffer;
+  }
+  
+  /**
+   * Parse a WAV file buffer and create an AudioBuffer
+   */
+  private parseWavToAudioBuffer(wavBuffer: ArrayBuffer): AudioBuffer {
+    const view = new DataView(wavBuffer);
+    
+    // Read WAV header
+    // Bytes 0-3: "RIFF"
+    // Bytes 4-7: File size
+    // Bytes 8-11: "WAVE"
+    // Then chunks follow...
+    
+    let offset = 12; // Skip RIFF header
+    let numChannels = 2;
+    let sampleRate = 22050;
+    let bitsPerSample = 16;
+    let dataOffset = 0;
+    let dataSize = 0;
+    
+    // Find fmt and data chunks
+    while (offset < view.byteLength - 8) {
+      const chunkId = String.fromCharCode(
+        view.getUint8(offset),
+        view.getUint8(offset + 1),
+        view.getUint8(offset + 2),
+        view.getUint8(offset + 3)
+      );
+      const chunkSize = view.getUint32(offset + 4, true);
+      
+      if (chunkId === 'fmt ') {
+        // Format chunk
+        numChannels = view.getUint16(offset + 10, true);
+        sampleRate = view.getUint32(offset + 12, true);
+        bitsPerSample = view.getUint16(offset + 22, true);
+      } else if (chunkId === 'data') {
+        // Data chunk
+        dataOffset = offset + 8;
+        dataSize = chunkSize;
+        break;
+      }
+      
+      offset += 8 + chunkSize;
+      // Ensure even alignment
+      if (chunkSize % 2 !== 0) offset++;
+    }
+    
+    if (dataOffset === 0 || dataSize === 0) {
+      throw new Error('Invalid WAV file: no data chunk found');
+    }
+    
+    // Calculate samples
+    const bytesPerSample = bitsPerSample / 8;
+    const numSamples = Math.floor(dataSize / (numChannels * bytesPerSample));
+    
+    console.log('[HowlerAudioEngine] WAV parsed:', {
+      numChannels,
+      sampleRate,
+      bitsPerSample,
+      numSamples,
+      duration: (numSamples / sampleRate).toFixed(2) + 's'
+    });
+    
+    // Create AudioBuffer
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    const tempCtx = new AudioContextClass();
+    const audioBuffer = tempCtx.createBuffer(numChannels, numSamples, sampleRate);
+    
+    // Extract samples
+    const dataView = new DataView(wavBuffer, dataOffset, dataSize);
+    
+    for (let channel = 0; channel < numChannels; channel++) {
+      const channelData = audioBuffer.getChannelData(channel);
+      
+      for (let i = 0; i < numSamples; i++) {
+        const sampleOffset = (i * numChannels + channel) * bytesPerSample;
+        
+        if (bitsPerSample === 16) {
+          // 16-bit signed integer to float (-1.0 to 1.0)
+          const sample = dataView.getInt16(sampleOffset, true);
+          channelData[i] = sample / 32768;
+        } else if (bitsPerSample === 8) {
+          // 8-bit unsigned integer to float
+          const sample = dataView.getUint8(sampleOffset);
+          channelData[i] = (sample - 128) / 128;
+        }
+      }
+    }
+    
+    tempCtx.close().catch(() => {});
+    
+    return audioBuffer;
+  }
+  
+  /**
+   * Decode using regular AudioContext (for browser)
+   */
+  private async decodeWithRegularContext(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) {
+      throw new Error('AudioContext not available');
+    }
+    
+    const audioContext = new AudioContextClass();
     
     try {
-      console.log('[HowlerAudioEngine] Decoding audio for waveform visualization...');
-      const startTime = performance.now();
-      
-      // Check if we have valid data
-      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-        console.warn('[HowlerAudioEngine] No array buffer to decode');
-        return;
+      if (audioContext.state === 'suspended') {
+        await audioContext.resume();
       }
       
-      // Try to create AudioContext
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) {
-        console.warn('[HowlerAudioEngine] AudioContext not available');
-        return;
-      }
-      
-      audioContext = new AudioContextClass();
-      
-      // Clone the buffer to avoid detached buffer issues
       const bufferCopy = arrayBuffer.slice(0);
       
-      // Decode the audio data
-      console.log('[HowlerAudioEngine] Starting decode...');
       const audioBuffer = await new Promise<AudioBuffer>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
-          reject(new Error('Decode timeout after 60s'));
-        }, 60000);
+          reject(new Error('Decode timeout'));
+        }, 30000);
         
-        audioContext!.decodeAudioData(
+        audioContext.decodeAudioData(
           bufferCopy,
           (buffer) => {
             clearTimeout(timeoutId);
@@ -206,27 +442,14 @@ export class HowlerAudioEngine {
           },
           (error) => {
             clearTimeout(timeoutId);
-            reject(error);
+            reject(error || new Error('Decode error'));
           }
         );
       });
       
-      const decodeTime = performance.now() - startTime;
-      console.log('[HowlerAudioEngine] ✅ Audio decoded:', {
-        duration: audioBuffer.duration.toFixed(2) + 's',
-        channels: audioBuffer.numberOfChannels,
-        samples: audioBuffer.length,
-        decodeTime: decodeTime.toFixed(0) + 'ms'
-      });
-      
-      useAppStore.getState().setAudioBuffer(audioBuffer);
-      
-    } catch (e) {
-      console.error('[HowlerAudioEngine] ❌ Decode failed:', e);
+      return audioBuffer;
     } finally {
-      if (audioContext) {
-        try { audioContext.close(); } catch { /* ignore */ }
-      }
+      try { audioContext.close(); } catch { /* ignore */ }
     }
   }
 
@@ -293,6 +516,7 @@ export class HowlerAudioEngine {
         }
       }
       
+      this.audioBuffer = buffer;
       useAppStore.getState().setAudioBuffer(buffer);
       console.log('[HowlerAudioEngine] ✅ Electron waveform created');
       
@@ -313,6 +537,7 @@ export class HowlerAudioEngine {
       const length = Math.ceil(duration * sampleRate);
       const buffer = audioContext.createBuffer(2, length || 1, sampleRate);
       
+      this.audioBuffer = buffer;
       useAppStore.getState().setAudioBuffer(buffer);
       console.log('[HowlerAudioEngine] Created fallback empty AudioBuffer');
     } catch (e) {
@@ -410,6 +635,30 @@ export class HowlerAudioEngine {
   }
 
   /**
+   * Set playback rate (affects both speed and pitch in Howler)
+   * @param rate - Speed multiplier (0.25 to 4.0)
+   */
+  public setRate(rate: number): void {
+    if (!this.howl) return;
+    
+    const clampedRate = Math.max(0.25, Math.min(4.0, rate));
+    this.howl.rate(clampedRate);
+    console.log('[HowlerAudioEngine] Rate set to:', clampedRate);
+  }
+
+  /**
+   * Set volume (linear 0-1)
+   * @param volume - Volume level (0 to 1)
+   */
+  public setHowlerVolume(volume: number): void {
+    if (!this.howl) return;
+    
+    const clampedVolume = Math.max(0, Math.min(1, volume));
+    this.howl.volume(clampedVolume);
+    console.log('[HowlerAudioEngine] Volume set to:', clampedVolume);
+  }
+
+  /**
    * Start time update loop
    */
   private startTimeUpdate(): void {
@@ -434,10 +683,10 @@ export class HowlerAudioEngine {
   }
 
   /**
-   * Get audio buffer (returns null - Howler doesn't expose this)
+   * Get audio buffer (for waveform visualization)
    */
   public getAudioBuffer(): AudioBuffer | null {
-    return null;
+    return this.audioBuffer;
   }
 
   /**
@@ -462,6 +711,8 @@ export class HowlerAudioEngine {
       URL.revokeObjectURL(this.blobUrl);
       this.blobUrl = null;
     }
+    
+    this.audioBuffer = null;
     
     console.log('[HowlerAudioEngine] Disposed');
   }

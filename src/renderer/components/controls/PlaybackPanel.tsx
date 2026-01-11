@@ -19,7 +19,9 @@ const PlaybackPanel: React.FC = () => {
     pause, 
     stop, 
     seek,
-    resumeAudioContext
+    resumeAudioContext,
+    setPlaybackRate,
+    getPlaybackRate
   } = useAudioEngine();
   
   const theme = useAppStore((state) => state.theme);
@@ -38,7 +40,16 @@ const PlaybackPanel: React.FC = () => {
   const isAudioLoaded = audio.isLoaded;
   const isPlaying = audio.isPlaying;
   
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const storedPlaybackRate = useAppStore((state) => state.globalControls.playbackRate);
+  const [playbackSpeed, setPlaybackSpeed] = useState(storedPlaybackRate || 1.0);
+  
+  // Sync playback speed with store on mount
+  useEffect(() => {
+    if (storedPlaybackRate && storedPlaybackRate !== playbackSpeed) {
+      setPlaybackSpeed(storedPlaybackRate);
+      setPlaybackRate(storedPlaybackRate);
+    }
+  }, [storedPlaybackRate]);
   
   // Theme-aware colors
   const textColor = isLightMode ? '#1a1a1a' : '#FFFFFF';
@@ -90,7 +101,10 @@ const PlaybackPanel: React.FC = () => {
 
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
-    // Note: Actual speed change will be implemented in Week 2 with audio engine
+    // Apply speed change to audio engine (Tone.js based - independent of pitch)
+    setPlaybackRate(speed);
+    // Also update store for persistence
+    useAppStore.getState().setPlaybackRate(speed);
     console.log('[PlaybackPanel] Speed changed to:', speed);
   };
 

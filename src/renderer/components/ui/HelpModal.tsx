@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { useAppStore } from '../../store/store';
-
+//kjhk
 const HelpModal: React.FC = () => {
   const isOpen = useAppStore((state) => state.ui.isHelpModalOpen);
   

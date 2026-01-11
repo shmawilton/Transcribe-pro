@@ -38,6 +38,12 @@ const Waveform: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const animationFrameRef = useRef<number | null>(null);
+  const zoomAnimationRef = useRef<number | null>(null);
+  
+  // Animated viewport state for smooth zoom transitions
+  const animatedViewportRef = useRef({ start: 0, end: 0, initialized: false });
+  const targetViewportRef = useRef({ start: 0, end: 0 });
+  const [animationTick, setAnimationTick] = useState(0); // Triggers re-renders during zoom animation
   
   // Hover state for interactive time display
   const [hoverInfo, setHoverInfo] = useState<{ x: number; time: number; visible: boolean }>({
@@ -62,6 +68,80 @@ const Waveform: React.FC = () => {
   const currentTime = useAppStore((state) => state.audio.currentTime);
   const duration = useAppStore((state) => state.audio.duration);
   const isPlaying = useAppStore((state) => state.audio.isPlaying);
+  
+  // Reset animated viewport when new audio is loaded
+  useEffect(() => {
+    if (audioBuffer && duration > 0) {
+      // Reset animation state for new audio - immediate, no animation
+      animatedViewportRef.current = { start: 0, end: duration, initialized: true };
+      targetViewportRef.current = { start: 0, end: duration };
+      setAnimationTick(n => n + 1);
+    }
+  }, [audioBuffer]); // Only when buffer changes (new audio loaded)
+  
+  // Smooth zoom animation
+  useEffect(() => {
+    const targetStart = viewportStart;
+    const targetEnd = viewportEnd > 0 ? viewportEnd : duration;
+    
+    // Initialize animated viewport on first load
+    if (!animatedViewportRef.current.initialized && targetEnd > 0) {
+      animatedViewportRef.current = { start: targetStart, end: targetEnd, initialized: true };
+      targetViewportRef.current = { start: targetStart, end: targetEnd };
+      setAnimationTick(n => n + 1);
+      return;
+    }
+    
+    // Skip if target hasn't changed significantly
+    const threshold = 0.001;
+    if (
+      Math.abs(targetViewportRef.current.start - targetStart) < threshold && 
+      Math.abs(targetViewportRef.current.end - targetEnd) < threshold
+    ) {
+      return;
+    }
+    
+    targetViewportRef.current = { start: targetStart, end: targetEnd };
+    
+    // Cancel existing animation
+    if (zoomAnimationRef.current) {
+      cancelAnimationFrame(zoomAnimationRef.current);
+    }
+    
+    // Animate to new viewport
+    const startTime = performance.now();
+    const animationDuration = 350; // ms - smooth but quick
+    const fromStart = animatedViewportRef.current.start;
+    const fromEnd = animatedViewportRef.current.end;
+    
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / animationDuration, 1);
+      
+      // Ease-out cubic for smooth water-like deceleration
+      const eased = 1 - Math.pow(1 - progress, 3);
+      
+      const newStart = fromStart + (targetStart - fromStart) * eased;
+      const newEnd = fromEnd + (targetEnd - fromEnd) * eased;
+      
+      animatedViewportRef.current = { start: newStart, end: newEnd, initialized: true };
+      
+      // Force re-render for smooth animation
+      setAnimationTick(n => n + 1);
+      
+      if (progress < 1) {
+        zoomAnimationRef.current = requestAnimationFrame(animate);
+      }
+    };
+    
+    zoomAnimationRef.current = requestAnimationFrame(animate);
+    
+    return () => {
+      if (zoomAnimationRef.current) {
+        cancelAnimationFrame(zoomAnimationRef.current);
+      }
+    };
+  }, [viewportStart, viewportEnd, duration]);
   
   // Cache peaks outside component state to avoid unnecessary re-renders
   const peakCacheRef = useRef<PeakCache>({
@@ -122,39 +202,59 @@ const Waveform: React.FC = () => {
 
   /**
    * Generate peaks from AudioBuffer for a single channel
-   * Converts millions of raw samples into manageable peaks (one per pixel)
-   * Optimized for large files by sampling at intervals when samples/pixel is high
+   * Converts raw samples into manageable peaks (one per pixel)
+   * Now supports viewport for zoomed view
    * 
    * @param channelData - Float32Array of audio samples for one channel
    * @param canvasWidth - Width of canvas in pixels
+   * @param sampleRate - Sample rate of the audio
+   * @param viewportStart - Start time in seconds (for zoomed view)
+   * @param viewportEnd - End time in seconds (for zoomed view)
    * @returns Array of peaks, one per pixel
    */
-  const generatePeaksForChannel = (channelData: Float32Array, canvasWidth: number): Peak[] => {
+  const generatePeaksForChannel = (
+    channelData: Float32Array, 
+    canvasWidth: number,
+    sampleRate: number,
+    viewportStart: number,
+    viewportEnd: number
+  ): Peak[] => {
     if (!channelData || canvasWidth <= 0 || channelData.length === 0) {
       return [];
     }
 
-    // Ensure width is an integer for array allocation
     const width = Math.floor(canvasWidth);
     if (width <= 0) return [];
     
     const totalSamples = channelData.length;
-    const samplesPerPixel = totalSamples / width;
+    const duration = totalSamples / sampleRate;
+    
+    // Calculate sample range for viewport
+    const vpStart = Math.max(0, viewportStart);
+    const vpEnd = Math.min(duration, viewportEnd > vpStart ? viewportEnd : duration);
+    
+    // Convert viewport times to sample indices
+    const startSampleIndex = Math.floor((vpStart / duration) * totalSamples);
+    const endSampleIndex = Math.min(Math.floor((vpEnd / duration) * totalSamples), totalSamples);
+    const viewportSamples = endSampleIndex - startSampleIndex;
+    
+    if (viewportSamples <= 0) return [];
+    
+    const samplesPerPixel = viewportSamples / width;
     
     // Pre-allocate array for speed
     const peaks: Peak[] = new Array(width);
     
     // For very large sample counts per pixel, sample at intervals for speed
-    // 500 samples per pixel is enough for accurate visualization
     const maxSamplesToCheck = 500;
     const step = samplesPerPixel > maxSamplesToCheck ? Math.floor(samplesPerPixel / maxSamplesToCheck) : 1;
 
     // Loop through each pixel position
     for (let pixelIndex = 0; pixelIndex < width; pixelIndex++) {
-      const startSample = Math.floor(pixelIndex * samplesPerPixel);
+      const startSample = startSampleIndex + Math.floor(pixelIndex * samplesPerPixel);
       const endSample = Math.min(
-        Math.floor((pixelIndex + 1) * samplesPerPixel),
-        totalSamples
+        startSampleIndex + Math.floor((pixelIndex + 1) * samplesPerPixel),
+        endSampleIndex
       );
       
       if (startSample >= totalSamples || endSample <= startSample) {
@@ -181,24 +281,31 @@ const Waveform: React.FC = () => {
 
   /**
    * Generate peaks from AudioBuffer
-   * Supports both mono and stereo audio
+   * Supports both mono and stereo audio with viewport for zoomed view
    * 
    * @param buffer - AudioBuffer containing raw audio samples
    * @param canvasWidth - Width of canvas in pixels
+   * @param viewportStart - Start time in seconds
+   * @param viewportEnd - End time in seconds
    * @returns Peaks array (mono) or StereoPeaks object (stereo)
    */
-  const generatePeaks = (buffer: AudioBuffer, canvasWidth: number): Peak[] | StereoPeaks => {
+  const generatePeaks = (
+    buffer: AudioBuffer, 
+    canvasWidth: number,
+    viewportStart: number,
+    viewportEnd: number
+  ): Peak[] | StereoPeaks => {
     if (!buffer || canvasWidth <= 0) {
-      console.warn('[Waveform] generatePeaks: Invalid input', { buffer: !!buffer, canvasWidth });
       return [];
     }
 
     const numberOfChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
     
     // Mono: use only left channel (channel 0)
     if (numberOfChannels === 1) {
       const channelData = buffer.getChannelData(0);
-      return generatePeaksForChannel(channelData, canvasWidth);
+      return generatePeaksForChannel(channelData, canvasWidth, sampleRate, viewportStart, viewportEnd);
     }
     
     // Stereo: generate peaks for both channels
@@ -206,24 +313,26 @@ const Waveform: React.FC = () => {
     const rightChannelData = buffer.getChannelData(1);
     
     return {
-      left: generatePeaksForChannel(leftChannelData, canvasWidth),
-      right: generatePeaksForChannel(rightChannelData, canvasWidth),
+      left: generatePeaksForChannel(leftChannelData, canvasWidth, sampleRate, viewportStart, viewportEnd),
+      right: generatePeaksForChannel(rightChannelData, canvasWidth, sampleRate, viewportStart, viewportEnd),
     };
   };
 
+  // Track last regeneration time for throttling during animation
+  const lastPeakRegenTimeRef = useRef(0);
+  
   /**
    * Get cached peaks or generate new ones if needed
-   * Only regenerates when:
-   * - New audio is loaded (different AudioBuffer)
-   * - Zoom level changes (different samples per pixel)
-   * - Canvas width changes (different number of pixels)
-   * 
-   * Does NOT regenerate on:
-   * - Window resize (same peaks, different display size)
-   * - Playhead movement (peaks don't change)
-   * - Redraw requests (reuse cached peaks)
+   * Regenerates when viewport, zoom, or audio changes
+   * Throttled during animation for smooth performance
    */
-  const getPeaks = (buffer: AudioBuffer | undefined, canvasWidth: number, currentZoomLevel: number): Peak[] | StereoPeaks | null => {
+  const getPeaks = (
+    buffer: AudioBuffer | undefined, 
+    canvasWidth: number, 
+    currentZoomLevel: number,
+    vpStart: number,
+    vpEnd: number
+  ): Peak[] | StereoPeaks | null => {
     if (!buffer || canvasWidth <= 0) {
       return null;
     }
@@ -231,37 +340,44 @@ const Waveform: React.FC = () => {
     const cache = peakCacheRef.current;
     const isStereo = buffer.numberOfChannels > 1;
     
-    // Create a unique identifier for this buffer (using buffer properties)
-    // This helps detect when a new audio file is loaded
+    // Create a unique identifier for this buffer
     const bufferId = `${buffer.length}-${buffer.sampleRate}-${buffer.duration}-${buffer.numberOfChannels}`;
     
-    // Check if we need to regenerate peaks
+    // Round viewport values to reduce unnecessary regeneration during animation
+    // Use 2 decimal places - gives good balance between accuracy and performance
+    const roundedVpStart = Math.round(vpStart * 100) / 100;
+    const roundedVpEnd = Math.round(vpEnd * 100) / 100;
+    const viewportKey = `${roundedVpStart}-${roundedVpEnd}`;
+    
+    // Check if we need to regenerate peaks (including viewport changes)
     const needsRegeneration = 
       cache.bufferId !== bufferId ||
       cache.canvasWidth !== canvasWidth ||
       cache.zoomLevel !== currentZoomLevel ||
-      cache.isStereo !== isStereo;
+      cache.isStereo !== isStereo ||
+      (cache as any).viewportKey !== viewportKey;
 
     if (needsRegeneration) {
-      console.log('[Waveform] Regenerating peaks:', {
-        reason: cache.bufferId !== bufferId ? 'new audio' : 
-                cache.canvasWidth !== canvasWidth ? 'canvas width changed' : 
-                cache.isStereo !== isStereo ? 'channel count changed' :
-                'zoom level changed',
-        bufferId,
-        canvasWidth,
-        zoomLevel: currentZoomLevel,
-        isStereo,
-      });
-
-      // Generate new peaks
-      const peaks = generatePeaks(buffer, canvasWidth);
+      // Throttle peak regeneration during animation (max 10fps = 100ms intervals)
+      const now = performance.now();
+      const timeSinceLastRegen = now - lastPeakRegenTimeRef.current;
+      const throttleInterval = 100; // ms
+      
+      // If we regenerated recently, return cached peaks (but will use new viewport for drawing positions)
+      if (timeSinceLastRegen < throttleInterval && cache.peaks) {
+        return cache.peaks;
+      }
+      
+      lastPeakRegenTimeRef.current = now;
+      
+      // Generate new peaks with viewport
+      const peaks = generatePeaks(buffer, canvasWidth, roundedVpStart, roundedVpEnd);
       
       // Log peak generation (minimal logging)
       if (Array.isArray(peaks)) {
-        console.log('[Waveform] Generated mono peaks:', peaks.length);
+        console.log('[Waveform] Generated peaks for viewport:', { vpStart: roundedVpStart.toFixed(2), vpEnd: roundedVpEnd.toFixed(2), count: peaks.length });
       } else if (peaks && 'left' in peaks) {
-        console.log('[Waveform] Generated stereo peaks:', peaks.left.length, peaks.right.length);
+        console.log('[Waveform] Generated stereo peaks for viewport:', { vpStart: roundedVpStart.toFixed(2), vpEnd: roundedVpEnd.toFixed(2) });
       }
       
       // Update cache
@@ -270,6 +386,7 @@ const Waveform: React.FC = () => {
       cache.canvasWidth = canvasWidth;
       cache.zoomLevel = currentZoomLevel;
       cache.isStereo = isStereo;
+      (cache as any).viewportKey = viewportKey;
     }
 
     return cache.peaks;
@@ -418,14 +535,20 @@ const Waveform: React.FC = () => {
     const storeState = useAppStore.getState();
     const actualCurrentTime = storeState.audio.currentTime;
     const actualDuration = storeState.audio.duration;
-    const vpStart = storeState.ui.viewportStart;
-    const vpEnd = storeState.ui.viewportEnd;
+    
+    // Use animated viewport for smooth zoom transitions
+    const vpStart = animatedViewportRef.current.initialized 
+      ? animatedViewportRef.current.start 
+      : storeState.ui.viewportStart;
+    const vpEnd = animatedViewportRef.current.initialized 
+      ? animatedViewportRef.current.end 
+      : storeState.ui.viewportEnd;
     
     // Calculate visible duration (viewport)
     const visibleDuration = vpEnd > vpStart ? vpEnd - vpStart : actualDuration;
     
-    // Get cached peaks (or generate if needed) - use usableWidth to match timeline
-    const peaks = getPeaks(bufferToUse, usableWidth, zoomLevel);
+    // Get cached peaks for the current viewport - regenerates when zoomed
+    const peaks = getPeaks(bufferToUse, usableWidth, zoomLevel, vpStart, vpEnd > vpStart ? vpEnd : actualDuration);
     
     if (!peaks || (Array.isArray(peaks) && peaks.length === 0)) {
       return;
@@ -638,11 +761,11 @@ const Waveform: React.FC = () => {
   }, []);
 
   /**
-   * Redraw waveform when audio buffer, zoom level, or canvas size changes (non-playback updates)
+   * Redraw waveform when audio buffer, zoom level, canvas size, or animation tick changes
    */
   useEffect(() => {
     if (!canvasRef.current || canvasSize.width === 0 || canvasSize.height === 0) return;
-    if (isPlaying) return; // Let animation frame handle this during playback
+    if (isPlaying && animationTick === 0) return; // Let animation frame handle playback, but allow zoom animations
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -654,7 +777,7 @@ const Waveform: React.FC = () => {
     // Reset transform and redraw
     ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     drawWaveformWithBuffer(ctx, canvasSize.width, canvasSize.height, audioBuffer);
-  }, [audioBuffer, zoomLevel, canvasSize, duration]);
+  }, [audioBuffer, zoomLevel, canvasSize, duration, animationTick]);
 
   /**
    * Animation frame loop for smooth playback updates

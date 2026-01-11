@@ -7,12 +7,20 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   server: {
-    port: 3000
+    port: 3000,
+    headers: {
+      // Required for ffmpeg.wasm SharedArrayBuffer
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    }
   },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')
     }
+  },
+  optimizeDeps: {
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
   }
 })
 

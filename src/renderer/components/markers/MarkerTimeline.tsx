@@ -40,9 +40,14 @@ export function MarkerTimeline() {
   const addMarker = useAppStore((state) => state.addMarker);
   
   // Get viewport state for synchronized zoom/scroll with Waveform
-  const viewportStart = useAppStore((state) => state.ui.viewportStart);
-  const viewportEnd = useAppStore((state) => state.ui.viewportEnd);
+  const rawViewportStart = useAppStore((state) => state.ui.viewportStart);
+  const rawViewportEnd = useAppStore((state) => state.ui.viewportEnd);
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
+  
+  // Clamp viewport values to current duration (handles case when new audio is shorter)
+  // Also handles stale viewport values from previous audio
+  const viewportStart = Math.min(rawViewportStart, duration);
+  const viewportEnd = rawViewportEnd > 0 && rawViewportEnd <= duration ? rawViewportEnd : duration;
   
   // Calculate visible duration based on viewport
   const visibleDuration = viewportEnd > viewportStart ? viewportEnd - viewportStart : duration;

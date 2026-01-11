@@ -10,6 +10,7 @@ interface AppStore {
   setDuration: (duration: number) => void;
   setAudioBuffer: (buffer: AudioBuffer) => void;
   clearAudioBuffer: () => void;
+  setIsLoading: (isLoading: boolean) => void;
 
   // Markers State
   markers: Marker[];
@@ -49,6 +50,7 @@ const initialAudioState: AudioState = {
   currentTime: 0,
   isPlaying: false,
   isLoaded: false,
+  isLoading: false,
 };
 
 const initialUIState: UIState = {
@@ -74,12 +76,22 @@ export const useAppStore = create<AppStore>((set) => ({
     console.log('[Store] setAudioFile called:', file ? { name: file.name, size: file.size } : 'null');
     set((state) => {
       const newState = {
-        // IMPORTANT: isLoaded should NOT be set here - it's set by setAudioBuffer after decode completes
-        audio: { ...state.audio, file, isLoaded: false },
+        // Clear buffer and reset state when starting new load
+        // This prevents showing old waveform during loading
+        audio: { 
+          ...state.audio, 
+          file, 
+          isLoaded: false,
+          isLoading: true,    // Mark as loading
+          buffer: undefined,  // Clear old buffer
+          currentTime: 0,     // Reset playback position
+        },
       };
       console.log('[Store] setAudioFile - new state:', {
         hasFile: !!newState.audio.file,
-        isLoaded: newState.audio.isLoaded
+        isLoaded: newState.audio.isLoaded,
+        isLoading: newState.audio.isLoading,
+        hasBuffer: !!newState.audio.buffer
       });
       return newState;
     });
@@ -113,15 +125,21 @@ export const useAppStore = create<AppStore>((set) => ({
           buffer, 
           sampleRate: buffer?.sampleRate,
           isLoaded: buffer !== null && buffer !== undefined,
+          isLoading: false, // Loading complete
         },
       };
       console.log('[Store] setAudioBuffer - new state:', {
         hasBuffer: !!newState.audio.buffer,
         isLoaded: newState.audio.isLoaded,
+        isLoading: newState.audio.isLoading,
         sampleRate: newState.audio.sampleRate
       });
       return newState;
     });
+  },
+  setIsLoading: (isLoading) => {
+    console.log('[Store] setIsLoading:', isLoading);
+    set((state) => ({ audio: { ...state.audio, isLoading } }));
   },
   clearAudioBuffer: () =>
     set((state) => ({
@@ -130,6 +148,7 @@ export const useAppStore = create<AppStore>((set) => ({
         buffer: undefined,
         sampleRate: undefined,
         isLoaded: false,
+        isLoading: false,
       },
     })),
 

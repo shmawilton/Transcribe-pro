@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import * as path from 'path';
 
 let mainWindow: BrowserWindow | null = null;
@@ -6,6 +6,15 @@ let mainWindow: BrowserWindow | null = null;
 // Enable audio features for Electron
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.commandLine.appendSwitch('disable-features', 'AudioServiceOutOfProcess');
+
+// Additional flags to help with audio decoding stability
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
+app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
+
+// Increase memory limits for audio processing
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
 
 const createWindow = (): void => {
   mainWindow = new BrowserWindow({
@@ -62,6 +71,23 @@ const createWindow = (): void => {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // IPC handlers for window controls
+  ipcMain.on('close-window', () => {
+    mainWindow?.close();
+  });
+  
+  ipcMain.on('minimize-window', () => {
+    mainWindow?.minimize();
+  });
+  
+  ipcMain.on('maximize-window', () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow?.maximize();
+    }
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
