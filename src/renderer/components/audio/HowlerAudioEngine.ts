@@ -364,11 +364,54 @@ export class HowlerAudioEngine {
 
   // === Standard playback methods ===
 
+  /**
+   * Fade volume smoothly
+   */
+  private async fadeVolume(targetDb: number, durationMs: number = 30): Promise<void> {
+    if (!this.howl) return;
+    
+    const currentDb = useAppStore.getState().globalControls.volume;
+    const startDb = currentDb;
+    const diff = targetDb - startDb;
+    
+    if (Math.abs(diff) < 0.1) {
+      // Already at target, just set it
+      this.setVolume(targetDb);
+      return;
+    }
+    
+    const steps = Math.max(3, Math.floor(durationMs / 5)); // Update every 5ms
+    const stepDuration = durationMs / steps;
+    
+    for (let i = 0; i <= steps; i++) {
+      const progress = i / steps;
+      const currentDb = startDb + (diff * progress);
+      this.setVolume(currentDb);
+      await new Promise(resolve => setTimeout(resolve, stepDuration));
+    }
+    
+    // Ensure final value is exact
+    this.setVolume(targetDb);
+  }
+
   public async play(): Promise<void> {
     if (!this.howl) throw new Error('No audio');
+    
+    // Get target volume
+    const targetVolume = useAppStore.getState().globalControls.volume;
+    const isMuted = useAppStore.getState().globalControls.isMuted;
+    const targetDb = isMuted ? -60 : targetVolume;
+    
+    // Start at low volume for fade in
+    this.setVolume(Math.max(-40, targetDb - 20));
+    
+    // Start playback
     this.currentSoundId = this.howl.play() as number;
     useAppStore.getState().setIsPlaying(true);
     this.startTimeUpdate();
+    
+    // Fade in to target volume (30ms)
+    this.fadeVolume(targetDb, 30).catch(() => {});
   }
 
   public pause(): void {
@@ -382,12 +425,40 @@ export class HowlerAudioEngine {
     this.stopTimeUpdate();
   }
 
-  public stop(): void {
+  public async stop(): Promise<void> {
     if (!this.howl) return;
+    
+    // Get current volume for fade out
+    const currentDb = useAppStore.getState().globalControls.volume;
+    const isMuted = useAppStore.getState().globalControls.isMuted;
+    const startDb = isMuted ? -60 : currentDb;
+    
+    // Fade out to silence (30ms)
+    await this.fadeVolume(-60, 30);
+    
+    // Stop playback
     this.howl.stop();
     this.currentSoundId = null;
     useAppStore.getState().setIsPlaying(false);
+    
+    // Reset position to beginning
     useAppStore.getState().setCurrentTime(0);
+    if (this.howl) {
+      this.howl.seek(0);
+    }
+    
+    // Reset viewport to beginning (show full audio)
+    const duration = this.getDuration();
+    if (duration > 0) {
+      useAppStore.getState().setViewport(0, duration);
+      useAppStore.getState().setZoomLevel(1);
+    }
+    
+    // Restore volume after fade out
+    if (!isMuted) {
+      this.setVolume(currentDb);
+    }
+    
     this.stopTimeUpdate();
   }
 

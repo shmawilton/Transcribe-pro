@@ -480,6 +480,16 @@ export class AudioEngine {
         this.setPlaybackRate(storedPlaybackRate);
       }
       
+      // Get target volume for fade in
+      const targetVolume = useAppStore.getState().globalControls.volume;
+      const isMuted = useAppStore.getState().globalControls.isMuted;
+      const targetDb = isMuted ? -60 : targetVolume;
+      
+      // Set initial volume low for fade in
+      if (this.volumeNode) {
+        this.volumeNode.volume.value = Math.max(-40, targetDb - 20);
+      }
+      
       // Record playback start info for time tracking
       this.playbackStartTime = Tone.now();
       this.playbackStartPosition = startPosition;
@@ -492,6 +502,11 @@ export class AudioEngine {
 
       // Start position tracking using Tone.Transport
       this.startPositionTracking();
+      
+      // Fade in to target volume (30ms)
+      if (this.volumeNode) {
+        this.volumeNode.volume.rampTo(targetDb, 0.03); // 30ms = 0.03s
+      }
 
       console.log('[AudioEngine] Playback started', {
         startPosition,
@@ -542,8 +557,20 @@ export class AudioEngine {
   /**
    * Stop audio playback and reset to beginning
    */
-  public stop(): void {
+  public async stop(): Promise<void> {
     try {
+      // Get current volume for fade out
+      const currentDb = useAppStore.getState().globalControls.volume;
+      const isMuted = useAppStore.getState().globalControls.isMuted;
+      const startDb = isMuted ? -60 : currentDb;
+      
+      // Fade out to silence (30ms)
+      if (this.volumeNode) {
+        this.volumeNode.volume.rampTo(-60, 0.03); // 30ms = 0.03s
+        // Wait for fade to complete
+        await new Promise(resolve => setTimeout(resolve, 35)); // Slightly longer to ensure fade completes
+      }
+      
       if (this.player && this.player.state === 'started') {
         this.player.stop();
       }
@@ -554,8 +581,20 @@ export class AudioEngine {
       useAppStore.getState().setIsPlaying(false);
       useAppStore.getState().setCurrentTime(0);
 
+      // Reset viewport to beginning (show full audio)
+      const duration = this.getDuration();
+      if (duration > 0) {
+        useAppStore.getState().setViewport(0, duration);
+        useAppStore.getState().setZoomLevel(1);
+      }
+
       // Stop position tracking
       this.stopPositionTracking();
+      
+      // Restore volume after fade out
+      if (this.volumeNode && !isMuted) {
+        this.volumeNode.volume.value = currentDb;
+      }
 
       console.log('[AudioEngine] Playback stopped');
 

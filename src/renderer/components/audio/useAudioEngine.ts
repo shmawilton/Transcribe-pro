@@ -16,7 +16,7 @@ interface IAudioEngine {
   loadAudioFile(file: File): Promise<void>;
   play(): Promise<void>;
   pause(): void;
-  stop(): void;
+  stop(): Promise<void>;
   seek(time: number): Promise<void>;
   getCurrentTime(): number;
   getAudioBuffer(): AudioBuffer | null;
@@ -195,9 +195,9 @@ export function useAudioEngine() {
   /**
    * Stop audio
    */
-  const stop = useCallback(() => {
+  const stop = useCallback(async () => {
     if (engineRef.current) {
-      engineRef.current.stop();
+      await engineRef.current.stop();
     }
   }, []);
 
@@ -293,11 +293,11 @@ export function useAudioEngine() {
   /**
    * Unload current audio and reset state
    */
-  const unloadAudio = useCallback(() => {
+  const unloadAudio = useCallback(async () => {
     console.log('[useAudioEngine] Unloading audio');
-    // Stop playback first
+    // Stop playback first (with fade out)
     if (engineRef.current) {
-      engineRef.current.stop();
+      await engineRef.current.stop();
     }
     // Reset the appropriate singleton
     if (isElectron) {

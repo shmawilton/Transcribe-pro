@@ -32,8 +32,10 @@ export interface UIState {
 
 export interface GlobalControls {
   pitch: number; // -12 to +12 semitones
-  volume: number; // 0 to 1
+  volume: number; // 0 to 1 (or dB: -60 to 6)
   playbackRate: number; // 0.5 to 2.0
+  isMuted: boolean; // mute state
+  previousVolume: number; // volume before mute (to restore)
 }
 
 export interface ProjectData {

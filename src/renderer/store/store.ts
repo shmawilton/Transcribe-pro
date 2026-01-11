@@ -33,6 +33,7 @@ interface AppStore {
   setPitch: (pitch: number) => void;
   setVolume: (volume: number) => void;
   setPlaybackRate: (rate: number) => void;
+  toggleMute: () => void;
 
   // Project Management
   loadProject: (project: ProjectData) => void;
@@ -65,8 +66,10 @@ const initialUIState: UIState = {
 
 const initialGlobalControls: GlobalControls = {
   pitch: 0,
-  volume: 1,
+  volume: 0, // dB: 0 is default, -60 to 6 range
   playbackRate: 1,
+  isMuted: false,
+  previousVolume: 0, // Store volume before mute
 };
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -193,6 +196,33 @@ export const useAppStore = create<AppStore>((set) => ({
     set((state) => ({
       globalControls: { ...state.globalControls, playbackRate: rate },
     })),
+  toggleMute: () =>
+    set((state) => {
+      const { isMuted, volume, previousVolume } = state.globalControls;
+      if (isMuted) {
+        // Unmute: restore previous volume (or 0 if previous was -60)
+        const restoreVolume = previousVolume <= -60 ? 0 : previousVolume;
+        return {
+          globalControls: {
+            ...state.globalControls,
+            isMuted: false,
+            volume: restoreVolume,
+          },
+        };
+      } else {
+        // Mute: store current volume and set to -60 dB (effectively silent)
+        // Only store if current volume is not already -60
+        const volumeToStore = volume <= -60 ? 0 : volume;
+        return {
+          globalControls: {
+            ...state.globalControls,
+            isMuted: true,
+            previousVolume: volumeToStore,
+            volume: -60, // Mute by setting to minimum
+          },
+        };
+      }
+    }),
 
   // Project Management
   loadProject: (project) =>

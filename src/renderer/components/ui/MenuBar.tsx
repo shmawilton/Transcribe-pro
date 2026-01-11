@@ -143,6 +143,21 @@ const FullscreenIcon = () => (
   </svg>
 );
 
+const MuteIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <line x1="23" y1="9" x2="17" y2="15"/>
+    <line x1="17" y1="9" x2="23" y2="15"/>
+  </svg>
+);
+
+const UnmuteIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+    <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+  </svg>
+);
+
 const MinimizeIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
     <path d="M14 8a.5.5 0 0 1-.5.5H2.5a.5.5 0 0 1 0-1h11a.5.5 0 0 1 .5.5z"/>
@@ -203,12 +218,25 @@ const MenuBar: React.FC = () => {
   const storedPitch = useAppStore((state) => state.globalControls.pitch);
   const storePitch = useAppStore((state) => state.setPitch);
   
+  // Get mute state from store
+  const isMuted = useAppStore((state) => state.globalControls.isMuted);
+  const toggleMute = useAppStore((state) => state.toggleMute);
+  const storedVolume = useAppStore((state) => state.globalControls.volume);
+  
   // Sync pitch with store
   useEffect(() => {
     if (storedPitch !== undefined) {
       setPitch(storedPitch);
     }
   }, [storedPitch]);
+
+  // Sync volume with store
+  useEffect(() => {
+    if (storedVolume !== undefined) {
+      setVolume(storedVolume);
+      setAudioVolume(storedVolume);
+    }
+  }, [storedVolume, setAudioVolume]);
   
   // Zoom controls state
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
@@ -365,6 +393,22 @@ const MenuBar: React.FC = () => {
     const clampedVolume = Math.max(-60, Math.min(6, newVolume));
     setVolume(clampedVolume);
     setAudioVolume(clampedVolume);
+    // Update store volume
+    useAppStore.getState().setVolume(clampedVolume);
+    // If unmuting by changing volume, update mute state
+    if (isMuted && clampedVolume > -60) {
+      useAppStore.getState().toggleMute();
+    }
+  };
+
+  // Handle mute toggle
+  const handleMuteToggle = () => {
+    toggleMute();
+    // Get updated state after toggle
+    const updatedState = useAppStore.getState().globalControls;
+    const newVolume = updatedState.isMuted ? -60 : updatedState.volume;
+    setVolume(newVolume);
+    setAudioVolume(newVolume);
   };
 
   // Get pitch color
@@ -645,10 +689,10 @@ const MenuBar: React.FC = () => {
                               <span style={{ 
                                 fontSize: '0.9rem', 
                                 fontWeight: '700',
-                                color: volume === 0 ? textColor : (volume > 0 ? KENYAN_GREEN : KENYAN_RED),
-                                textShadow: volume !== 0 ? `0 0 10px ${volume > 0 ? KENYAN_GREEN : KENYAN_RED}50` : 'none'
+                                color: isMuted ? KENYAN_RED : (volume === 0 ? textColor : (volume > 0 ? KENYAN_GREEN : KENYAN_RED)),
+                                textShadow: isMuted ? `0 0 10px ${KENYAN_RED}50` : (volume !== 0 ? `0 0 10px ${volume > 0 ? KENYAN_GREEN : KENYAN_RED}50` : 'none')
                               }}>
-                                {volume > 0 ? '+' : ''}{volume} dB
+                                {isMuted ? 'Muted' : `${volume > 0 ? '+' : ''}${volume} dB`}
                               </span>
                             </div>
                           </div>
@@ -727,6 +771,58 @@ const MenuBar: React.FC = () => {
                               }}>
                                 +6
                               </span>
+                            </div>
+                            
+                            {/* Mute Toggle Button */}
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginTop: '12px',
+                              gap: '8px'
+                            }}>
+                              <button
+                                onClick={handleMuteToggle}
+                                disabled={!isAudioLoaded}
+                                style={{
+                                  padding: '8px 16px',
+                                  borderRadius: '12px',
+                                  border: `2px solid ${isMuted ? KENYAN_RED + '80' : KENYAN_GREEN + '80'}`,
+                                  background: isMuted 
+                                    ? `linear-gradient(135deg, ${KENYAN_RED}40, ${KENYAN_RED}20)`
+                                    : `linear-gradient(135deg, ${KENYAN_GREEN}40, ${KENYAN_GREEN}20)`,
+                                  color: isMuted ? KENYAN_RED : KENYAN_GREEN,
+                                  cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  fontSize: '0.85rem',
+                                  fontWeight: '600',
+                                  fontFamily: HANDWRITTEN_FONT,
+                                  transition: 'all 0.3s ease',
+                                  opacity: isAudioLoaded ? 1 : 0.4,
+                                  boxShadow: isMuted 
+                                    ? `0 4px 12px ${KENYAN_RED}40` 
+                                    : `0 4px 12px ${KENYAN_GREEN}40`,
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (isAudioLoaded) {
+                                    e.currentTarget.style.transform = 'scale(1.05) translateY(-1px)';
+                                    e.currentTarget.style.boxShadow = isMuted 
+                                      ? `0 6px 16px ${KENYAN_RED}60` 
+                                      : `0 6px 16px ${KENYAN_GREEN}60`;
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.transform = 'scale(1) translateY(0)';
+                                  e.currentTarget.style.boxShadow = isMuted 
+                                    ? `0 4px 12px ${KENYAN_RED}40` 
+                                    : `0 4px 12px ${KENYAN_GREEN}40`;
+                                }}
+                              >
+                                {isMuted ? <MuteIcon /> : <UnmuteIcon />}
+                                <span>{isMuted ? 'Unmute' : 'Mute'}</span>
+                              </button>
                             </div>
                           </div>
                         );
@@ -926,6 +1022,45 @@ const MenuBar: React.FC = () => {
           </svg>
         </button>
       </div>
+
+      {/* Mute Button - Next to Zoom Controls */}
+      <button
+        onClick={handleMuteToggle}
+        disabled={!isAudioLoaded}
+        style={{
+          background: isMuted 
+            ? `linear-gradient(135deg, ${KENYAN_RED}40, ${KENYAN_RED}20)`
+            : isLightMode ? 'rgba(0, 0, 0, 0.05)' : 'rgba(15, 15, 15, 0.8)',
+          border: `1px solid ${isMuted ? KENYAN_RED + '60' : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,
+          color: isMuted ? KENYAN_RED : (isLightMode ? '#1a1a1a' : '#ffffff'),
+          padding: '6px 10px',
+          borderRadius: '20px',
+          cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.2s ease',
+          opacity: isAudioLoaded ? 1 : 0.4,
+          boxShadow: isMuted ? `0 2px 8px ${KENYAN_RED}40` : '0 2px 8px rgba(0,0,0,0.1)',
+        }}
+        onMouseEnter={(e) => {
+          if (isAudioLoaded) {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.boxShadow = isMuted 
+              ? `0 4px 12px ${KENYAN_RED}60` 
+              : '0 4px 12px rgba(0,0,0,0.2)';
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = isMuted 
+            ? `0 2px 8px ${KENYAN_RED}40` 
+            : '0 2px 8px rgba(0,0,0,0.1)';
+        }}
+        title={isMuted ? 'Unmute' : 'Mute'}
+      >
+        {isMuted ? <MuteIcon /> : <UnmuteIcon />}
+      </button>
 
       {/* Right side - Icon buttons */}
       <div style={{ 
