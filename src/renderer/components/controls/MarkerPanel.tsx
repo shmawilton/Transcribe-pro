@@ -6,6 +6,7 @@ import { useAppStore } from '../../store/store';
 import { MarkerManager } from '../markers/MarkerManager';
 import { Marker } from '../../types/types';
 import { useAudioEngine } from '../audio/useAudioEngine';
+import { useMarkerSpeedControl } from '../markers/useMarkerSpeedControl';
 
 /**
  * Format time as MM:SS for display
@@ -54,6 +55,9 @@ const MarkerPanel: React.FC = () => {
 
   // TASK 13: Get AudioEngine methods for applying marker settings
   const { setSpeed, seek } = useAudioEngine();
+  
+  // Use hook to apply marker speed only within marker range
+  useMarkerSpeedControl();
 
   // State for editing markers
   const [editingMarkerId, setEditingMarkerId] = useState<string | null>(null);
@@ -119,26 +123,46 @@ const MarkerPanel: React.FC = () => {
 
   // TASK 13: Click handler to activate marker
   // Clicking anywhere on a marker list item makes it the active marker
+  // Always seeks to marker start when clicked
   const handleMarkerClick = useCallback(
-    async (marker: Marker, seekToMarker: boolean = false) => {
+    async (marker: Marker) => {
       try {
         // TASK 13: Call MarkerManager's setActiveMarker method
-        // This updates store with new active ID, applies marker's speed setting, enables loop if marker has it
+        // This updates store with new active ID
+        // Speed is now handled by useMarkerSpeedControl hook based on playback position
+        // Always seek to marker start when clicking on it
         await MarkerManager.setActiveMarker(marker.id, {
-          seekToMarker, // Optional - Seek to marker start if requested
+          seekToMarker: true, // Always seek to marker start when clicking
           audioEngine: {
-            setSpeed, // Apply marker's speed
-            seek, // Seek to marker start if requested
-            // Note: setLoop and disableLoop would need to be added to AudioEngine if needed
-            // For now, we'll just apply speed and seek
+            seek, // Seek to marker start
+            // Speed is handled by useMarkerSpeedControl hook
           },
         });
       } catch (error) {
         console.error('[MarkerPanel] Error activating marker:', error);
       }
     },
-    [setSpeed, seek]
+    [seek]
   );
+
+  // Handle deactivate marker with smooth animation
+  const handleDeactivateMarker = useCallback(() => {
+    // Add smooth transition by animating the deactivation
+    const markerPanel = document.querySelector('.marker-panel');
+    if (markerPanel) {
+      markerPanel.style.transition = 'all 0.3s ease';
+    }
+    
+    // Reset speed to normal smoothly
+    setSpeed(1.0);
+    
+    // Clear active marker after a brief delay for smooth visual transition
+    setTimeout(() => {
+      const store = useAppStore.getState();
+      store.setSelectedMarkerId(null);
+      console.log('[MarkerPanel] Marker deactivated, speed reset to 1.0x');
+    }, 50);
+  }, [setSpeed]);
 
   // TASK 15: Handle Create Marker button click
   // Triggers marker creation form in MarkerTimeline (same as clicking on timeline)
@@ -274,10 +298,73 @@ const MarkerPanel: React.FC = () => {
           Markers ({sortedMarkers.length})
         </div>
 
-        {/* TASK 15: Create Marker Icon Button - White/Black/Grey Bubble Style */}
-        <button
-          onClick={handleCreateButtonClick}
-          disabled={duration <= 0}
+        {/* Button group: Create and Deactivate */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* General Deactivate Button - Only visible when a marker is active */}
+          {selectedMarkerId && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeactivateMarker();
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '36px',
+                padding: 0,
+                background: isLightMode ? '#FFFFFF' : '#1a1a1a',
+                color: isLightMode ? '#000000' : '#FFFFFF',
+                border: `2px solid ${isLightMode ? '#000000' : '#FFFFFF'}`,
+                borderRadius: '50%',
+                cursor: 'pointer',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: isLightMode 
+                  ? '0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)' 
+                  : '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+                opacity: 1,
+                transform: 'scale(1)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.15)';
+                e.currentTarget.style.boxShadow = isLightMode
+                  ? '0 4px 12px rgba(255, 68, 68, 0.3), 0 0 0 1px rgba(255, 68, 68, 0.2)'
+                  : '0 4px 12px rgba(255, 68, 68, 0.5), 0 0 0 1px rgba(255, 68, 68, 0.3)';
+                e.currentTarget.style.borderColor = '#FF4444';
+                e.currentTarget.style.color = '#FF4444';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = isLightMode
+                  ? '0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)'
+                  : '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)';
+                e.currentTarget.style.borderColor = isLightMode ? '#000000' : '#FFFFFF';
+                e.currentTarget.style.color = isLightMode ? '#000000' : '#FFFFFF';
+              }}
+              title="Deactivate marker (return to normal speed)"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ transition: 'all 0.3s ease' }}
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+            </button>
+          )}
+
+          {/* TASK 15: Create Marker Icon Button - White/Black/Grey Bubble Style */}
+          <button
+            onClick={handleCreateButtonClick}
+            disabled={duration <= 0}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -336,6 +423,7 @@ const MarkerPanel: React.FC = () => {
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
+        </div>
       </div>
 
       {/* TASK 10: Vertical scrollable list with custom scrollbar */}
@@ -424,18 +512,20 @@ const MarkerPanel: React.FC = () => {
                   : `1px solid ${borderColor}`,
                 borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer', // TASK 13: Visual feedback - change cursor to pointer on hover
-                transition: 'all 0.2s ease', // TASK 14: Smooth transition on border/background
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // Smooth transition with easing
                 position: 'relative',
                 userSelect: 'none', // TASK 13: Prevent text selection when clicking rapidly
                 WebkitUserSelect: 'none',
                 MozUserSelect: 'none',
                 msUserSelect: 'none',
-                // Subtle shadow for active marker
+                // Subtle shadow for active marker with smooth transition
                 boxShadow: isSelected
                   ? `0 2px 8px rgba(0, 0, 0, 0.2)`
                   : 'none',
+                opacity: isSelected ? 1 : 0.95,
+                transform: isSelected ? 'scale(1)' : 'scale(0.98)',
               }}
-              onClick={() => handleMarkerClick(marker, false)} // TASK 13: Add click handler to list item
+              onClick={() => handleMarkerClick(marker)} // TASK 13: Add click handler to list item - always seeks to start
               onMouseEnter={(e) => {
                 if (!isSelected) {
                   e.currentTarget.style.background = itemHoverBg; // TASK 13: Hover effect
@@ -660,11 +750,44 @@ const MarkerPanel: React.FC = () => {
                   </span>
                 )}
 
-                {/* Loop indicator */}
-                {hasLoop && (
-                  <div style={{ color: '#00AA00', fontSize: '0.7rem' }} title="Loop enabled">
-                    ↻
-                  </div>
+                {/* Loop - editable checkbox */}
+                {editingMarkerId === marker.id && editFormData ? (
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      cursor: 'pointer',
+                      fontSize: '0.7rem',
+                      color: textColor,
+                      userSelect: 'none',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    title="Loop this marker section"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={editFormData.loop}
+                      onChange={(e) => {
+                        setEditFormData({ ...editFormData, loop: e.target.checked });
+                      }}
+                      style={{
+                        width: '14px',
+                        height: '14px',
+                        cursor: 'pointer',
+                        accentColor: isLightMode ? '#006644' : '#00AA66',
+                      }}
+                    />
+                    <span style={{ color: editFormData.loop ? '#00AA00' : textSecondary }}>
+                      Loop
+                    </span>
+                  </label>
+                ) : (
+                  hasLoop && (
+                    <div style={{ color: '#00AA00', fontSize: '0.7rem' }} title="Loop enabled">
+                      ↻
+                    </div>
+                  )
                 )}
 
                 {/* Edit/Save buttons and Delete button */}
@@ -710,6 +833,62 @@ const MarkerPanel: React.FC = () => {
                   <div style={{ display: 'flex', gap: '0.3rem', marginLeft: 'auto', alignItems: 'center' }}>
                     {editingMarkerId !== marker.id && (
                       <>
+                        {/* Deactivate button - only visible when marker is active */}
+                        {isSelected && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeactivateMarker();
+                            }}
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'transparent',
+                              border: `1px solid ${isLightMode ? '#FF4444' : '#FF6666'}`,
+                              borderRadius: '4px',
+                              color: isLightMode ? '#FF4444' : '#FF6666',
+                              cursor: 'pointer',
+                              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                              fontSize: '0.7rem',
+                              opacity: 1,
+                              transform: 'scale(1)',
+                            }}
+                            title="Deactivate marker"
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = isLightMode ? 'rgba(255, 68, 68, 0.15)' : 'rgba(255, 68, 68, 0.25)';
+                              e.currentTarget.style.borderColor = '#FF4444';
+                              e.currentTarget.style.color = '#FF4444';
+                              e.currentTarget.style.transform = 'scale(1.1)';
+                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(255, 68, 68, 0.3)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'transparent';
+                              e.currentTarget.style.borderColor = isLightMode ? '#FF4444' : '#FF6666';
+                              e.currentTarget.style.color = isLightMode ? '#FF4444' : '#FF6666';
+                              e.currentTarget.style.transform = 'scale(1)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              style={{ transition: 'all 0.3s ease' }}
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="8" y1="12" x2="16" y2="12" />
+                            </svg>
+                          </button>
+                        )}
                         <button
                           onClick={(e) => handleStartEdit(marker, e)}
                           style={{

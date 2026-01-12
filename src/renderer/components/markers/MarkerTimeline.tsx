@@ -379,6 +379,18 @@ export function MarkerTimeline() {
     setRequestMarkerCreation(false); // Clear request from MarkerPanel
   }, [setRequestMarkerCreation]);
 
+  // Keyboard shortcut: Esc to cancel marker creation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && (isCreatingMarker || showMarkerForm)) {
+        handleCancelMarker();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCreatingMarker, showMarkerForm, handleCancelMarker]);
+
   // Listen for marker creation request from MarkerPanel button
   useEffect(() => {
     if (requestMarkerCreation && duration > 0) {
@@ -898,6 +910,49 @@ export function MarkerTimeline() {
         document.body
       )}
       
+      {/* Cancel button during marker creation */}
+      {isCreatingMarker && markerStartTime !== null && markerEndTime !== null && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            zIndex: 1000,
+          }}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCancelMarker();
+            }}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'rgba(255, 68, 68, 0.9)',
+              border: '2px solid rgba(255, 68, 68, 1)',
+              borderRadius: '8px',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: '600',
+              fontFamily: "'Gochi Hand', 'Annie Use Your Telescope', cursive",
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 68, 68, 1)';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 68, 68, 0.9)';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+            title="Cancel marker creation (Esc)"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Render SVG */}
       {containerWidth > 0 && (
         <svg 
@@ -1014,6 +1069,21 @@ export function MarkerTimeline() {
                     {formatTime(Math.max(markerStartTime, markerEndTime))}
                   </text>
                 </>
+              )}
+              {/* Helper text when creating marker */}
+              {hoverTime !== null && (
+                <text
+                  x={timeToPixel(hoverTime)}
+                  y={TIME_GRID_HEIGHT + MARKER_HEIGHT + 20}
+                  fill="#D4AF37"
+                  fontSize="11"
+                  fontWeight="600"
+                  textAnchor="middle"
+                  pointerEvents="none"
+                  style={{ fontFamily: "'Gochi Hand', 'Annie Use Your Telescope', cursive" }}
+                >
+                  Release to set range
+                </text>
               )}
             </g>
           )}

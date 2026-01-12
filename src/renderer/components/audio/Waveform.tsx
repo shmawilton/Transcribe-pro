@@ -68,6 +68,10 @@ const Waveform: React.FC = () => {
   const currentTime = useAppStore((state) => state.audio.currentTime);
   const duration = useAppStore((state) => state.audio.duration);
   const isPlaying = useAppStore((state) => state.audio.isPlaying);
+  const activeMarkerId = useAppStore((state) => state.ui.selectedMarkerId); // For triggering redraw when marker changes
+  
+  // Note: Active marker data is read inside drawWaveformWithBuffer from store state
+  // to ensure fresh values during animation frames
   
   // Reset animated viewport when new audio is loaded
   useEffect(() => {
@@ -564,6 +568,13 @@ const Waveform: React.FC = () => {
     const actualCurrentTime = storeState.audio.currentTime;
     const actualDuration = storeState.audio.duration;
     
+    // Get active marker from store (fresh value)
+    const activeMarkerId = storeState.ui.selectedMarkerId;
+    const markers = storeState.markers;
+    const activeMarker = activeMarkerId 
+      ? markers.find((m) => m.id === activeMarkerId) || null
+      : null;
+    
     // Use animated viewport for smooth zoom transitions
     const vpStart = animatedViewportRef.current.initialized 
       ? animatedViewportRef.current.start 
@@ -591,13 +602,39 @@ const Waveform: React.FC = () => {
     const progress = visibleDuration > 0 ? Math.max(0, Math.min(relativeTime / visibleDuration, 1)) : 0;
     const progressX = TIME_LABEL_PADDING + (usableWidth * progress);
 
+    // Calculate active marker pixel positions if marker is active
+    // Account for viewport when calculating positions
+    let markerStartX = 0;
+    let markerEndX = 0;
+    let markerColor = '';
+    if (activeMarker && actualDuration > 0 && visibleDuration > 0) {
+      // Calculate marker positions relative to viewport
+      const markerStartRelative = Math.max(0, activeMarker.start - vpStart);
+      const markerEndRelative = Math.min(visibleDuration, activeMarker.end - vpStart);
+      const markerStartRatio = markerStartRelative / visibleDuration;
+      const markerEndRatio = markerEndRelative / visibleDuration;
+      markerStartX = TIME_LABEL_PADDING + (usableWidth * markerStartRatio);
+      markerEndX = TIME_LABEL_PADDING + (usableWidth * markerEndRatio);
+      markerColor = activeMarker.color || '#4CAF50';
+    }
+
     if (isStereo && !Array.isArray(peaks) && 'left' in peaks && 'right' in peaks) {
       // Stereo drawing: split canvas in half
       const stereoPeaks = peaks as StereoPeaks;
       const halfHeight = height / 2;
       
       // Draw left channel (top half) with gradient - offset by padding
-      drawChannelWithGradient(ctx, stereoPeaks.left, usableWidth, halfHeight, TIME_LABEL_PADDING, 0, maxAmplitude, progressX);
+      drawChannelWithGradient(
+        ctx, 
+        stereoPeaks.left, 
+        usableWidth, 
+        halfHeight, 
+        TIME_LABEL_PADDING, 
+        0, 
+        maxAmplitude, 
+        progressX,
+        activeMarker ? { startX: markerStartX, endX: markerEndX, color: markerColor } : null
+      );
       
       // Draw divider line between channels (very subtle)
       ctx.strokeStyle = 'rgba(222, 41, 16, 0.2)';
@@ -608,7 +645,17 @@ const Waveform: React.FC = () => {
       ctx.stroke();
       
       // Draw right channel (bottom half) with gradient - offset by padding
-      drawChannelWithGradient(ctx, stereoPeaks.right, usableWidth, halfHeight, TIME_LABEL_PADDING, halfHeight, maxAmplitude, progressX);
+      drawChannelWithGradient(
+        ctx, 
+        stereoPeaks.right, 
+        usableWidth, 
+        halfHeight, 
+        TIME_LABEL_PADDING, 
+        halfHeight, 
+        maxAmplitude, 
+        progressX,
+        activeMarker ? { startX: markerStartX, endX: markerEndX, color: markerColor } : null
+      );
       
       // Draw center lines for each channel (spanning full width)
       // Make them more subtle so they don't interfere with waveform visibility
@@ -626,7 +673,17 @@ const Waveform: React.FC = () => {
       // Mono drawing: use full canvas height, centered - offset by padding
       const monoPeaks = Array.isArray(peaks) ? peaks : [];
       if (monoPeaks.length > 0) {
-        drawChannelWithGradient(ctx, monoPeaks, usableWidth, height, TIME_LABEL_PADDING, 0, maxAmplitude, progressX);
+        drawChannelWithGradient(
+          ctx, 
+          monoPeaks, 
+          usableWidth, 
+          height, 
+          TIME_LABEL_PADDING, 
+          0, 
+          maxAmplitude, 
+          progressX,
+          activeMarker ? { startX: markerStartX, endX: markerEndX, color: markerColor } : null
+        );
         
         // Draw center line (spanning full width)
         // Make it more subtle so it doesn't interfere with waveform visibility
@@ -662,6 +719,7 @@ const Waveform: React.FC = () => {
    * @param offsetY - Y offset for this channel (0 for mono, 0 or halfHeight for stereo)
    * @param maxAmplitude - Scale factor for amplitude visualization
    * @param progressX - X position of playback progress (for gradient)
+   * @param activeMarkerRange - Active marker range info (startX, endX, color) or null
    */
   const drawChannelWithGradient = (
     ctx: CanvasRenderingContext2D,
@@ -671,7 +729,8 @@ const Waveform: React.FC = () => {
     offsetX: number,
     offsetY: number,
     maxAmplitude: number,
-    progressX: number
+    progressX: number,
+    activeMarkerRange: { startX: number; endX: number; color: string } | null = null
   ) => {
     if (peaks.length === 0) return;
 
@@ -719,37 +778,53 @@ const Waveform: React.FC = () => {
       // Calculate Y position (centered on the centerY line)
       const yTop = centerY - (barHeight / 2);
       
-      // Determine color based on playback progress
-      // x is the position of this bar, progressX is where playback has reached
-      const isPlayed = x < progressX;
-      
+      // Determine color based on active marker or playback progress
       let color: string;
-      if (isPlayed) {
-        // Played portion: gradient from white → green → red based on position
-        const playedRatio = progressX > offsetX ? (x - offsetX) / (progressX - offsetX) : 0;
+      
+      // If there's an active marker, check if this bar is within marker range
+      if (activeMarkerRange) {
+        const barCenterX = x + barWidth / 2;
+        const isInMarkerRange = barCenterX >= activeMarkerRange.startX && barCenterX <= activeMarkerRange.endX;
         
-        // Smooth gradient: white (start) → green (middle) → red (near playhead)
-        if (playedRatio < 0.4) {
-          // White to Green
-          const t = playedRatio / 0.4;
-          const r = Math.round(255 - 255 * t);
-          const g = Math.round(255 - (255 - 180) * t);
-          const b = Math.round(255 - (255 - 100) * t);
-          color = `rgb(${r}, ${g}, ${b})`;
-        } else if (playedRatio < 0.7) {
-          // Green to Red
-          const t = (playedRatio - 0.4) / 0.3;
-          const r = Math.round(0 + 220 * t);
-          const g = Math.round(180 - 140 * t);
-          const b = Math.round(100 - 80 * t);
-          color = `rgb(${r}, ${g}, ${b})`;
+        if (isInMarkerRange) {
+          // Use marker color for active marker section
+          color = activeMarkerRange.color;
         } else {
-          // Red (near playhead) - brightest
-          color = '#DE2910';
+          // Greyish color for inactive sections
+          color = '#444444'; // Darker grey to show inactivity
         }
       } else {
-        // Unplayed portion: grey
-        color = '#555555';
+        // Normal behavior: color based on playback progress
+        // x is the position of this bar, progressX is where playback has reached
+        const isPlayed = x < progressX;
+        
+        if (isPlayed) {
+          // Played portion: gradient from white → green → red based on position
+          const playedRatio = progressX > offsetX ? (x - offsetX) / (progressX - offsetX) : 0;
+          
+          // Smooth gradient: white (start) → green (middle) → red (near playhead)
+          if (playedRatio < 0.4) {
+            // White to Green
+            const t = playedRatio / 0.4;
+            const r = Math.round(255 - 255 * t);
+            const g = Math.round(255 - (255 - 180) * t);
+            const b = Math.round(255 - (255 - 100) * t);
+            color = `rgb(${r}, ${g}, ${b})`;
+          } else if (playedRatio < 0.7) {
+            // Green to Red
+            const t = (playedRatio - 0.4) / 0.3;
+            const r = Math.round(0 + 220 * t);
+            const g = Math.round(180 - 140 * t);
+            const b = Math.round(100 - 80 * t);
+            color = `rgb(${r}, ${g}, ${b})`;
+          } else {
+            // Red (near playhead) - brightest
+            color = '#DE2910';
+          }
+        } else {
+          // Unplayed portion: grey
+          color = '#555555';
+        }
       }
       
       // Draw rounded bar
@@ -805,7 +880,7 @@ const Waveform: React.FC = () => {
     // Reset transform and redraw
     ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     drawWaveformWithBuffer(ctx, canvasSize.width, canvasSize.height, audioBuffer);
-  }, [audioBuffer, zoomLevel, canvasSize, duration, animationTick]);
+  }, [audioBuffer, zoomLevel, canvasSize, duration, animationTick, activeMarkerId]); // Redraw when active marker changes
 
   /**
    * Animation frame loop for smooth playback updates

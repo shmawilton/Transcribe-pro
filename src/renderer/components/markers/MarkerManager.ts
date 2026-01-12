@@ -552,21 +552,11 @@ export class MarkerManager {
       throw new Error(`Marker with ID "${markerId}" not found`);
     }
 
-    // Step 3: Apply marker's speed
-    // Get marker.speed property (defaults to 1.0 if not set)
+    // Step 3: Speed is now handled by useMarkerSpeedControl hook
+    // The hook monitors playback position and applies marker speed only when within marker range
+    // We don't apply speed here anymore - let the hook handle it dynamically
     const markerSpeed = marker.speed !== undefined ? marker.speed : 1.0;
-    
-    // Try to get audio engine from options or from global context
-    // Note: In a real implementation, you might need to import useAudioEngine hook
-    // For now, we'll accept it as an optional parameter
-    if (options?.audioEngine?.setSpeed) {
-      options.audioEngine.setSpeed(markerSpeed);
-      console.log(`[MarkerManager] Applied marker speed: ${markerSpeed}x`);
-    } else {
-      // If no audio engine provided, log a warning
-      // In actual usage, components should pass the audio engine instance
-      console.warn('[MarkerManager] AudioEngine not provided. Speed not applied. Marker speed:', markerSpeed);
-    }
+    console.log(`[MarkerManager] Marker activated: ${marker.name} (speed: ${markerSpeed}x, will apply when in range)`);
 
     // Step 4: Apply marker's loop settings
     if (marker.loop) {
