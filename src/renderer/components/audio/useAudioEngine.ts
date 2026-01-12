@@ -26,10 +26,13 @@ interface IAudioEngine {
   isFormatSupported(file: File): boolean;
   resumeAudioContext(): Promise<void>;
   setPlaybackRate?(rate: number): void;
+  setSpeed?(speed: number): void;
+  setSpeedPreset?(preset: 'slowest' | 'slow' | 'normal' | 'fast' | 'fastest'): void;
   setPitch?(semitones: number): void;
   resetPitch?(): void;
   setVolume?(db: number): void;
   getPlaybackRate?(): number;
+  getSpeed?(): number;
   getPitch?(): number;
 }
 
@@ -233,6 +236,54 @@ export function useAudioEngine() {
   }, []);
 
   /**
+   * Set speed (alias for setPlaybackRate) - maintains pitch
+   * @param speed - Speed multiplier (0.25 to 4.0)
+   */
+  const setSpeed = useCallback((speed: number) => {
+    if (engineRef.current && engineRef.current.setSpeed) {
+      engineRef.current.setSpeed(speed);
+    } else {
+      // Fallback to setPlaybackRate
+      setPlaybackRate(speed);
+    }
+    console.log('[useAudioEngine] setSpeed:', speed, isElectron ? '(Howler)' : '(Tone.js)');
+  }, [setPlaybackRate]);
+
+  /**
+   * Set speed using preset
+   * @param preset - Speed preset: 'slowest', 'slow', 'normal', 'fast', 'fastest'
+   */
+  const setSpeedPreset = useCallback((preset: 'slowest' | 'slow' | 'normal' | 'fast' | 'fastest') => {
+    if (engineRef.current && engineRef.current.setSpeedPreset) {
+      engineRef.current.setSpeedPreset(preset);
+    } else {
+      // Fallback: map preset to speed value
+      const speedMap: Record<string, number> = {
+        slowest: 0.25,
+        slow: 0.5,
+        normal: 1.0,
+        fast: 1.5,
+        fastest: 2.0,
+      };
+      const speed = speedMap[preset] || 1.0;
+      setSpeed(speed);
+    }
+    console.log('[useAudioEngine] setSpeedPreset:', preset);
+  }, [setSpeed]);
+
+  /**
+   * Get current speed
+   */
+  const getSpeed = useCallback((): number => {
+    if (engineRef.current && engineRef.current.getSpeed) {
+      return engineRef.current.getSpeed();
+    } else if (engineRef.current && engineRef.current.getPlaybackRate) {
+      return engineRef.current.getPlaybackRate();
+    }
+    return 1.0; // Default
+  }, []);
+
+  /**
    * Set pitch shift in semitones - independent of speed
    * Works in both browser (Tone.js) and Electron (Howler + Tone.js)
    * @param semitones - Pitch shift (-2 to +2 semitones)
@@ -332,10 +383,13 @@ export function useAudioEngine() {
     isPlaying, // Now reactive from store
     // Speed/Pitch control (new Tone.js features)
     setPlaybackRate,
+    setSpeed,
+    setSpeedPreset,
     setPitch,
     resetPitch,
     setVolume,
     getPlaybackRate,
+    getSpeed,
     getPitch,
   };
 }

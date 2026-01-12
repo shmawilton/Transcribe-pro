@@ -199,6 +199,8 @@ const MenuBar: React.FC = () => {
   const [pitch, setPitch] = useState(0);
   const [volume, setVolume] = useState(0);
   const [isPitchAnimating, setIsPitchAnimating] = useState(false);
+  const [showVolumePopup, setShowVolumePopup] = useState(false);
+  const volumePopupRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   
   // Store state
@@ -230,6 +232,37 @@ const MenuBar: React.FC = () => {
     }
   }, [storedPitch]);
 
+  // Initialize volume to +6 dB (maximum volume) on mount
+  useEffect(() => {
+    // Always initialize to +6 dB (maximum volume) on mount
+    const initialVolume = 6;
+    setVolume(initialVolume);
+    setAudioVolume(initialVolume);
+    useAppStore.getState().setVolume(initialVolume);
+    console.log('[MenuBar] Volume initialized to +6 dB (maximum volume)');
+  }, []); // Only run once on mount
+
+  // Apply volume when audio loads - ensure it's at +6 dB
+  useEffect(() => {
+    if (isAudioLoaded) {
+      // When audio loads, ensure volume is at +6 dB (maximum) if not muted
+      const currentVolume = useAppStore.getState().globalControls.volume;
+      const isCurrentlyMuted = useAppStore.getState().globalControls.isMuted;
+      
+      if (!isCurrentlyMuted && currentVolume !== 6) {
+        // Reset to +6 dB if not muted and not already at +6
+        setVolume(6);
+        setAudioVolume(6);
+        useAppStore.getState().setVolume(6);
+        console.log('[MenuBar] Volume reset to +6 dB on audio load');
+      } else if (!isCurrentlyMuted) {
+        // Ensure volume is applied even if already at +6
+        setAudioVolume(6);
+        console.log('[MenuBar] Volume applied at +6 dB on audio load');
+      }
+    }
+  }, [isAudioLoaded, setAudioVolume]);
+
   // Sync volume with store
   useEffect(() => {
     if (storedVolume !== undefined) {
@@ -237,6 +270,19 @@ const MenuBar: React.FC = () => {
       setAudioVolume(storedVolume);
     }
   }, [storedVolume, setAudioVolume]);
+
+  // Close volume popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (volumePopupRef.current && !volumePopupRef.current.contains(e.target as Node)) {
+        setShowVolumePopup(false);
+      }
+    };
+    if (showVolumePopup) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showVolumePopup]);
   
   // Zoom controls state
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
@@ -482,19 +528,6 @@ const MenuBar: React.FC = () => {
         action: undefined,
         customRender: true,
       },
-      { id: 'divider1', label: '', divider: true },
-      {
-        id: 'volume-header',
-        label: 'Volume',
-        action: undefined,
-        customRender: true,
-      },
-      {
-        id: 'volume-control',
-        label: '',
-        action: undefined,
-        customRender: true,
-      },
     ] as any[];
   }
 
@@ -641,189 +674,6 @@ const MenuBar: React.FC = () => {
                               onPitchChange={handlePitchChange}
                               isAudioLoaded={isAudioLoaded}
                             />
-                          </div>
-                        );
-                      }
-                      
-                      if (dropItem.id === 'volume-header') {
-                        return (
-                          <div key={dropItem.id} style={{ 
-                            padding: '12px 16px', 
-                            background: `linear-gradient(135deg, ${KENYAN_GREEN}15, ${KENYAN_GREEN}08)`,
-                            backdropFilter: 'blur(10px)',
-                            borderTop: `2px solid ${KENYAN_GREEN}30`,
-                            marginTop: '8px',
-                            borderRadius: '12px 12px 0 0',
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}>
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '10px', 
-                              color: textColor, 
-                              fontWeight: '700', 
-                              fontSize: '1rem',
-                              position: 'relative',
-                              zIndex: 1
-                            }}>
-                              <div style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '50%',
-                                background: `linear-gradient(135deg, ${KENYAN_GREEN}40, ${KENYAN_GREEN}20)`,
-                                backdropFilter: 'blur(8px)',
-                                border: `2px solid ${KENYAN_GREEN}60`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: `0 0 20px ${KENYAN_GREEN}40`
-                              }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2.5">
-                                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                                  {volume > -30 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>}
-                                  {volume > -10 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>}
-                                </svg>
-                              </div>
-                              <span style={{ flex: 1 }}>Volume</span>
-                              <span style={{ 
-                                fontSize: '0.9rem', 
-                                fontWeight: '700',
-                                color: isMuted ? KENYAN_RED : (volume === 0 ? textColor : (volume > 0 ? KENYAN_GREEN : KENYAN_RED)),
-                                textShadow: isMuted ? `0 0 10px ${KENYAN_RED}50` : (volume !== 0 ? `0 0 10px ${volume > 0 ? KENYAN_GREEN : KENYAN_RED}50` : 'none')
-                              }}>
-                                {isMuted ? 'Muted' : `${volume > 0 ? '+' : ''}${volume} dB`}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      if (dropItem.id === 'volume-control') {
-                        const volumePercent = ((volume + 60) / 66) * 100;
-                        return (
-                          <div key={dropItem.id} style={{ 
-                            padding: '16px', 
-                            minWidth: '320px',
-                            background: `linear-gradient(145deg, ${isLightMode ? 'rgba(255,255,255,0.6)' : 'rgba(20,20,25,0.8)'}, ${isLightMode ? 'rgba(250,250,250,0.4)' : 'rgba(15,15,20,0.6)'})`,
-                            backdropFilter: 'blur(20px)',
-                            WebkitBackdropFilter: 'blur(20px)',
-                            borderRadius: '0 0 12px 12px',
-                            border: `1px solid ${KENYAN_GREEN}20`,
-                            boxShadow: '0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
-                            position: 'relative',
-                            overflow: 'hidden'
-                          }}>
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '10px',
-                              position: 'relative',
-                              zIndex: 1
-                            }}>
-                              <span style={{ 
-                                fontSize: '0.8rem', 
-                                color: textColor, 
-                                opacity: 0.6, 
-                                minWidth: '40px',
-                                fontWeight: '600'
-                              }}>
-                                -60
-                              </span>
-                              <div style={{ flex: 1, position: 'relative', height: '8px' }}>
-                                <input
-                                  type="range"
-                                  min="-60"
-                                  max="6"
-                                  step="1"
-                                  value={volume}
-                                  onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-                                  disabled={!isAudioLoaded}
-                                  style={{
-                                    width: '100%',
-                                    height: '8px',
-                                    borderRadius: '4px',
-                                    background: `linear-gradient(to right, 
-                                      ${KENYAN_GREEN} 0%, 
-                                      ${KENYAN_GREEN} ${Math.max(0, volumePercent - 1)}%, 
-                                      ${isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)'} ${Math.max(0, volumePercent - 1)}%, 
-                                      ${isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)'} ${Math.min(100, volumePercent + 1)}%, 
-                                      ${KENYAN_GREEN} ${Math.min(100, volumePercent + 1)}%, 
-                                      ${KENYAN_GREEN} 100%)`,
-                                    outline: 'none',
-                                    cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-                                    WebkitAppearance: 'none',
-                                    appearance: 'none',
-                                    opacity: isAudioLoaded ? 1 : 0.4,
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0
-                                  }}
-                                  className="volume-slider"
-                                />
-                              </div>
-                              <span style={{ 
-                                fontSize: '0.8rem', 
-                                color: textColor, 
-                                opacity: 0.6, 
-                                minWidth: '30px',
-                                fontWeight: '600'
-                              }}>
-                                +6
-                              </span>
-                            </div>
-                            
-                            {/* Mute Toggle Button */}
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              marginTop: '12px',
-                              gap: '8px'
-                            }}>
-                              <button
-                                onClick={handleMuteToggle}
-                                disabled={!isAudioLoaded}
-                                style={{
-                                  padding: '8px 16px',
-                                  borderRadius: '12px',
-                                  border: `2px solid ${isMuted ? KENYAN_RED + '80' : KENYAN_GREEN + '80'}`,
-                                  background: isMuted 
-                                    ? `linear-gradient(135deg, ${KENYAN_RED}40, ${KENYAN_RED}20)`
-                                    : `linear-gradient(135deg, ${KENYAN_GREEN}40, ${KENYAN_GREEN}20)`,
-                                  color: isMuted ? KENYAN_RED : KENYAN_GREEN,
-                                  cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  fontSize: '0.85rem',
-                                  fontWeight: '600',
-                                  fontFamily: HANDWRITTEN_FONT,
-                                  transition: 'all 0.3s ease',
-                                  opacity: isAudioLoaded ? 1 : 0.4,
-                                  boxShadow: isMuted 
-                                    ? `0 4px 12px ${KENYAN_RED}40` 
-                                    : `0 4px 12px ${KENYAN_GREEN}40`,
-                                }}
-                                onMouseEnter={(e) => {
-                                  if (isAudioLoaded) {
-                                    e.currentTarget.style.transform = 'scale(1.05) translateY(-1px)';
-                                    e.currentTarget.style.boxShadow = isMuted 
-                                      ? `0 6px 16px ${KENYAN_RED}60` 
-                                      : `0 6px 16px ${KENYAN_GREEN}60`;
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.transform = 'scale(1) translateY(0)';
-                                  e.currentTarget.style.boxShadow = isMuted 
-                                    ? `0 4px 12px ${KENYAN_RED}40` 
-                                    : `0 4px 12px ${KENYAN_GREEN}40`;
-                                }}
-                              >
-                                {isMuted ? <MuteIcon /> : <UnmuteIcon />}
-                                <span>{isMuted ? 'Unmute' : 'Mute'}</span>
-                              </button>
-                            </div>
                           </div>
                         );
                       }
@@ -1023,44 +873,207 @@ const MenuBar: React.FC = () => {
         </button>
       </div>
 
-      {/* Mute Button - Next to Zoom Controls */}
-      <button
-        onClick={handleMuteToggle}
-        disabled={!isAudioLoaded}
-        style={{
-          background: isMuted 
-            ? `linear-gradient(135deg, ${KENYAN_RED}40, ${KENYAN_RED}20)`
-            : isLightMode ? 'rgba(0, 0, 0, 0.05)' : 'rgba(15, 15, 15, 0.8)',
-          border: `1px solid ${isMuted ? KENYAN_RED + '60' : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,
-          color: isMuted ? KENYAN_RED : (isLightMode ? '#1a1a1a' : '#ffffff'),
-          padding: '6px 10px',
-          borderRadius: '20px',
-          cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.2s ease',
-          opacity: isAudioLoaded ? 1 : 0.4,
-          boxShadow: isMuted ? `0 2px 8px ${KENYAN_RED}40` : '0 2px 8px rgba(0,0,0,0.1)',
-        }}
-        onMouseEnter={(e) => {
-          if (isAudioLoaded) {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            e.currentTarget.style.boxShadow = isMuted 
-              ? `0 4px 12px ${KENYAN_RED}60` 
-              : '0 4px 12px rgba(0,0,0,0.2)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = isMuted 
-            ? `0 2px 8px ${KENYAN_RED}40` 
-            : '0 2px 8px rgba(0,0,0,0.1)';
-        }}
-        title={isMuted ? 'Unmute' : 'Mute'}
-      >
-        {isMuted ? <MuteIcon /> : <UnmuteIcon />}
-      </button>
+      {/* Volume Control Button - Next to Zoom Controls */}
+      <div style={{ position: 'relative' }} ref={volumePopupRef}>
+        <button
+          onClick={() => setShowVolumePopup(!showVolumePopup)}
+          disabled={!isAudioLoaded}
+          style={{
+            background: isMuted 
+              ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
+              : showVolumePopup
+              ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)')
+              : isLightMode ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)',
+            border: `1px solid ${isMuted 
+              ? (isLightMode ? 'rgba(220,53,69,0.3)' : 'rgba(220,53,69,0.4)')
+              : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)')}`,
+            color: isMuted 
+              ? (isLightMode ? '#dc3545' : '#ff6b7a')
+              : (isLightMode ? '#1a1a1a' : '#ffffff'),
+            padding: '6px 10px',
+            borderRadius: '20px',
+            cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s ease',
+            opacity: isAudioLoaded ? 1 : 0.4,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          }}
+          onMouseEnter={(e) => {
+            if (isAudioLoaded) {
+              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.background = isMuted 
+                ? (isLightMode ? 'rgba(220,53,69,0.15)' : 'rgba(220,53,69,0.3)')
+                : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)');
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.background = isMuted 
+              ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
+              : (showVolumePopup 
+                ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)')
+                : (isLightMode ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)'));
+          }}
+          title={isMuted ? 'Unmute' : 'Volume Control'}
+        >
+          {isMuted ? <MuteIcon /> : <UnmuteIcon />}
+        </button>
+
+        {/* Volume Control Popup */}
+        {showVolumePopup && (
+          <div style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            right: 0,
+            padding: '20px',
+            minWidth: '280px',
+            background: isLightMode ? 'rgba(255,255,255,0.98)' : 'rgba(30,30,35,0.98)',
+            backdropFilter: 'blur(25px)',
+            WebkitBackdropFilter: 'blur(25px)',
+            borderRadius: '16px',
+            border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)'}`,
+            boxShadow: '0 12px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            animation: 'fadeInScale 0.2s ease-out'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '4px'
+            }}>
+              <span style={{
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                color: isLightMode ? '#666' : '#aaa',
+                textTransform: 'uppercase',
+                letterSpacing: '1px'
+              }}>
+                Volume Control
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{
+                  fontSize: '1.2rem',
+                  fontWeight: '700',
+                  color: isLightMode ? '#1a1a1a' : '#ffffff',
+                  fontFamily: HANDWRITTEN_FONT
+                }}>
+                  {isMuted ? 'Muted' : `${volume > 0 ? '+' : ''}${volume} dB`}
+                </span>
+                <button
+                  onClick={() => {
+                    handleVolumeChange(6);
+                  }}
+                  disabled={!isAudioLoaded || volume === 6}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '0.7rem',
+                    background: volume === 6 ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') : 'transparent',
+                    border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'}`,
+                    borderRadius: '6px',
+                    color: isLightMode ? '#666' : '#aaa',
+                    cursor: (!isAudioLoaded || volume === 6) ? 'not-allowed' : 'pointer',
+                    opacity: (!isAudioLoaded || volume === 6) ? 0.4 : 1,
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Reset to +6 dB"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Volume Labels */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: '0.7rem',
+              color: isLightMode ? '#999' : '#666',
+              fontWeight: '500'
+            }}>
+              <span>-60 dB</span>
+              <span>0 dB</span>
+              <span>+6 dB</span>
+            </div>
+
+            {/* Volume Slider */}
+            <input
+              type="range"
+              min="-60"
+              max="6"
+              step="1"
+              value={volume}
+              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+              onInput={(e) => handleVolumeChange(parseFloat((e.target as HTMLInputElement).value))}
+              disabled={!isAudioLoaded}
+              style={{
+                width: '100%',
+                height: '8px',
+                borderRadius: '4px',
+                position: 'relative',
+                display: 'block',
+                background: isLightMode 
+                  ? `linear-gradient(to right, #ccc 0%, #ccc ${((volume + 60) / 66) * 100}%, #e0e0e0 ${((volume + 60) / 66) * 100}%, #e0e0e0 100%)`
+                  : `linear-gradient(to right, #555 0%, #555 ${((volume + 60) / 66) * 100}%, #333 ${((volume + 60) / 66) * 100}%, #333 100%)`,
+                outline: 'none',
+                cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                opacity: isAudioLoaded ? 1 : 0.4,
+                transition: 'background 0.1s ease'
+              }}
+              className="volume-popup-slider"
+            />
+
+            {/* Mute/Unmute Toggle Button - Icon Only */}
+            <button
+              onClick={handleMuteToggle}
+              disabled={!isAudioLoaded}
+              style={{
+                padding: '10px',
+                background: isMuted 
+                  ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
+                  : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'),
+                border: `1px solid ${isMuted 
+                  ? (isLightMode ? 'rgba(220,53,69,0.3)' : 'rgba(220,53,69,0.4)')
+                  : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)')}`,
+                borderRadius: '10px',
+                color: isMuted 
+                  ? (isLightMode ? '#dc3545' : '#ff6b7a')
+                  : (isLightMode ? '#1a1a1a' : '#ffffff'),
+                cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+                opacity: isAudioLoaded ? 1 : 0.4,
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%'
+              }}
+              onMouseEnter={(e) => {
+                if (isAudioLoaded) {
+                  e.currentTarget.style.background = isMuted 
+                    ? (isLightMode ? 'rgba(220,53,69,0.15)' : 'rgba(220,53,69,0.3)')
+                    : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)');
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = isMuted 
+                  ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
+                  : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)');
+              }}
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted ? <MuteIcon /> : <UnmuteIcon />}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Right side - Icon buttons */}
       <div style={{ 
@@ -1223,6 +1236,53 @@ const MenuBar: React.FC = () => {
           background: ${isLightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
           box-shadow: none;
           cursor: not-allowed;
+        }
+        
+        /* Volume Popup Slider Thumb - Greyish/White */
+        .volume-popup-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: ${isLightMode ? '#ffffff' : '#e0e0e0'};
+          cursor: pointer;
+          border: 2px solid ${isLightMode ? '#999' : '#666'};
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.5);
+          transition: all 0.2s ease;
+          margin-top: -6px;
+        }
+        
+        .volume-popup-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.15);
+          background: ${isLightMode ? '#f5f5f5' : '#f0f0f0'};
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
+        }
+        
+        .volume-popup-slider::-webkit-slider-thumb:active {
+          transform: scale(1.1);
+        }
+        
+        .volume-popup-slider::-moz-range-thumb {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          background: ${isLightMode ? '#ffffff' : '#e0e0e0'};
+          cursor: pointer;
+          border: 2px solid ${isLightMode ? '#999' : '#666'};
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          margin-top: -6px;
+        }
+        
+        @keyframes fadeInScale {
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
         }
       `}</style>
     </div>

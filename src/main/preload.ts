@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return await ipcRenderer.invoke('pitch-shift-file', inputPath, semitones);
   },
   
+  // Apply time-stretch using file paths (fast!)
+  timeStretchFile: async (inputPath: string, speed: number): Promise<string> => {
+    return await ipcRenderer.invoke('time-stretch-file', inputPath, speed);
+  },
+  
   // Read processed audio file back
   readAudioFile: async (filePath: string): Promise<number[]> => {
     return await ipcRenderer.invoke('read-audio-file', filePath);

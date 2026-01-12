@@ -66,10 +66,10 @@ const initialUIState: UIState = {
 
 const initialGlobalControls: GlobalControls = {
   pitch: 0,
-  volume: 0, // dB: 0 is default, -60 to 6 range
+  volume: 6, // dB: +6 is maximum, -60 to 6 range
   playbackRate: 1,
   isMuted: false,
-  previousVolume: 0, // Store volume before mute
+  previousVolume: 6, // Store volume before mute
 };
 
 export const useAppStore = create<AppStore>((set) => ({

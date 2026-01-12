@@ -85,6 +85,72 @@ const createWindow = (): void => {
 };
 
 /**
+ * Apply time-stretching to audio file using native FFmpeg
+ * Changes speed without changing pitch using atempo filter
+ * @param inputPath - Path to the input audio file
+ * @param speed - Speed multiplier (0.25 to 4.0)
+ * @returns Promise<string> - Path to the time-stretched output file
+ */
+async function applyTimeStretchFile(inputPath: string, speed: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const tempDir = os.tmpdir();
+    const outputPath = path.join(tempDir, `speed_output_${Date.now()}_${speed.toFixed(2)}.mp3`);
+
+    // Clamp speed to valid range
+    const clampedSpeed = Math.max(0.25, Math.min(4.0, speed));
+
+    // Build atempo filter chain (atempo only accepts 0.5-2.0)
+    let atempoFilters: string[] = [];
+    let remainingSpeed = clampedSpeed;
+    
+    while (remainingSpeed < 0.5 || remainingSpeed > 2.0) {
+      if (remainingSpeed < 0.5) {
+        atempoFilters.push('atempo=0.5');
+        remainingSpeed = remainingSpeed / 0.5;
+      } else if (remainingSpeed > 2.0) {
+        atempoFilters.push('atempo=2.0');
+        remainingSpeed = remainingSpeed / 2.0;
+      }
+    }
+    
+    // Add final atempo filter with remaining speed
+    atempoFilters.push(`atempo=${remainingSpeed.toFixed(6)}`);
+    
+    const filterComplex = atempoFilters.join(',');
+
+    console.log('[Main] FFmpeg time-stretch:', clampedSpeed, 'x speed, filters:', filterComplex);
+
+    // Run FFmpeg directly on file paths - FAST!
+    const ffmpeg = spawn(ffmpegPath, [
+      '-i', inputPath,
+      '-af', filterComplex,
+      '-ar', '44100',
+      '-y',
+      outputPath
+    ]);
+
+    let stderr = '';
+    ffmpeg.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    ffmpeg.on('close', (code) => {
+      if (code === 0 && fs.existsSync(outputPath)) {
+        resolve(outputPath);
+      } else {
+        try { fs.unlinkSync(outputPath); } catch (e) {}
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on('error', (err) => {
+      try { fs.unlinkSync(outputPath); } catch (e) {}
+      reject(new Error(`FFmpeg error: ${err.message}`));
+    });
+  });
+}
+
+/**
  * Apply pitch shift to audio file using native FFmpeg
  * Works directly with file paths - no buffer transfer needed!
  * @param inputPath - Path to the input audio file
@@ -211,6 +277,24 @@ app.whenReady().then(() => {
       return outputPath;
     } catch (error) {
       console.error('[Main] Pitch shift error:', error);
+      throw error;
+    }
+  });
+
+  // IPC handler for time-stretching - FILE PATH based (fast, no data transfer)
+  ipcMain.handle('time-stretch-file', async (_event, inputFilePath: string, speed: number) => {
+    try {
+      console.log('[Main] Time-stretch request:', speed, 'x speed, file:', inputFilePath);
+      
+      if (speed === 1.0) {
+        return inputFilePath; // No change needed
+      }
+
+      const outputPath = await applyTimeStretchFile(inputFilePath, speed);
+      console.log('[Main] Time-stretch complete:', outputPath);
+      return outputPath;
+    } catch (error) {
+      console.error('[Main] Time-stretch error:', error);
       throw error;
     }
   });

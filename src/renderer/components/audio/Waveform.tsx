@@ -79,6 +79,34 @@ const Waveform: React.FC = () => {
     }
   }, [audioBuffer]); // Only when buffer changes (new audio loaded)
   
+  // Update viewport when duration changes (e.g., speed change)
+  // This ensures waveform and timer stay in sync when speed changes
+  useEffect(() => {
+    if (duration > 0 && animatedViewportRef.current.initialized) {
+      // When duration changes (speed change), adjust viewport proportionally
+      const oldEnd = animatedViewportRef.current.end;
+      if (oldEnd > 0 && Math.abs(oldEnd - duration) > 0.01) {
+        // Scale the viewport to match new duration
+        const scale = duration / oldEnd;
+        const newStart = animatedViewportRef.current.start * scale;
+        const newEnd = duration;
+        
+        // Update viewport
+        animatedViewportRef.current = { 
+          start: Math.max(0, Math.min(newStart, duration)), 
+          end: Math.max(0, Math.min(newEnd, duration)), 
+          initialized: true 
+        };
+        targetViewportRef.current = { 
+          start: Math.max(0, Math.min(newStart, duration)), 
+          end: Math.max(0, Math.min(newEnd, duration)) 
+        };
+        setViewport(Math.max(0, Math.min(newStart, duration)), Math.max(0, Math.min(newEnd, duration)));
+        setAnimationTick(n => n + 1);
+      }
+    }
+  }, [duration, setViewport]);
+  
   // Smooth zoom animation
   useEffect(() => {
     const targetStart = viewportStart;

@@ -10,6 +10,7 @@ export interface ElectronAPI {
   // Audio processing - FILE PATH based (fast, no large data transfer)
   saveTempAudio: (audioData: number[], fileName: string) => Promise<string>;
   pitchShiftFile: (inputPath: string, semitones: number) => Promise<string>;
+  timeStretchFile: (inputPath: string, speed: number) => Promise<string>;
   readAudioFile: (filePath: string) => Promise<number[]>;
   cleanupTempFile: (filePath: string) => Promise<void>;
   checkFFmpeg: () => Promise<boolean>;

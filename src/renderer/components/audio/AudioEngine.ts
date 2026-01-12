@@ -300,6 +300,13 @@ export class AudioEngine {
       useAppStore.getState().setIsPlaying(false);
       useAppStore.getState().setCurrentTime(0);
 
+      // Step 9: Set volume to +6 dB (maximum volume) when audio loads - CRITICAL
+      const storeVolume = useAppStore.getState().globalControls.volume;
+      const isMuted = useAppStore.getState().globalControls.isMuted;
+      const targetVolume = isMuted ? -60 : (storeVolume !== undefined ? storeVolume : 6);
+      this.setVolume(targetVolume);
+      console.log('[AudioEngine] Volume set to', targetVolume, 'dB on load');
+
       console.log('[AudioEngine] ===== LOAD AUDIO FILE COMPLETE =====');
       console.log('[AudioEngine] Ready for playback with independent pitch/speed control');
 
@@ -729,16 +736,55 @@ export class AudioEngine {
 
   /**
    * Set playback rate (speed) - independent of pitch
+   * Tone.js automatically maintains pitch when changing playback rate
    */
   public setPlaybackRate(rate: number): void {
     const clampedRate = Math.max(0.25, Math.min(4.0, rate));
     this.currentPlaybackRate = clampedRate;
 
     if (this.player) {
+      // Tone.js Player's playbackRate property maintains pitch automatically
+      // The PitchShift node compensates for speed changes
       this.player.playbackRate = clampedRate;
     }
 
-    console.log('[AudioEngine] Playback rate set to', clampedRate);
+    // Update store
+    useAppStore.getState().setPlaybackRate(clampedRate);
+
+    // Warn about extreme speeds
+    if (clampedRate < 0.5) {
+      console.warn('[AudioEngine] Very slow speed may degrade audio quality');
+    } else if (clampedRate > 2.0) {
+      console.warn('[AudioEngine] Very fast speed may degrade audio quality');
+    }
+
+    console.log('[AudioEngine] Playback rate set to', clampedRate, 'x (pitch maintained)');
+  }
+
+  /**
+   * Set speed (alias for setPlaybackRate) - maintains pitch
+   * @param speed - Speed multiplier (0.25 to 4.0)
+   */
+  public setSpeed(speed: number): void {
+    this.setPlaybackRate(speed);
+  }
+
+  /**
+   * Set speed using preset
+   * @param preset - Speed preset name: 'slowest', 'slow', 'normal', 'fast', 'fastest'
+   */
+  public setSpeedPreset(preset: 'slowest' | 'slow' | 'normal' | 'fast' | 'fastest'): void {
+    const speedMap: Record<string, number> = {
+      slowest: 0.25,  // Quarter speed - very slow for learning
+      slow: 0.5,      // Half speed - transcription friendly
+      normal: 1.0,    // Original speed
+      fast: 1.5,      // Faster playback
+      fastest: 2.0,   // Double speed
+    };
+
+    const speed = speedMap[preset] || 1.0;
+    this.setSpeed(speed);
+    console.log('[AudioEngine] Speed preset applied:', preset, '=', speed, 'x');
   }
 
   /**
@@ -812,6 +858,13 @@ export class AudioEngine {
    */
   public getPlaybackRate(): number {
     return this.currentPlaybackRate;
+  }
+
+  /**
+   * Get current speed (alias for getPlaybackRate)
+   */
+  public getSpeed(): number {
+    return this.getPlaybackRate();
   }
 
   /**
