@@ -488,7 +488,7 @@ const PlaybackPanel: React.FC = () => {
         </button>
 
         {/* Speed Control Button */}
-        <div style={{ position: 'relative' }} ref={speedPopupRef}>
+        <div style={{ position: 'relative' }}>
           <button
             onClick={() => setShowSpeedPopup(!showSpeedPopup)}
             disabled={!isAudioLoaded}
@@ -534,46 +534,57 @@ const PlaybackPanel: React.FC = () => {
 
           {/* Speed Popup Slider */}
           {showSpeedPopup && (
-            <div style={{
-              position: 'absolute',
-              bottom: '100%',
-              right: 0,
-              marginBottom: '8px',
-              padding: '20px',
-              minWidth: '280px',
-              background: isLightMode ? 'rgba(255,255,255,0.98)' : 'rgba(30,30,35,0.98)',
-              backdropFilter: 'blur(25px)',
-              WebkitBackdropFilter: 'blur(25px)',
-              borderRadius: '16px',
-              border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)'}`,
-              boxShadow: '0 12px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
-              zIndex: 1000,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              animation: 'fadeInScale 0.2s ease-out'
-            }}>
+            <div 
+              ref={speedPopupRef}
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                right: 0,
+                left: 'auto',
+                marginBottom: '8px',
+                padding: '16px',
+                width: '260px',
+                maxWidth: 'calc(100vw - 40px)',
+                background: isLightMode ? 'rgba(255,255,255,0.98)' : 'rgba(30,30,35,0.98)',
+                backdropFilter: 'blur(25px)',
+                WebkitBackdropFilter: 'blur(25px)',
+                borderRadius: '12px',
+                border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)'}`,
+                boxShadow: '0 12px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+                zIndex: 1000,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                animation: 'fadeInScale 0.2s ease-out',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden'
+              }}
+            >
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                marginBottom: '4px'
+                gap: '8px',
+                minWidth: 0
               }}>
                 <span style={{
-                  fontSize: '0.85rem',
+                  fontSize: '0.75rem',
                   fontWeight: '600',
                   color: isLightMode ? '#666' : '#aaa',
                   textTransform: 'uppercase',
-                  letterSpacing: '1px'
+                  letterSpacing: '0.5px',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
                 }}>
-                  Playback Speed
+                  Speed
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                   <span style={{
-                    fontSize: '1.2rem',
+                    fontSize: '1rem',
                     fontWeight: '700',
                     color: isLightMode ? '#1a1a1a' : '#ffffff',
-                    fontFamily: HANDWRITTEN_FONT
+                    fontFamily: HANDWRITTEN_FONT,
+                    whiteSpace: 'nowrap'
                   }}>
                     {playbackSpeed.toFixed(2)}x
                   </span>
@@ -583,15 +594,16 @@ const PlaybackPanel: React.FC = () => {
                     }}
                     disabled={!isAudioLoaded || playbackSpeed === 1.0}
                     style={{
-                      padding: '4px 8px',
-                      fontSize: '0.7rem',
+                      padding: '3px 8px',
+                      fontSize: '0.65rem',
                       background: playbackSpeed === 1.0 ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') : 'transparent',
                       border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'}`,
-                      borderRadius: '6px',
+                      borderRadius: '4px',
                       color: isLightMode ? '#666' : '#aaa',
                       cursor: (!isAudioLoaded || playbackSpeed === 1.0) ? 'not-allowed' : 'pointer',
                       opacity: (!isAudioLoaded || playbackSpeed === 1.0) ? 0.4 : 1,
-                      transition: 'all 0.2s ease'
+                      transition: 'all 0.2s ease',
+                      whiteSpace: 'nowrap'
                     }}
                     title="Reset to 1.0x"
                   >

@@ -27,6 +27,7 @@ interface AppStore {
   setIsHelpModalOpen: (isOpen: boolean) => void;
   setZoomLevel: (zoom: number) => void;
   setViewport: (start: number, end: number) => void;
+  setRequestMarkerCreation: (request: boolean) => void;
 
   // Global Controls
   globalControls: GlobalControls;
@@ -62,6 +63,7 @@ const initialUIState: UIState = {
   zoomLevel: 1,
   viewportStart: 0,
   viewportEnd: 0,
+  requestMarkerCreation: false,
 };
 
 const initialGlobalControls: GlobalControls = {
@@ -181,6 +183,8 @@ export const useAppStore = create<AppStore>((set) => ({
     set((state) => ({ ui: { ...state.ui, zoomLevel: zoom } })),
   setViewport: (start, end) =>
     set((state) => ({ ui: { ...state.ui, viewportStart: start, viewportEnd: end } })),
+  setRequestMarkerCreation: (request: boolean) =>
+    set((state) => ({ ui: { ...state.ui, requestMarkerCreation: request } })),
 
   // Global Controls
   globalControls: initialGlobalControls,

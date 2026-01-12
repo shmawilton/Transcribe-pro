@@ -6,6 +6,9 @@ export interface Marker {
   end: number; // end time in seconds
   name: string; // marker name/label
   color?: string;
+  speed?: number; // playback rate for this section
+  loop?: boolean; // should this section repeat
+  createdAt?: string; // timestamp when marker was created (ISO string)
   notes?: string;
 }
 
@@ -28,6 +31,7 @@ export interface UIState {
   zoomLevel: number; // waveform zoom
   viewportStart: number; // waveform viewport start time
   viewportEnd: number; // waveform viewport end time
+  requestMarkerCreation: boolean; // Request marker creation from MarkerPanel button
 }
 
 export interface GlobalControls {

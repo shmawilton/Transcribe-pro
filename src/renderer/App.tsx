@@ -23,12 +23,87 @@ const App: React.FC = () => {
   
   // Initialize audio engine (but don't use its local loading state)
   // This hook should not cause re-renders
-  useAudioEngine();
+  const { play, pause, stop, seek, getCurrentTime, setVolume } = useAudioEngine();
+  
+  // Get store values for keyboard shortcuts
+  const isPlaying = useAppStore((state) => state.audio.isPlaying);
+  const currentVolume = useAppStore((state) => state.globalControls.volume);
+  const setVolumeStore = useAppStore((state) => state.setVolume);
 
   // Initialize theme on mount
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Keyboard shortcuts handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts if user is typing in an input, textarea, or contenteditable
+      const target = e.target as HTMLElement;
+      const isInputFocused = 
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"]');
+
+      // Only handle shortcuts when audio is loaded and not typing
+      if (!isAudioLoaded || isInputFocused) {
+        return;
+      }
+
+      switch (e.key) {
+        case ' ': // Space - Play/Pause
+          e.preventDefault(); // Prevent page scroll
+          if (isPlaying) {
+            pause();
+          } else {
+            play();
+          }
+          break;
+
+        case 'Escape': // Escape - Stop
+          e.preventDefault();
+          stop();
+          break;
+
+        case 'ArrowLeft': // Left Arrow - Skip backward 5 seconds
+          e.preventDefault();
+          const currentTime = getCurrentTime();
+          const newTimeBack = Math.max(0, currentTime - 5);
+          seek(newTimeBack);
+          break;
+
+        case 'ArrowRight': // Right Arrow - Skip forward 5 seconds
+          e.preventDefault();
+          const currentTimeForward = getCurrentTime();
+          const duration = useAppStore.getState().audio.duration;
+          const newTimeForward = Math.min(duration, currentTimeForward + 5);
+          seek(newTimeForward);
+          break;
+
+        case 'ArrowUp': // Up Arrow - Volume +10%
+          e.preventDefault();
+          // Volume range is -60 to +6 dB (66 dB total), 10% = 6.6 dB ≈ 7 dB
+          const volumeUp = Math.min(6, currentVolume + 7);
+          setVolume(volumeUp);
+          setVolumeStore(volumeUp);
+          break;
+
+        case 'ArrowDown': // Down Arrow - Volume -10%
+          e.preventDefault();
+          // Volume range is -60 to +6 dB (66 dB total), 10% = 6.6 dB ≈ 7 dB
+          const volumeDown = Math.max(-60, currentVolume - 7);
+          setVolume(volumeDown);
+          setVolumeStore(volumeDown);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAudioLoaded, isPlaying, currentVolume, play, pause, stop, seek, getCurrentTime, setVolume, setVolumeStore]);
   
   // Show/hide welcome screen based on audio loaded state
   // Don't show welcome when loading (user should see loading animation instead)
