@@ -43,14 +43,30 @@ export interface GlobalControls {
 }
 
 export interface ProjectData {
-  audioFilePath: string;
+  version: string; // Project file format version
+  audioFilePath?: string; // Path to the audio file (deprecated, kept for backward compatibility)
+  audioFileName?: string; // Original audio file name
+  audioFileData?: string; // Base64 encoded audio file data (embedded in project)
+  audioFileMimeType?: string; // MIME type of the audio file (e.g., 'audio/mpeg', 'audio/wav')
   markers: Marker[];
   globalControls: GlobalControls;
+  uiState?: {
+    zoomLevel: number;
+    viewportStart: number;
+    viewportEnd: number;
+  };
   metadata: {
     createdAt: string;
     updatedAt: string;
-    version: string;
+    version: string; // App version that created this project
   };
+}
+
+export interface RecentProject {
+  filePath: string;
+  fileName: string;
+  lastOpened: string;
+  audioFileName?: string;
 }
 
 

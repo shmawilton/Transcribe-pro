@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, net } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, net, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -349,6 +349,95 @@ app.whenReady().then(() => {
         resolve(false);
       });
     });
+  });
+
+  // IPC handler for saving project file (with dialog)
+  ipcMain.handle('save-project-dialog', async (_event, projectData: string) => {
+    try {
+      if (!mainWindow) {
+        throw new Error('Main window not available');
+      }
+
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save Project',
+        defaultPath: 'project.tsproj',
+        filters: [
+          { name: 'Transcribe Pro Project', extensions: ['tsproj'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+        properties: ['createDirectory'],
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { canceled: true };
+      }
+
+      // Ensure .tsproj extension
+      let filePath = result.filePath;
+      if (!filePath.endsWith('.tsproj')) {
+        filePath += '.tsproj';
+      }
+
+      // Write project data to file
+      fs.writeFileSync(filePath, projectData, 'utf-8');
+      console.log('[Main] Project saved to:', filePath);
+
+      return { canceled: false, filePath };
+    } catch (error) {
+      console.error('[Main] Save project error:', error);
+      throw error;
+    }
+  });
+
+  // IPC handler for saving project file directly (no dialog, for auto-save)
+  ipcMain.handle('save-project-direct', async (_event, projectData: string, filePath: string) => {
+    try {
+      // Ensure .tsproj extension
+      let finalPath = filePath;
+      if (!finalPath.endsWith('.tsproj')) {
+        finalPath += '.tsproj';
+      }
+
+      // Write project data to file
+      fs.writeFileSync(finalPath, projectData, 'utf-8');
+      console.log('[Main] Project auto-saved to:', finalPath);
+
+      return { success: true, filePath: finalPath };
+    } catch (error) {
+      console.error('[Main] Direct save project error:', error);
+      throw error;
+    }
+  });
+
+  // IPC handler for loading project file
+  ipcMain.handle('load-project-dialog', async () => {
+    try {
+      if (!mainWindow) {
+        throw new Error('Main window not available');
+      }
+
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: 'Load Project',
+        filters: [
+          { name: 'Transcribe Pro Project', extensions: ['tsproj'] },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+        properties: ['openFile'],
+      });
+
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return { canceled: true };
+      }
+
+      const filePath = result.filePaths[0];
+      const projectData = fs.readFileSync(filePath, 'utf-8');
+      console.log('[Main] Project loaded from:', filePath);
+
+      return { canceled: false, filePath, projectData };
+    } catch (error) {
+      console.error('[Main] Load project error:', error);
+      throw error;
+    }
   });
 
   app.on('activate', () => {

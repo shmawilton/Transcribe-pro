@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
+import { getProjectLoader } from '../project/ProjectLoader';
 
 // Kenyan flag colors
 const KENYAN_RED = '#DE2910';
@@ -16,6 +17,7 @@ const HANDWRITTEN_FONT = "'Merienda', 'Caveat', cursive";
 
 interface WelcomeScreenProps {
   onAudioLoaded: () => void;
+  onProjectLoaded?: () => void;
 }
 
 // Feature icons as SVG components
@@ -44,10 +46,20 @@ const HeartIcon = () => (
   </svg>
 );
 
-const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded }) => {
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectLoaded }) => {
   const { loadFile, isLoading, resumeAudioContext } = useAudioEngine();
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
+  
+  // Initialize project loader (use useState to ensure it's only created once)
+  const [projectLoader] = useState(() => getProjectLoader(
+    (message: string, type: 'success' | 'error') => {
+      if (type === 'error') {
+        setError(message);
+      }
+    }
+  ));
 
   const handleLoadAudio = async () => {
     try {
@@ -68,6 +80,26 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded }) => {
       onAudioLoaded();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load audio');
+    }
+  };
+
+  const handleLoadProject = async () => {
+    try {
+      setError(null);
+      setIsLoadingProject(true);
+      await resumeAudioContext();
+      const loaded = await projectLoader.loadProject(loadFile);
+      if (loaded) {
+        if (onProjectLoaded) {
+          onProjectLoaded();
+        } else {
+          onAudioLoaded(); // Fallback to audio loaded callback
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load project');
+    } finally {
+      setIsLoadingProject(false);
     }
   };
 
@@ -171,14 +203,14 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded }) => {
         }} />
       </div>
 
-      {/* Main content */}
+      {/* Main content - Horizontal layout for desktop */}
       <div
         style={{
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '2rem',
-          padding: '3rem',
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          gap: '3rem',
+          padding: '2.5rem 4rem',
           background: 'rgba(26, 26, 26, 0.8)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
@@ -190,179 +222,345 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded }) => {
                       0 0 100px ${KENYAN_RED}20`,
           animation: 'fadeInUp 0.8s ease-out',
           position: 'relative',
-          zIndex: 1
+          zIndex: 1,
+          maxWidth: '1200px',
+          width: '90%'
         }}
       >
-        {/* Logo/Title */}
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{
-            fontSize: '3rem',
-            fontWeight: '700',
-            fontFamily: HANDWRITTEN_FONT,
-            background: `linear-gradient(135deg, ${KENYAN_WHITE} 0%, ${KENYAN_GREEN} 50%, ${KENYAN_RED} 100%)`,
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            marginBottom: '0.5rem',
-            textShadow: `0 0 30px ${KENYAN_GREEN}40`,
-            animation: 'glow 2s ease-in-out infinite alternate'
-          }}>
-            Transcription Pro
-          </h1>
-          <p style={{
-            color: 'rgba(255, 255, 255, 0.6)',
-            fontSize: '1.2rem',
-            letterSpacing: '0.05em',
-            fontFamily: HANDWRITTEN_FONT
-          }}>
-            Professional Audio Transcription Tool
-          </p>
-        </div>
+        {/* Left side - Logo/Title and Features */}
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          justifyContent: 'center',
+          flex: '0 0 320px',
+          gap: '2rem'
+        }}>
+          {/* Logo/Title */}
+          <div>
+            <h1 style={{
+              fontSize: '2.5rem',
+              fontWeight: '700',
+              fontFamily: HANDWRITTEN_FONT,
+              background: `linear-gradient(135deg, ${KENYAN_WHITE} 0%, ${KENYAN_GREEN} 50%, ${KENYAN_RED} 100%)`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              marginBottom: '0.5rem',
+              textShadow: `0 0 30px ${KENYAN_GREEN}40`,
+              animation: 'glow 2s ease-in-out infinite alternate',
+              lineHeight: '1.2'
+            }}>
+              Transcription Pro
+            </h1>
+            <p style={{
+              color: 'rgba(255, 255, 255, 0.6)',
+              fontSize: '1rem',
+              letterSpacing: '0.05em',
+              fontFamily: HANDWRITTEN_FONT,
+              marginTop: '0.5rem'
+            }}>
+              Professional Audio Transcription Tool
+            </p>
+          </div>
 
-        {/* Drop Zone */}
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={handleLoadAudio}
-          style={{
-            width: '400px',
-            height: '200px',
-            border: `2px dashed ${isDragging ? KENYAN_GREEN : 'rgba(255, 255, 255, 0.3)'}`,
-            borderRadius: '16px',
+          {/* Features */}
+          <div style={{
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '1rem',
-            cursor: isLoading ? 'wait' : 'pointer',
-            background: isDragging 
-              ? `linear-gradient(135deg, ${KENYAN_GREEN}20, ${KENYAN_RED}10)`
-              : 'rgba(255, 255, 255, 0.03)',
-            transition: 'all 0.3s ease',
-            transform: isDragging ? 'scale(1.02)' : 'scale(1)',
-            boxShadow: isDragging ? `0 0 30px ${KENYAN_GREEN}40` : 'none'
-          }}
-        >
-          {isLoading ? (
-            <>
-              {/* Loading spinner */}
-              <div style={{
-                width: '60px',
-                height: '60px',
-                position: 'relative'
-              }}>
-                <div style={{
-                  position: 'absolute',
-                  width: '100%',
-                  height: '100%',
-                  border: `4px solid ${KENYAN_GREEN}30`,
-                  borderTopColor: KENYAN_GREEN,
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
-                <div style={{
-                  position: 'absolute',
-                  width: '70%',
-                  height: '70%',
-                  top: '15%',
-                  left: '15%',
-                  border: `4px solid ${KENYAN_RED}30`,
-                  borderTopColor: KENYAN_RED,
-                  borderRadius: '50%',
-                  animation: 'spin 0.8s linear infinite reverse'
-                }} />
-              </div>
-              <p style={{ 
-                color: KENYAN_WHITE, 
-                fontSize: '1.2rem',
-                fontFamily: HANDWRITTEN_FONT 
-              }}>Loading audio...</p>
-            </>
-          ) : (
-            <>
-              {/* Upload icon */}
-              <svg
-                width="64"
-                height="64"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={isDragging ? KENYAN_GREEN : 'rgba(255, 255, 255, 0.5)'}
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            gap: '1rem'
+          }}>
+            {features.map((feature, index) => (
+              <div
+                key={index}
                 style={{
-                  transition: 'all 0.3s ease',
-                  transform: isDragging ? 'translateY(-5px)' : 'translateY(0)',
-                  animation: 'bounce 2s ease-in-out infinite'
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  color: 'rgba(255, 255, 255, 0.6)',
+                  fontSize: '0.95rem',
+                  animation: `fadeIn 0.5s ease-out ${0.3 + index * 0.1}s both`,
+                  fontFamily: HANDWRITTEN_FONT
                 }}
               >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              <div style={{ textAlign: 'center' }}>
-                <p style={{
-                  color: KENYAN_WHITE,
-                  fontSize: '1.3rem',
-                  fontWeight: '600',
-                  marginBottom: '0.5rem',
-                  fontFamily: HANDWRITTEN_FONT
-                }}>
-                  {isDragging ? 'Drop your audio file here' : 'Click or drag audio file here'}
-                </p>
-                <p style={{
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  fontSize: '1rem',
-                  fontFamily: HANDWRITTEN_FONT
-                }}>
-                  Supports MP3, WAV, OGG, FLAC, M4A, AAC, WEBM
-                </p>
+                {feature.icon}
+                <span>{feature.text}</span>
               </div>
-            </>
-          )}
+            ))}
+          </div>
         </div>
 
-        {/* Error message */}
+        {/* Vertical divider */}
+        <div style={{
+          width: '1px',
+          background: 'rgba(255, 255, 255, 0.1)',
+          margin: '1rem 0'
+        }} />
+
+        {/* Right side - Action Buttons */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.25rem',
+          flex: '1 1 auto',
+          minWidth: '400px'
+        }}>
+          {/* Load Audio Button */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={handleLoadAudio}
+            style={{
+              width: '100%',
+              minHeight: '140px',
+              border: `2px dashed ${isDragging ? KENYAN_GREEN : 'rgba(255, 255, 255, 0.3)'}`,
+              borderRadius: '12px',
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              gap: '1.5rem',
+              padding: '1.5rem',
+              cursor: (isLoading || isLoadingProject) ? 'wait' : 'pointer',
+              background: isDragging 
+                ? `linear-gradient(135deg, ${KENYAN_GREEN}20, ${KENYAN_RED}10)`
+                : 'rgba(255, 255, 255, 0.03)',
+              transition: 'all 0.3s ease',
+              transform: isDragging ? 'scale(1.01)' : 'scale(1)',
+              boxShadow: isDragging ? `0 0 30px ${KENYAN_GREEN}40` : 'none',
+              opacity: (isLoading || isLoadingProject) ? 0.6 : 1
+            }}
+          >
+            {isLoading ? (
+              <>
+                {/* Loading spinner */}
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  position: 'relative',
+                  flexShrink: 0
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '100%',
+                    border: `4px solid ${KENYAN_GREEN}30`,
+                    borderTopColor: KENYAN_GREEN,
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <div style={{
+                    position: 'absolute',
+                    width: '70%',
+                    height: '70%',
+                    top: '15%',
+                    left: '15%',
+                    border: `4px solid ${KENYAN_RED}30`,
+                    borderTopColor: KENYAN_RED,
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite reverse'
+                  }} />
+                </div>
+                <div>
+                  <p style={{ 
+                    color: KENYAN_WHITE, 
+                    fontSize: '1.1rem',
+                    fontWeight: '600',
+                    marginBottom: '0.25rem',
+                    fontFamily: HANDWRITTEN_FONT 
+                  }}>Loading audio...</p>
+                  <p style={{
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    fontSize: '0.9rem',
+                    fontFamily: HANDWRITTEN_FONT
+                  }}>Please wait</p>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Upload icon */}
+                <svg
+                  width="56"
+                  height="56"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={isDragging ? KENYAN_GREEN : 'rgba(255, 255, 255, 0.5)'}
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transition: 'all 0.3s ease',
+                    transform: isDragging ? 'translateY(-3px)' : 'translateY(0)',
+                    animation: 'bounce 2s ease-in-out infinite',
+                    flexShrink: 0
+                  }}
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                <div style={{ flex: 1 }}>
+                  <p style={{
+                    color: KENYAN_WHITE,
+                    fontSize: '1.2rem',
+                    fontWeight: '600',
+                    marginBottom: '0.5rem',
+                    fontFamily: HANDWRITTEN_FONT
+                  }}>
+                    {isDragging ? 'Drop your audio file here' : 'Load Audio File'}
+                  </p>
+                  <p style={{
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    fontSize: '0.9rem',
+                    marginBottom: '0.25rem',
+                    fontFamily: HANDWRITTEN_FONT
+                  }}>
+                    Click, drag & drop, or browse to select
+                  </p>
+                  <p style={{
+                    color: 'rgba(255, 255, 255, 0.4)',
+                    fontSize: '0.8rem',
+                    fontFamily: HANDWRITTEN_FONT
+                  }}>
+                    MP3, WAV, OGG, FLAC, M4A, AAC, WEBM
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Load Project Button */}
+          <button
+            onClick={handleLoadProject}
+            disabled={isLoading || isLoadingProject}
+            style={{
+              width: '100%',
+              minHeight: '140px',
+              border: `2px solid ${isLoadingProject ? KENYAN_GREEN : 'rgba(255, 255, 255, 0.2)'}`,
+              borderRadius: '12px',
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              gap: '1.5rem',
+              padding: '1.5rem',
+              cursor: (isLoading || isLoadingProject) ? 'wait' : 'pointer',
+              background: isLoadingProject
+                ? `linear-gradient(135deg, ${KENYAN_GREEN}20, ${KENYAN_RED}10)`
+                : 'rgba(255, 255, 255, 0.05)',
+              transition: 'all 0.3s ease',
+              boxShadow: isLoadingProject ? `0 0 30px ${KENYAN_GREEN}40` : 'none',
+              opacity: (isLoading || isLoadingProject) ? 0.6 : 1,
+              fontFamily: HANDWRITTEN_FONT
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading && !isLoadingProject) {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.transform = 'scale(1.02)';
+                e.currentTarget.style.borderColor = KENYAN_GREEN;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoading && !isLoadingProject) {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+              }
+            }}
+          >
+            {isLoadingProject ? (
+              <>
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  position: 'relative',
+                  flexShrink: 0
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    width: '100%',
+                    height: '100%',
+                    border: `4px solid ${KENYAN_GREEN}30`,
+                    borderTopColor: KENYAN_GREEN,
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                </div>
+                <div>
+                  <p style={{ 
+                    color: KENYAN_WHITE, 
+                    fontSize: '1.1rem',
+                    fontWeight: '600',
+                    marginBottom: '0.25rem',
+                    fontFamily: HANDWRITTEN_FONT 
+                  }}>Loading project...</p>
+                  <p style={{
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    fontSize: '0.9rem',
+                    fontFamily: HANDWRITTEN_FONT
+                  }}>Please wait</p>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Folder icon */}
+                <svg
+                  width="56"
+                  height="56"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="rgba(255, 255, 255, 0.6)"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transition: 'all 0.3s ease',
+                    flexShrink: 0
+                  }}
+                >
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <path d="M12 11v6" />
+                  <path d="M9 14l3-3 3 3" />
+                </svg>
+                <div style={{ flex: 1 }}>
+                  <p style={{
+                    color: KENYAN_WHITE,
+                    fontSize: '1.2rem',
+                    fontWeight: '600',
+                    marginBottom: '0.5rem',
+                    fontFamily: HANDWRITTEN_FONT
+                  }}>
+                    Load Project
+                  </p>
+                  <p style={{
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    fontSize: '0.9rem',
+                    fontFamily: HANDWRITTEN_FONT
+                  }}>
+                    Open a saved .tsproj project file
+                  </p>
+                </div>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Error message - positioned below buttons */}
         {error && (
           <div style={{
             color: KENYAN_RED,
-            fontSize: '1rem',
-            padding: '0.75rem 1.5rem',
+            fontSize: '0.9rem',
+            padding: '0.75rem 1rem',
             background: `${KENYAN_RED}20`,
             borderRadius: '8px',
             border: `1px solid ${KENYAN_RED}40`,
             animation: 'shake 0.5s ease-in-out',
-            fontFamily: HANDWRITTEN_FONT
+            fontFamily: HANDWRITTEN_FONT,
+            marginTop: '0.5rem'
           }}>
             {error}
           </div>
         )}
-
-        {/* Features hint */}
-        <div style={{
-          display: 'flex',
-          gap: '2rem',
-          marginTop: '1rem'
-        }}>
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                color: 'rgba(255, 255, 255, 0.6)',
-                fontSize: '1rem',
-                animation: `fadeIn 0.5s ease-out ${0.3 + index * 0.1}s both`,
-                fontFamily: HANDWRITTEN_FONT
-              }}
-            >
-              {feature.icon}
-              <span>{feature.text}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Footer */}

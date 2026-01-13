@@ -121,6 +121,10 @@ const App: React.FC = () => {
   const handleAudioLoaded = () => {
     setShowWelcome(false);
   };
+
+  const handleProjectLoaded = () => {
+    setShowWelcome(false);
+  };
   
   // Loading overlay component with blur background
   const LoadingOverlay = ({ withBlur = false }: { withBlur?: boolean }) => (
@@ -269,7 +273,10 @@ const App: React.FC = () => {
   if (showWelcome && !isAudioLoaded) {
     return (
       <ErrorBoundary>
-        <WelcomeScreen onAudioLoaded={handleAudioLoaded} />
+        <WelcomeScreen 
+          onAudioLoaded={handleAudioLoaded}
+          onProjectLoaded={handleProjectLoaded}
+        />
       </ErrorBoundary>
     );
   }

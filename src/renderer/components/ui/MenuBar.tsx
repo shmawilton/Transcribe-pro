@@ -6,6 +6,8 @@ import { useAppStore } from '../../store/store';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
 import PitchControl from '../controls/PitchControl';
+import { getProjectSaver } from '../project/ProjectSaver';
+import { getProjectLoader } from '../project/ProjectLoader';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -85,6 +87,19 @@ const MoonIcon = () => (
 const FolderOpenIcon = () => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
     <path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0 1 15 5.5v.64c.57.265.94.876.856 1.546l-.64 5.124A2.5 2.5 0 0 1 12.733 15H3.266a2.5 2.5 0 0 1-2.481-2.19l-.64-5.124A1.5 1.5 0 0 1 1 6.14V3.5zM2 6h12v-.5a.5.5 0 0 0-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5a.5.5 0 0 0-.5.5V6zm-.367 1a.5.5 0 0 0-.496.562l.64 5.124A1.5 1.5 0 0 0 3.266 14h9.468a1.5 1.5 0 0 0 1.489-1.314l.64-5.124A.5.5 0 0 0 14.367 7H1.633z"/>
+  </svg>
+);
+
+const SaveIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M2 1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H9.5a1 1 0 0 0-1 1v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V2a1 1 0 0 0-1-1H2zm0-1h2v4H2V0zm9 0v4h2V0h-2zM5 2h6v6H5V2zm1 8h4v5H6v-5z"/>
+  </svg>
+);
+
+const SaveAsIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M8.5 1.5V8H1V2a1 1 0 0 1 1-1h6.5zM9 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5.5L9 0zm5.5 8a.5.5 0 0 0-1 0v5.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5V8z"/>
+    <path d="M13.5 8.5a.5.5 0 0 0-1 0V10h-1.5a.5.5 0 0 0 0 1H12v1.5a.5.5 0 0 0 1 0V11h1.5a.5.5 0 0 0 0-1H13.5V8.5z"/>
   </svg>
 );
 
@@ -207,14 +222,51 @@ const MenuBar: React.FC = () => {
   const theme = useAppStore((state) => state.theme);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
   const isLightMode = theme === 'light';
-  const openSettingsModal = useAppStore((state) => state.openSettingsModal);
-  const openHelpModal = useAppStore((state) => state.openHelpModal);
+  const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
+  const setIsHelpModalOpen = useAppStore((state) => state.setIsHelpModalOpen);
   
   // Audio engine
   const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, setVolume: setAudioVolume, resetPitch } = useAudioEngine();
   
   // Project reset
   const resetProject = useAppStore((state) => state.resetProject);
+  
+  // Project name state
+  const [projectName, setProjectName] = useState<string>('Untitled Project');
+  
+  // Project saver
+  const [projectSaver] = useState(() => getProjectSaver(
+    (message, type) => {
+      // Simple notification - could be enhanced with a toast component
+      if (type === 'error') {
+        alert(`Error: ${message}`);
+      } else {
+        console.log(`Success: ${message}`);
+        // Could show a success toast here
+      }
+    },
+    (name) => {
+      // Update project name when it changes
+      setProjectName(name);
+    }
+  ));
+
+  // Project loader
+  const [projectLoader] = useState(() => getProjectLoader(
+    (message: string, type: 'success' | 'error') => {
+      // Simple notification - could be enhanced with a toast component
+      if (type === 'error') {
+        alert(`Error: ${message}`);
+      } else {
+        console.log(`Success: ${message}`);
+        // Could show a success toast here
+      }
+    },
+    (name: string) => {
+      // Update project name when it changes
+      setProjectName(name);
+    }
+  ));
   
   // Get pitch from store
   const storedPitch = useAppStore((state) => state.globalControls.pitch);
@@ -309,6 +361,27 @@ const MenuBar: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Start auto-save when audio is loaded
+  useEffect(() => {
+    if (isAudioLoaded) {
+      projectSaver.startAutoSave();
+    } else {
+      projectSaver.stopAutoSave();
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      projectSaver.stopAutoSave();
+    };
+  }, [isAudioLoaded, projectSaver]);
+
+  // Reset project name when audio is unloaded
+  useEffect(() => {
+    if (!isAudioLoaded) {
+      setProjectName('Untitled Project');
+    }
+  }, [isAudioLoaded]);
+
   // File menu actions
   const handleLoadAudio = async () => {
     try {
@@ -327,6 +400,20 @@ const MenuBar: React.FC = () => {
     }
   };
 
+  const handleLoadProject = async () => {
+    try {
+      await resumeAudioContext();
+      const loaded = await projectLoader.loadProject(loadFile);
+      if (loaded) {
+        // Project name will be updated via callback
+        // Audio will be loaded automatically by the loader
+      }
+      setOpenMenu(null);
+    } catch (error) {
+      console.error('[MenuBar] Failed to load project:', error);
+    }
+  };
+
   const handleCloseAudio = () => {
     console.log('[MenuBar] Closing audio and resetting project');
     // Stop playback
@@ -338,12 +425,35 @@ const MenuBar: React.FC = () => {
     setOpenMenu(null);
   };
 
+  const handleSaveProject = async () => {
+    try {
+      await projectSaver.saveProject();
+      // Project name will be updated via callback
+      setOpenMenu(null);
+    } catch (error) {
+      console.error('[MenuBar] Failed to save project:', error);
+    }
+  };
+
+  const handleSaveProjectAs = async () => {
+    try {
+      await projectSaver.saveProjectAs();
+      // Project name will be updated via callback
+      setOpenMenu(null);
+    } catch (error) {
+      console.error('[MenuBar] Failed to save project as:', error);
+    }
+  };
+
   const handleExit = () => {
     console.log('[MenuBar] Exiting application');
     // First stop any playing audio
     stop();
     // Unload audio
     unloadAudio();
+    
+    // Stop auto-save
+    projectSaver.stopAutoSave();
     
     // Try to close the window
     if (typeof window !== 'undefined') {
@@ -473,9 +583,13 @@ const MenuBar: React.FC = () => {
       color: KENYAN_RED,
       items: [
         { id: 'open', label: 'Load Audio', icon: FolderOpenIcon, shortcut: 'Ctrl+O', action: handleLoadAudio },
+        { id: 'load-project', label: 'Load Project', icon: FolderOpenIcon, shortcut: 'Ctrl+L', action: handleLoadProject },
         { id: 'divider1', label: '', divider: true },
-        { id: 'close', label: 'Close Audio', icon: CloseIcon, action: handleCloseAudio },
+        { id: 'save', label: 'Save Project', icon: SaveIcon, shortcut: 'Ctrl+S', action: handleSaveProject },
+        { id: 'save-as', label: 'Save Project As...', icon: SaveAsIcon, shortcut: 'Ctrl+Shift+S', action: handleSaveProjectAs },
         { id: 'divider2', label: '', divider: true },
+        { id: 'close', label: 'Close Audio', icon: CloseIcon, action: handleCloseAudio },
+        { id: 'divider3', label: '', divider: true },
         { id: 'exit', label: 'Exit', icon: ExitIcon, shortcut: 'Alt+F4', action: handleExit },
       ] as DropdownItem[]
     },
@@ -511,9 +625,9 @@ const MenuBar: React.FC = () => {
       icon: HelpIcon, 
       color: KENYAN_GREEN,
       items: [
-        { id: 'docs', label: 'Documentation', icon: BookIcon, shortcut: 'F1', action: () => { openHelpModal(); setOpenMenu(null); } },
+        { id: 'docs', label: 'Documentation', icon: BookIcon, shortcut: 'F1', action: () => { setIsHelpModalOpen(true); setOpenMenu(null); } },
         { id: 'divider1', label: '', divider: true },
-        { id: 'about', label: 'About', icon: InfoIcon, action: () => { openSettingsModal(); setOpenMenu(null); } },
+        { id: 'about', label: 'About', icon: InfoIcon, action: () => { setIsSettingsModalOpen(true); setOpenMenu(null); } },
       ] as DropdownItem[]
     },
   ];
@@ -535,7 +649,7 @@ const MenuBar: React.FC = () => {
     { id: 'undo', icon: UndoIcon, label: 'Undo', action: () => console.log('Undo') },
     { id: 'redo', icon: RedoIcon, label: 'Redo', action: () => console.log('Redo') },
     { id: 'theme', icon: isLightMode ? MoonIcon : ThemeIcon, label: isLightMode ? 'Dark Mode' : 'Light Mode', action: () => toggleTheme() },
-    { id: 'settings', icon: SettingsIcon, label: 'Settings', action: () => openSettingsModal() },
+    { id: 'settings', icon: SettingsIcon, label: 'Settings', action: () => setIsSettingsModalOpen(true) },
   ];
 
   // Theme-aware colors
@@ -639,7 +753,7 @@ const MenuBar: React.FC = () => {
                     position: 'absolute',
                     top: '100%',
                     left: 0,
-                    minWidth: '200px',
+                    minWidth: '240px',
                     background: menuBg,
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
@@ -701,6 +815,8 @@ const MenuBar: React.FC = () => {
                           justifyContent: 'space-between',
                           gap: '12px',
                           transition: 'background 0.15s ease',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.background = hoverBg;
@@ -735,6 +851,35 @@ const MenuBar: React.FC = () => {
             </div>
           );
         })}
+      </div>
+
+      {/* Center - Project Name */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 1,
+          padding: '0 1rem',
+          minWidth: 0,
+        }}
+      >
+        <div
+          style={{
+            color: textColor,
+            fontFamily: HANDWRITTEN_FONT,
+            fontSize: '1rem',
+            fontWeight: '600',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            maxWidth: '100%',
+            opacity: 0.9,
+          }}
+          title={projectName}
+        >
+          {projectName}
+        </div>
       </div>
 
       {/* Center - Zoom Controls */}

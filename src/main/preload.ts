@@ -42,4 +42,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkFFmpeg: async (): Promise<boolean> => {
     return await ipcRenderer.invoke('check-ffmpeg');
   },
+  
+  // File dialogs for project save/load
+  saveProjectDialog: async (projectData: string): Promise<{ canceled: boolean; filePath?: string }> => {
+    return await ipcRenderer.invoke('save-project-dialog', projectData);
+  },
+  
+  saveProjectDirect: async (projectData: string, filePath: string): Promise<{ success: boolean; filePath?: string }> => {
+    return await ipcRenderer.invoke('save-project-direct', projectData, filePath);
+  },
+  
+  loadProjectDialog: async (): Promise<{ canceled: boolean; filePath?: string; projectData?: string }> => {
+    return await ipcRenderer.invoke('load-project-dialog');
+  },
 });

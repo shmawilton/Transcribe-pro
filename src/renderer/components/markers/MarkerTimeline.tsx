@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { useAppStore } from '../../store/store';
 import { Marker } from '../../types/types';
 import { MarkerManager, PRESET_COLORS, DEFAULT_MARKER_COLOR } from './MarkerManager';
+import { useAudioEngine } from '../audio/useAudioEngine';
 
 // ===== Constants for marker layout =====
 const MARKER_HEIGHT = 28; // pixels - increased for better visibility
@@ -53,6 +54,9 @@ export function MarkerTimeline() {
   const duration = useAppStore((state) => state.audio.duration || 0);
   const activeMarkerId = useAppStore((state) => state.ui.selectedMarkerId);
   const setActiveMarker = useAppStore((state) => state.setSelectedMarkerId);
+  
+  // Get AudioEngine methods for applying marker settings
+  const { seek } = useAudioEngine();
   
   // Get viewport state for synchronized zoom/scroll with Waveform
   const rawViewportStart = useAppStore((state) => state.ui.viewportStart);
@@ -417,12 +421,24 @@ export function MarkerTimeline() {
     }
   }, [markerStartTime, markerEndTime, formatTimeForInput]);
   
-  // Click handler to activate marker
-  const handleMarkerClick = useCallback((e: React.MouseEvent, markerId: string) => {
+  // Click handler to activate marker with full functionality (speed, loop, seek)
+  const handleMarkerClick = useCallback(async (e: React.MouseEvent, markerId: string) => {
     e.stopPropagation(); // Prevent triggering SVG click
     console.log('[MarkerTimeline] Marker clicked:', markerId);
-    setActiveMarker(markerId);
-  }, [setActiveMarker]);
+    
+    try {
+      // Use MarkerManager's setActiveMarker to apply marker settings (speed, loop, seek)
+      await MarkerManager.setActiveMarker(markerId, {
+        seekToMarker: true, // Always seek to marker start when clicking
+        audioEngine: {
+          seek, // Seek to marker start
+          // Speed is handled by useMarkerSpeedControl hook
+        },
+      });
+    } catch (error) {
+      console.error('[MarkerTimeline] Error activating marker:', error);
+    }
+  }, [seek]);
   
   // Get hovered marker data for tooltip
   const hoveredMarkerData = useMemo(() => {
@@ -516,27 +532,35 @@ export function MarkerTimeline() {
           style={{
             position: 'absolute',
             left: `${tooltipPosition.x}px`,
-            top: '-40px',
+            top: '-10px', // Moved closer to timeline (was -40px)
             transform: 'translateX(-50%)',
             background: 'rgba(0, 0, 0, 0.95)',
             color: '#FFD700',
-            padding: '6px 12px',
-            borderRadius: '4px',
+            padding: '8px 12px',
+            borderRadius: '6px',
             fontSize: '12px',
             fontWeight: '500',
             pointerEvents: 'none',
-            zIndex: 1000,
+            zIndex: 10000, // Increased z-index to bring forward
             whiteSpace: 'nowrap',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.8)',
+            border: '1px solid rgba(255, 215, 0, 0.3)'
           }}
         >
-          {hoveredMarkerData.name}
+          <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+            {hoveredMarkerData.name}
+          </div>
           <div style={{ 
-            fontSize: '10px', 
-            color: 'rgba(255, 255, 255, 0.7)',
-            marginTop: '2px'
+            fontSize: '11px', 
+            color: 'rgba(255, 255, 255, 0.9)',
+            fontFamily: 'monospace'
           }}>
             {formatTime(hoveredMarkerData.start)} - {formatTime(hoveredMarkerData.end)}
+            {hoveredMarkerData.speed && hoveredMarkerData.speed !== 1.0 && (
+              <span style={{ marginLeft: '8px', color: '#4CAF50' }}>
+                • {hoveredMarkerData.speed.toFixed(2)}x
+              </span>
+            )}
           </div>
         </div>
       )}
