@@ -1020,33 +1020,37 @@ const Waveform: React.FC = () => {
 
   /**
    * Auto-scroll viewport during playback to keep playhead visible
+   * Only scrolls when playhead goes out of view (not when it's still visible)
+   * This allows users to manually scroll while playing, but auto-scrolls when needed
    */
   useEffect(() => {
     if (!isPlaying || zoomLevel <= 1 || duration <= 0) return;
     
-    const visibleDuration = viewportEnd - viewportStart;
+    const vpStart = viewportStart;
+    const vpEnd = viewportEnd > 0 ? viewportEnd : duration;
+    const visibleDuration = vpEnd - vpStart;
     
-    // Check if playhead is near the edge of viewport (within 10%)
-    const margin = visibleDuration * 0.1;
+    // Only auto-scroll if playhead is outside the visible viewport
+    // Add a small buffer (5% of visible duration) to prevent constant scrolling
+    const buffer = visibleDuration * 0.05;
+    const isPlayheadBeforeViewport = currentTime < (vpStart + buffer);
+    const isPlayheadAfterViewport = currentTime > (vpEnd - buffer);
     
-    if (currentTime > viewportEnd - margin) {
-      // Playhead approaching right edge - scroll forward
-      let newStart = currentTime - visibleDuration * 0.2; // Keep playhead at 20% from left
-      let newEnd = newStart + visibleDuration;
+    if (isPlayheadBeforeViewport || isPlayheadAfterViewport) {
+      // Calculate new viewport to center playhead (or keep it visible)
+      // Use 80% of visible duration as the margin (20% buffer on each side)
+      const margin = visibleDuration * 0.2;
+      let newStart = currentTime - margin;
+      let newEnd = currentTime + visibleDuration - margin;
       
       // Clamp to valid range
-      if (newEnd > duration) {
-        newEnd = duration;
-        newStart = Math.max(0, newEnd - visibleDuration);
+      newStart = Math.max(0, Math.min(newStart, duration - visibleDuration));
+      newEnd = Math.max(visibleDuration, Math.min(newEnd, duration));
+      
+      // Only update if viewport actually needs to change (prevent unnecessary updates)
+      if (Math.abs(newStart - vpStart) > 0.1 || Math.abs(newEnd - vpEnd) > 0.1) {
+        setViewport(newStart, newEnd);
       }
-      
-      setViewport(newStart, newEnd);
-    } else if (currentTime < viewportStart + margin) {
-      // Playhead approaching left edge - scroll backward
-      let newStart = Math.max(0, currentTime - visibleDuration * 0.8);
-      let newEnd = newStart + visibleDuration;
-      
-      setViewport(newStart, newEnd);
     }
   }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, setViewport]);
 
@@ -1059,6 +1063,8 @@ const Waveform: React.FC = () => {
       setZoomLevel(1);
     }
   }, [duration, viewportEnd, setViewport, setZoomLevel]);
+
+  // Manual scrolling removed - only auto-scroll during playback is enabled
 
   return (
     <div 
@@ -1073,31 +1079,44 @@ const Waveform: React.FC = () => {
         WebkitBackdropFilter: 'blur(20px)',
         border: '1px solid rgba(222, 41, 16, 0.3)',
         borderRadius: 'var(--radius-md)',
-        padding: '0', // Removed padding - canvas handles all spacing to match MarkerTimeline
+        padding: '0',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        flexDirection: 'column',
         boxShadow: '0 4px 16px rgba(222, 41, 16, 0.2)',
         transition: 'all var(--transition-normal)',
         overflow: 'hidden',
         position: 'relative'
       }}
     >
-      <canvas
-        ref={canvasRef}
-        className="waveform-canvas"
+      {/* Container for waveform - no manual scrolling, only auto-scroll via viewport */}
+      <div
         style={{
           width: '100%',
-          height: '100%',
-          display: 'block',
-          cursor: 'crosshair',
-          filter: clickFeedback ? 'brightness(1.2)' : 'none',
-          transition: 'filter 0.1s ease-out'
+          flex: '1 1 auto',
+          overflow: 'hidden',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
         }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        onClick={handleClick}
-      />
+      >
+        <canvas
+          ref={canvasRef}
+          className="waveform-canvas"
+          style={{
+            width: '100%',
+            minWidth: '100%',
+            height: '100%',
+            display: 'block',
+            cursor: 'crosshair',
+            filter: clickFeedback ? 'brightness(1.2)' : 'none',
+            transition: 'filter 0.1s ease-out',
+            flexShrink: 0
+          }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          onClick={handleClick}
+        />
+      </div>
       
       
       {/* Hover indicator - green vertical line */}

@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { useAppStore } from '../../store/store';
+import { MarkerManager } from '../markers/MarkerManager';
 
 // Kenyan flag colors
 const KENYAN_RED = '#DE2910';
@@ -79,6 +80,19 @@ const PlaybackPanel: React.FC = () => {
   const handlePlay = async () => {
     try {
       await resumeAudioContext();
+      
+      // If a marker is active, seek to marker start before playing
+      const store = useAppStore.getState();
+      const selectedMarkerId = store.ui.selectedMarkerId;
+      if (selectedMarkerId) {
+        const marker = MarkerManager.getMarker(selectedMarkerId);
+        if (marker) {
+          // Seek to marker start before playing
+          await seek(marker.start);
+          console.log(`[PlaybackPanel] Seeking to marker start (${marker.start}s) before playing`);
+        }
+      }
+      
       await play();
     } catch (err) {
       console.error('Play error:', err);

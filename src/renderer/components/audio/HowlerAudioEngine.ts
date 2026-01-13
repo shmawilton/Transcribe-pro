@@ -209,9 +209,9 @@ export class HowlerAudioEngine {
           this.howl = newHowl;
           const fileDuration = newHowl.duration();
           this.originalDuration = fileDuration; // Store original duration
-          this.duration = fileDuration / (this.currentSpeed || 1.0); // Calculate effective duration
+          this.duration = fileDuration; // Duration always stays as original (never changes with speed)
           
-          // Update store with effective duration
+          // Update store with original duration (duration never changes with speed)
           useAppStore.getState().setDuration(this.duration);
           
           // If preserving state, seek and play
@@ -521,21 +521,18 @@ export class HowlerAudioEngine {
 
   public async seek(time: number): Promise<void> {
     if (!this.howl) return;
-    // time is effective time (what user sees)
-    // Convert to file time for Howler: fileTime = effectiveTime * speed
-    const effectiveTime = Math.max(0, Math.min(time, this.duration));
-    const fileTime = this.currentSpeed !== 1.0 && this.currentSpeed > 0 
-      ? effectiveTime * this.currentSpeed 
-      : effectiveTime;
+    // time is original timeline time (duration never changes with speed)
+    // Howler's seek() takes file time directly (no conversion needed)
+    const originalTime = Math.max(0, Math.min(time, this.duration));
     
     const wasPlaying = this.currentSoundId !== null && this.howl.playing(this.currentSoundId);
     
     if (this.currentSoundId !== null) {
-      this.howl.seek(fileTime, this.currentSoundId);
+      this.howl.seek(originalTime, this.currentSoundId);
     } else {
-      this.howl.seek(fileTime);
+      this.howl.seek(originalTime);
     }
-    useAppStore.getState().setCurrentTime(effectiveTime);
+    useAppStore.getState().setCurrentTime(originalTime);
     
     if (wasPlaying && this.currentSoundId !== null && !this.howl.playing(this.currentSoundId)) {
       this.howl.play(this.currentSoundId);
@@ -547,11 +544,9 @@ export class HowlerAudioEngine {
     const fileTime = this.currentSoundId !== null ? this.howl.seek(this.currentSoundId) : this.howl.seek();
     const rawTime = typeof fileTime === 'number' ? fileTime : 0;
     
-    // Convert file time to effective time based on speed
-    // When speed is 2x, file plays 2x faster, so effective time = fileTime / speed
-    if (this.currentSpeed !== 1.0 && this.currentSpeed > 0) {
-      return rawTime / this.currentSpeed;
-    }
+    // Return original timeline time (fileTime) - duration never changes with speed
+    // Only the playback rate changes, which makes the counter advance faster/slower
+    // The visual timeline and markers remain based on original duration
     return rawTime;
   }
 
@@ -602,18 +597,18 @@ export class HowlerAudioEngine {
       // Apply rate immediately - no processing delay!
       this.howl.rate(targetSpeed);
       
-      // Update duration in store (effective duration changes with speed)
-      // originalDuration is the file's actual duration
-      // effectiveDuration = originalDuration / speed (faster = shorter effective duration)
+      // Duration NEVER changes with speed - it always stays as originalDuration
+      // Only the playback rate changes, which makes the counter advance faster/slower
+      // The visual timeline and markers remain based on original duration
       if (this.originalDuration > 0) {
-        this.duration = this.originalDuration / targetSpeed;
-        useAppStore.getState().setDuration(this.duration);
+        // Duration stays constant - don't update it!
+        // this.duration = this.originalDuration; // Already set, don't change
         
-        // Also update current time display to match effective time
+        // Update current time display (in original timeline)
         const currentTime = this.getCurrentTime();
         useAppStore.getState().setCurrentTime(currentTime);
         
-        console.log(`[HowlerEngine] ⚡ Speed changed IMMEDIATELY to ${targetSpeed}x (effective duration: ${this.duration.toFixed(2)}s)`);
+        console.log(`[HowlerEngine] ⚡ Speed changed IMMEDIATELY to ${targetSpeed}x (duration stays at ${this.duration.toFixed(2)}s)`);
       }
     }
   }

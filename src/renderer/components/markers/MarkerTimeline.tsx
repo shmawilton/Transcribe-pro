@@ -33,7 +33,7 @@ export function MarkerTimeline() {
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [showMarkerForm, setShowMarkerForm] = useState(false);
   const [newMarkerName, setNewMarkerName] = useState('');
-  const [newMarkerColor, setNewMarkerColor] = useState(DEFAULT_MARKER_COLOR);
+  const [newMarkerColor, setNewMarkerColor] = useState<string>(DEFAULT_MARKER_COLOR as string);
   const [newMarkerSpeed, setNewMarkerSpeed] = useState(1.0);
   
   // Ensure speed is within valid range
@@ -96,23 +96,31 @@ export function MarkerTimeline() {
     return Math.max(0, containerWidth - (TIME_LABEL_PADDING * 2));
   }, [containerWidth]);
   
-  // Pixel-to-time conversion function (uses viewport for zoomed view)
+  // Pixel-to-time conversion function - uses full timeline for proper scrolling
   const pixelToTime = useCallback((pixelX: number): number => {
-    if (visibleDuration === 0 || usableWidth === 0) return 0;
+    if (duration === 0 || usableWidth === 0) return 0;
+    // Calculate SVG width based on full duration
+    const svgFullWidth = (duration / visibleDuration) * usableWidth + (TIME_LABEL_PADDING * 2);
     // Adjust for padding
     const adjustedX = pixelX - TIME_LABEL_PADDING;
-    const clampedX = Math.max(0, Math.min(adjustedX, usableWidth));
-    // Convert to time within the visible viewport
-    return viewportStart + (clampedX / usableWidth) * visibleDuration;
-  }, [visibleDuration, usableWidth, viewportStart]);
+    const clampedX = Math.max(0, Math.min(adjustedX, svgFullWidth - (TIME_LABEL_PADDING * 2)));
+    // Convert pixel position to absolute time in full timeline
+    const pixelPerSecond = (svgFullWidth - (TIME_LABEL_PADDING * 2)) / duration;
+    return clampedX / pixelPerSecond;
+  }, [duration, visibleDuration, usableWidth]);
   
-  // Time-to-pixel conversion function (uses viewport for zoomed view)
+  // Time-to-pixel conversion function - uses full timeline for proper scrolling
+  // When zoomed, SVG is full timeline width, so positions are based on full timeline
+  // The scroll position determines what's visible, ensuring alignment with waveform
   const timeToPixel = useCallback((timeInSeconds: number): number => {
-    if (visibleDuration === 0 || usableWidth === 0) return TIME_LABEL_PADDING;
-    // Convert time to position within the visible viewport
-    const relativeTime = timeInSeconds - viewportStart;
-    return Math.round(TIME_LABEL_PADDING + (relativeTime / visibleDuration) * usableWidth);
-  }, [visibleDuration, usableWidth, viewportStart]);
+    if (duration === 0 || usableWidth === 0) return TIME_LABEL_PADDING;
+    
+    // Calculate SVG width based on full duration (for scrolling)
+    const svgFullWidth = (duration / visibleDuration) * usableWidth + (TIME_LABEL_PADDING * 2);
+    // Convert time to absolute pixel position in full timeline
+    const pixelPerSecond = (svgFullWidth - (TIME_LABEL_PADDING * 2)) / duration;
+    return Math.round(TIME_LABEL_PADDING + (timeInSeconds * pixelPerSecond));
+  }, [duration, visibleDuration, usableWidth]);
   
   // Calculate marker dimensions
   const getMarkerDimensions = useCallback((marker: Marker) => {
@@ -324,6 +332,10 @@ export function MarkerTimeline() {
   // Show tooltip when hovering over timeline grid (not over markers)
   const showGridTooltip = hoverTime !== null && !isCreatingMarker && !hoveredMarker;
   
+  // Show time tooltip ALWAYS when hovering over timeline (including over markers)
+  // This shows the exact time at the pointer position
+  const showTimeTooltip = hoverTime !== null && !isCreatingMarker && mousePosition !== null;
+  
   // Handle marker form submission - Now uses MarkerManager
   const handleCreateMarker = useCallback(() => {
     // Parse time inputs
@@ -427,11 +439,17 @@ export function MarkerTimeline() {
     console.log('[MarkerTimeline] Marker clicked:', markerId);
     
     try {
-      // Use MarkerManager's setActiveMarker to apply marker settings (speed, loop, seek)
+      const marker = MarkerManager.getMarker(markerId);
+      if (!marker) return;
+      
+      // IMMEDIATELY seek to marker start (before activating marker)
+      await seek(marker.start);
+      
+      // Then activate marker with all settings
       await MarkerManager.setActiveMarker(markerId, {
-        seekToMarker: true, // Always seek to marker start when clicking
+        seekToMarker: false, // Already sought above
         audioEngine: {
-          seek, // Seek to marker start
+          seek, // Available for future use
           // Speed is handled by useMarkerSpeedControl hook
         },
       });
@@ -478,6 +496,64 @@ export function MarkerTimeline() {
   }, [isCreatingMarker, markerStartTime, markerEndTime, timeToPixel]);
   
   // ===== RENDER =====
+  // Handle scroll synchronization with waveform
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isScrollingRef = useRef(false);
+  
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+    
+    const handleScroll = () => {
+      if (isScrollingRef.current) return;
+      isScrollingRef.current = true;
+      
+      // Calculate scroll ratio (0 to 1) for consistent synchronization
+      const scrollLeft = scrollContainer.scrollLeft;
+      const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+      const scrollRatio = maxScroll > 0 ? scrollLeft / maxScroll : 0;
+      
+      // Sync with waveform (triggered via custom event)
+      window.dispatchEvent(new CustomEvent('markerTimelineScroll', { 
+        detail: { scrollRatio, scrollLeft } 
+      }));
+      
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 10);
+    };
+    
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, []);
+  
+  // Listen for waveform scroll events
+  useEffect(() => {
+    const handleWaveformScroll = (e: CustomEvent) => {
+      if (isScrollingRef.current) return;
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) return;
+      
+      isScrollingRef.current = true;
+      const { scrollRatio } = e.detail;
+      
+      // Sync scroll position using scroll ratio for consistent movement
+      if (scrollRatio !== undefined) {
+        const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+        if (maxScroll > 0) {
+          scrollContainer.scrollLeft = scrollRatio * maxScroll;
+        }
+      }
+      
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 10);
+    };
+    
+    window.addEventListener('waveformScroll', handleWaveformScroll as EventListener);
+    return () => window.removeEventListener('waveformScroll', handleWaveformScroll as EventListener);
+  }, []);
+
   return (
     <div 
       ref={containerRef}
@@ -499,8 +575,8 @@ export function MarkerTimeline() {
         flexShrink: 0,
       }}
     >
-      {/* Hover tooltip for timeline grid - Simple "Add Marker" */}
-      {showGridTooltip && mousePosition && (
+      {/* Hover tooltip for timeline grid - Shows exact time and "Add Marker" */}
+      {showGridTooltip && mousePosition && hoverTime !== null && (
         <div 
           className="grid-tooltip"
           style={{
@@ -508,19 +584,30 @@ export function MarkerTimeline() {
             left: `${mousePosition.x}px`,
             top: `${mousePosition.y - 35}px`,
             transform: 'translateX(-50%)',
-            background: 'rgba(0, 0, 0, 0.9)',
+            background: 'rgba(0, 0, 0, 0.95)',
             color: '#FFFFFF',
-            padding: '6px 12px',
+            padding: '8px 14px',
             borderRadius: '6px',
             fontSize: '12px',
             fontWeight: '500',
             pointerEvents: 'none',
             zIndex: 10000,
             whiteSpace: 'nowrap',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.5)',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.8)',
+            border: '1px solid rgba(212, 175, 55, 0.4)',
           }}
         >
-          Add Marker
+          <div style={{ color: '#D4AF37', marginBottom: '4px', fontWeight: '600' }}>
+            Add Marker
+          </div>
+          <div style={{ 
+            fontSize: '11px', 
+            color: 'rgba(255, 255, 255, 0.9)',
+            fontFamily: 'monospace',
+            textAlign: 'center'
+          }}>
+            {formatTime(hoverTime)}
+          </div>
         </div>
       )}
       
@@ -565,6 +652,33 @@ export function MarkerTimeline() {
         </div>
       )}
 
+      {/* Time tooltip - Always shows exact time when hovering over timeline */}
+      {showTimeTooltip && hoverTime !== null && mousePosition && (
+        <div 
+          className="time-tooltip"
+          style={{
+            position: 'fixed',
+            left: `${mousePosition.x}px`,
+            top: `${mousePosition.y - 35}px`,
+            transform: 'translateX(-50%)',
+            background: 'rgba(0, 0, 0, 0.95)',
+            color: '#FFFFFF',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            fontSize: '12px',
+            fontWeight: '500',
+            pointerEvents: 'none',
+            zIndex: 10001, // Higher than marker tooltip
+            whiteSpace: 'nowrap',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.8)',
+            border: '1px solid rgba(212, 175, 55, 0.4)',
+            fontFamily: 'monospace',
+          }}
+        >
+          {formatTime(hoverTime)}
+        </div>
+      )}
+      
       {/* Tooltip for timeline grid - asking if user wants to add marker */}
       {showGridTooltip && hoverTime !== null && svgRef.current && (
         <div 
@@ -977,18 +1091,27 @@ export function MarkerTimeline() {
         </div>
       )}
 
+      {/* Container for marker timeline - no manual scrolling, only auto-scroll via viewport */}
+      <div
+        style={{
+          width: '100%',
+          flex: '1 1 auto',
+          overflow: 'hidden',
+        }}
+      >
       {/* Render SVG */}
-      {containerWidth > 0 && (
+      {containerWidth > 0 && duration > 0 && (
         <svg 
           ref={svgRef}
-          width={containerWidth} 
+          width={visibleDuration > 0 ? Math.max(containerWidth, (duration / visibleDuration) * usableWidth + (TIME_LABEL_PADDING * 2)) : containerWidth}
           height={Math.min(svgHeight, TIME_GRID_HEIGHT + MAX_MARKER_AREA_HEIGHT)}
           style={{ 
             display: 'block', 
             cursor: isCreatingMarker ? 'crosshair' : 'default',
             overflow: 'visible',
-            flex: '1 1 auto',
-            minHeight: '0'
+            minHeight: '0',
+            minWidth: '100%',
+            flexShrink: 0
           }}
           onMouseMove={handleSvgMouseMove}
           onMouseLeave={handleSvgMouseLeave}
@@ -1160,6 +1283,7 @@ export function MarkerTimeline() {
           })}
         </svg>
       )}
+      </div>
     </div>
   );
 }

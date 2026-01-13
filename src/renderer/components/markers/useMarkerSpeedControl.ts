@@ -21,6 +21,33 @@ export function useMarkerSpeedControl() {
   const lastMarkerIdRef = useRef<string | null>(null);
   const intervalRef = useRef<number | null>(null);
   const isUpdatingRef = useRef<boolean>(false);
+  const lastSpeedChangeTimeRef = useRef<number>(0); // Track when speed was last changed
+  
+  // Store original duration (before speed changes) for accurate range checks
+  // Markers are based on original timeline, not effective timeline
+  const originalDurationRef = useRef<number | null>(null);
+  
+  // Capture original duration when audio loads
+  useEffect(() => {
+    const store = useAppStore.getState();
+    const playbackRate = store.globalControls.playbackRate;
+    const duration = store.audio.duration;
+    
+    // If duration exists and we haven't stored it yet, or if it's the "normal" duration (1x speed)
+    // Store it as the original duration
+    if (duration > 0) {
+      // If speed is 1.0, this is likely the original duration
+      // If speed is not 1.0, calculate original: effectiveDuration * speed = originalDuration
+      if (playbackRate === 1.0 || originalDurationRef.current === null) {
+        // Calculate original duration: effectiveDuration * currentSpeed = originalDuration
+        const calculatedOriginal = duration * playbackRate;
+        if (originalDurationRef.current === null || Math.abs(calculatedOriginal - originalDurationRef.current) > 1) {
+          originalDurationRef.current = calculatedOriginal;
+          console.log(`[useMarkerSpeedControl] Stored original duration: ${originalDurationRef.current.toFixed(2)}s`);
+        }
+      }
+    }
+  }, [useAppStore.getState().audio.duration, useAppStore.getState().globalControls.playbackRate]);
 
   // When marker is activated/deactivated, reset state tracking
   useEffect(() => {
@@ -75,13 +102,14 @@ export function useMarkerSpeedControl() {
       return; // No marker active, nothing to monitor
     }
 
-    // Set up interval to check position periodically (every 300ms to reduce checks)
+    // Set up interval to check position periodically (every 500ms to reduce checks and prevent flickering)
     intervalRef.current = window.setInterval(() => {
       if (isUpdatingRef.current) return; // Prevent nested updates
 
       const store = useAppStore.getState();
       const currentTime = store.audio.currentTime;
       const isPlaying = store.audio.isPlaying;
+      const currentSpeed = store.globalControls.playbackRate;
       
       // Only adjust speed during playback
       if (!isPlaying) {
@@ -93,9 +121,43 @@ export function useMarkerSpeedControl() {
         return;
       }
 
-      // Check if playback is within marker range (with buffer to prevent rapid toggling at exact boundaries)
-      const buffer = 0.1; // 100ms buffer to prevent rapid toggling
-      const isInRange = currentTime >= (activeMarker.start - buffer) && currentTime <= (activeMarker.end + buffer);
+      // getCurrentTime() now returns ORIGINAL timeline time (duration never changes with speed)
+      // Markers are also defined in ORIGINAL timeline
+      // No conversion needed - both are in the same timeline
+      
+      // Store original duration (it never changes with speed)
+      if (originalDurationRef.current === null) {
+        const duration = store.audio.duration;
+        if (duration > 0) {
+          originalDurationRef.current = duration;
+          console.log(`[useMarkerSpeedControl] Stored original duration: ${originalDurationRef.current.toFixed(2)}s (duration never changes with speed)`);
+        } else {
+          // Can't calculate yet, skip this check
+          return;
+        }
+      }
+      
+      // currentTime is already in ORIGINAL timeline (no conversion needed)
+      const originalTime = currentTime;
+      
+      // Check if playback is within marker range using ORIGINAL timeline
+      // Use MUCH LARGER buffer with hysteresis to prevent rapid toggling
+      // Increased buffers to prevent flickering when speed changes cause time jumps
+      const enterBuffer = 1.0; // Buffer when entering (very forgiving)
+      const exitBuffer = 1.5;   // Buffer when exiting (even more forgiving to prevent flicker)
+      
+      // Hysteresis: different thresholds for entering vs exiting
+      let isInRange: boolean;
+      if (lastInRangeStateRef.current === true) {
+        // Currently in range - use exit buffer (harder to exit)
+        // Only exit if we're clearly outside the marker range
+        isInRange = originalTime >= (activeMarker.start - exitBuffer) && originalTime <= (activeMarker.end + exitBuffer);
+      } else {
+        // Currently out of range - use enter buffer (easier to enter)
+        // Enter if we're close to or within the marker range
+        isInRange = originalTime >= (activeMarker.start - enterBuffer) && originalTime <= (activeMarker.end + enterBuffer);
+      }
+      
       const markerSpeed = activeMarker.speed !== undefined ? activeMarker.speed : 1.0;
 
       // ONLY change speed when state changes (crossing boundary)
@@ -110,10 +172,11 @@ export function useMarkerSpeedControl() {
             isUpdatingRef.current = true;
             setSpeed(markerSpeed);
             lastAppliedSpeedRef.current = markerSpeed;
-            console.log(`[useMarkerSpeedControl] Entered marker range - applied speed ${markerSpeed}x`);
+            lastSpeedChangeTimeRef.current = Date.now();
+            console.log(`[useMarkerSpeedControl] Entered marker range at originalTime ${originalTime.toFixed(2)}s - applied speed ${markerSpeed}x`);
             setTimeout(() => {
               isUpdatingRef.current = false;
-            }, 100);
+            }, 500); // Longer timeout to prevent rapid updates
           }
         } else {
           // Exited marker range - reset to normal speed ONCE
@@ -121,15 +184,16 @@ export function useMarkerSpeedControl() {
             isUpdatingRef.current = true;
             setSpeed(1.0);
             lastAppliedSpeedRef.current = 1.0;
-            console.log('[useMarkerSpeedControl] Exited marker range - reset speed to 1.0x');
+            lastSpeedChangeTimeRef.current = Date.now();
+            console.log(`[useMarkerSpeedControl] Exited marker range at originalTime ${originalTime.toFixed(2)}s - reset speed to 1.0x`);
             setTimeout(() => {
               isUpdatingRef.current = false;
-            }, 100);
+            }, 500); // Longer timeout to prevent rapid updates
           }
         }
       }
       // If state hasn't changed, do nothing - speed stays constant
-    }, 300); // Check every 300ms
+    }, 1000); // Check every 1000ms (reduced frequency to prevent flickering)
 
     return () => {
       if (intervalRef.current !== null) {
