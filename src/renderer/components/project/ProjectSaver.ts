@@ -194,7 +194,7 @@ export class ProjectSaver {
   }
 
   /**
-   * Save project - opens dialog if no path is set
+   * Save project - auto-saves with untitled name if no path is set
    */
   async saveProject(): Promise<boolean> {
     try {
@@ -220,8 +220,18 @@ export class ProjectSaver {
         markersCount: projectData.markers.length
       });
       
-      this.notify('Saving project with embedded audio...', 'success');
-      const filePath = await this.saveToFile(projectData, this.currentProjectPath || undefined);
+      // If no path is set, auto-save with untitled name
+      let filePath = this.currentProjectPath;
+      if (!filePath || filePath === 'browser-download') {
+        // Auto-save: show dialog with suggested untitled name
+        this.notify('Auto-saving project...', 'success');
+        // The save dialog will handle suggesting the untitled name
+        filePath = await this.saveToFile(projectData);
+      } else {
+        // Save to existing path (auto-save)
+        this.notify('Auto-saving project...', 'success');
+        filePath = await this.saveToFile(projectData, filePath);
+      }
 
       if (!filePath) {
         // User cancelled
@@ -330,6 +340,23 @@ export class ProjectSaver {
     }
     const fileName = this.currentProjectPath.split(/[/\\]/).pop() || 'project.tsproj';
     return fileName.replace(/\.tsproj$/, '');
+  }
+
+  /**
+   * Check if project has been saved (has a path)
+   */
+  hasSavedProject(): boolean {
+    return this.currentProjectPath !== null && this.currentProjectPath !== 'browser-download';
+  }
+
+  /**
+   * Get next available untitled project name
+   */
+  async getNextUntitledProjectName(): Promise<string> {
+    // For now, use timestamp-based naming to avoid conflicts
+    // In the future, we could check for existing files if Electron API supports it
+    const timestamp = Date.now();
+    return `untitled-${timestamp}.tsproj`;
   }
 
   /**

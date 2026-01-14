@@ -46,7 +46,27 @@ const App: React.FC = () => {
         target.isContentEditable ||
         target.closest('input, textarea, [contenteditable="true"]');
 
-      // Only handle shortcuts when audio is loaded and not typing
+      // Handle undo/redo shortcuts even when audio is not loaded (they work on markers)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'y')) {
+        e.preventDefault();
+        const { undo, redo, canUndo, canRedo } = useAppStore.getState();
+        if (e.key === 'z' && !e.shiftKey) {
+          // Ctrl+Z: Undo
+          if (canUndo()) {
+            undo();
+            console.log('[App] Undo via keyboard shortcut');
+          }
+        } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+          // Ctrl+Y or Ctrl+Shift+Z: Redo
+          if (canRedo()) {
+            redo();
+            console.log('[App] Redo via keyboard shortcut');
+          }
+        }
+        return;
+      }
+
+      // Only handle other shortcuts when audio is loaded and not typing
       if (!isAudioLoaded || isInputFocused) {
         return;
       }

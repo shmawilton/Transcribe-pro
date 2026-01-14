@@ -21,13 +21,16 @@ export interface LoadProjectResult {
 export class ProjectLoader {
   private onNotification?: (message: string, type: 'success' | 'error') => void;
   private onProjectNameChange?: (name: string) => void;
+  private onProjectPathChange?: (filePath: string | null) => void;
 
   constructor(
     onNotification?: (message: string, type: 'success' | 'error') => void,
-    onProjectNameChange?: (name: string) => void
+    onProjectNameChange?: (name: string) => void,
+    onProjectPathChange?: (filePath: string | null) => void
   ) {
     this.onNotification = onNotification;
     this.onProjectNameChange = onProjectNameChange;
+    this.onProjectPathChange = onProjectPathChange;
   }
 
   /**
@@ -473,11 +476,18 @@ export class ProjectLoader {
         // Viewport will be set after audio duration is known
       }
 
-      // Update project name
-      if (fileResult.filePath && this.onProjectNameChange) {
-        const fileName = fileResult.filePath.split(/[/\\]/).pop() || 'project.tsproj';
-        const projectName = fileName.replace(/\.tsproj$/, '');
-        this.onProjectNameChange(projectName);
+      // Update project name and path
+      if (fileResult.filePath) {
+        if (this.onProjectNameChange) {
+          const fileName = fileResult.filePath.split(/[/\\]/).pop() || 'project.tsproj';
+          const projectName = fileName.replace(/\.tsproj$/, '');
+          this.onProjectNameChange(projectName);
+        }
+        
+        // Notify about project path change (for ProjectSaver)
+        if (this.onProjectPathChange) {
+          this.onProjectPathChange(fileResult.filePath);
+        }
       }
 
       // Add to recent projects
@@ -674,10 +684,11 @@ let projectLoaderInstance: ProjectLoader | null = null;
  */
 export function getProjectLoader(
   onNotification?: (message: string, type: 'success' | 'error') => void,
-  onProjectNameChange?: (name: string) => void
+  onProjectNameChange?: (name: string) => void,
+  onProjectPathChange?: (filePath: string | null) => void
 ): ProjectLoader {
   if (!projectLoaderInstance) {
-    projectLoaderInstance = new ProjectLoader(onNotification, onProjectNameChange);
+    projectLoaderInstance = new ProjectLoader(onNotification, onProjectNameChange, onProjectPathChange);
   } else {
     // Update callbacks if instance already exists
     if (onNotification) {
@@ -685,6 +696,9 @@ export function getProjectLoader(
     }
     if (onProjectNameChange) {
       (projectLoaderInstance as any).onProjectNameChange = onProjectNameChange;
+    }
+    if (onProjectPathChange) {
+      (projectLoaderInstance as any).onProjectPathChange = onProjectPathChange;
     }
   }
   return projectLoaderInstance;

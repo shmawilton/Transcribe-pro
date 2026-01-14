@@ -17,7 +17,7 @@ interface AppStore {
   addMarker: (marker: Marker) => void;
   updateMarker: (id: string, updates: Partial<Marker>) => void;
   deleteMarker: (id: string) => void;
-  setMarkers: (markers: Marker[]) => void;
+  setMarkers: (markers: Marker[], skipHistory?: boolean) => void;
 
   // UI State
   ui: UIState;
@@ -44,6 +44,17 @@ interface AppStore {
   theme: 'dark' | 'light';
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
+  classicTheme: boolean;
+  setClassicTheme: (enabled: boolean) => void;
+
+  // Undo/Redo
+  undoHistory: Marker[][];
+  redoHistory: Marker[][];
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  undo: () => void;
+  redo: () => void;
+  pushToHistory: () => void;
 }
 
 const initialAudioState: AudioState = {
@@ -159,15 +170,50 @@ export const useAppStore = create<AppStore>((set) => ({
 
   // Markers State
   markers: [],
-  addMarker: (marker) =>
-    set((state) => ({ markers: [...state.markers, marker] })),
-  updateMarker: (id, updates) =>
-    set((state) => ({
+  addMarker: (marker) => {
+    const state = useAppStore.getState();
+    // Save current state to history before adding
+    const currentMarkers = [...state.markers];
+    set({
+      markers: [...state.markers, marker],
+      undoHistory: [...state.undoHistory, currentMarkers],
+      redoHistory: [], // Clear redo history when new action is performed
+    });
+  },
+  updateMarker: (id, updates) => {
+    const state = useAppStore.getState();
+    // Save current state to history before updating
+    const currentMarkers = [...state.markers];
+    set({
       markers: state.markers.map((m) => (m.id === id ? { ...m, ...updates } : m)),
-    })),
-  deleteMarker: (id) =>
-    set((state) => ({ markers: state.markers.filter((m) => m.id !== id) })),
-  setMarkers: (markers) => set({ markers }),
+      undoHistory: [...state.undoHistory, currentMarkers],
+      redoHistory: [], // Clear redo history when new action is performed
+    });
+  },
+  deleteMarker: (id) => {
+    const state = useAppStore.getState();
+    // Save current state to history before deleting
+    const currentMarkers = [...state.markers];
+    set({
+      markers: state.markers.filter((m) => m.id !== id),
+      undoHistory: [...state.undoHistory, currentMarkers],
+      redoHistory: [], // Clear redo history when new action is performed
+    });
+  },
+  setMarkers: (markers, skipHistory = false) => {
+    const state = useAppStore.getState();
+    if (skipHistory) {
+      set({ markers });
+    } else {
+      // Save current state to history before setting
+      const currentMarkers = [...state.markers];
+      set({
+        markers,
+        undoHistory: [...state.undoHistory, currentMarkers],
+        redoHistory: [], // Clear redo history when new action is performed
+      });
+    }
+  },
 
   // UI State
   ui: initialUIState,
@@ -234,6 +280,8 @@ export const useAppStore = create<AppStore>((set) => ({
       markers: project.markers,
       globalControls: project.globalControls,
       audio: { ...initialAudioState },
+      undoHistory: [],
+      redoHistory: [],
     }),
   resetProject: () =>
     set({
@@ -241,6 +289,8 @@ export const useAppStore = create<AppStore>((set) => ({
       markers: [],
       ui: initialUIState,
       globalControls: initialGlobalControls,
+      undoHistory: [],
+      redoHistory: [],
     }),
 
   // Theme
@@ -259,6 +309,89 @@ export const useAppStore = create<AppStore>((set) => ({
       return { theme: newTheme };
     });
   },
+  classicTheme: false,
+  setClassicTheme: (enabled) => {
+    set({ classicTheme: enabled });
+    document.documentElement.setAttribute('data-classic-theme', enabled ? 'true' : 'false');
+    localStorage.setItem('classicTheme', enabled.toString());
+  },
+
+  // Undo/Redo State
+  undoHistory: [],
+  redoHistory: [],
+  canUndo: () => {
+    const state = useAppStore.getState();
+    return state.undoHistory.length > 0;
+  },
+  canRedo: () => {
+    const state = useAppStore.getState();
+    return state.redoHistory.length > 0;
+  },
+  pushToHistory: () => {
+    const state = useAppStore.getState();
+    // Save current markers state to undo history
+    const currentMarkers = [...state.markers];
+    set({
+      undoHistory: [...state.undoHistory, currentMarkers],
+      redoHistory: [], // Clear redo history when new action is performed
+    });
+  },
+  undo: () => {
+    set((state) => {
+      if (state.undoHistory.length === 0) {
+        console.log('[Store] Nothing to undo');
+        return state;
+      }
+      
+      // Save current state to redo history
+      const currentMarkers = [...state.markers];
+      const previousMarkers = state.undoHistory[state.undoHistory.length - 1];
+      
+      // Check if active marker still exists after undo
+      const activeMarkerId = state.ui.selectedMarkerId;
+      const markerStillExists = activeMarkerId 
+        ? previousMarkers.some(m => m.id === activeMarkerId)
+        : true;
+      
+      return {
+        markers: previousMarkers,
+        undoHistory: state.undoHistory.slice(0, -1),
+        redoHistory: [...state.redoHistory, currentMarkers],
+        // Clear active marker if it no longer exists
+        ui: markerStillExists 
+          ? state.ui 
+          : { ...state.ui, selectedMarkerId: null },
+      };
+    });
+  },
+  redo: () => {
+    set((state) => {
+      if (state.redoHistory.length === 0) {
+        console.log('[Store] Nothing to redo');
+        return state;
+      }
+      
+      // Save current state to undo history
+      const currentMarkers = [...state.markers];
+      const nextMarkers = state.redoHistory[state.redoHistory.length - 1];
+      
+      // Check if active marker still exists after redo
+      const activeMarkerId = state.ui.selectedMarkerId;
+      const markerStillExists = activeMarkerId 
+        ? nextMarkers.some(m => m.id === activeMarkerId)
+        : true;
+      
+      return {
+        markers: nextMarkers,
+        undoHistory: [...state.undoHistory, currentMarkers],
+        redoHistory: state.redoHistory.slice(0, -1),
+        // Clear active marker if it no longer exists
+        ui: markerStillExists 
+          ? state.ui 
+          : { ...state.ui, selectedMarkerId: null },
+      };
+    });
+  },
 }));
 
 // Initialize theme from localStorage
@@ -268,5 +401,14 @@ if (savedTheme) {
   useAppStore.setState({ theme: savedTheme });
 } else {
   document.documentElement.setAttribute('data-theme', 'dark');
+}
+
+// Initialize classic theme from localStorage
+const savedClassicTheme = localStorage.getItem('classicTheme') === 'true';
+if (savedClassicTheme) {
+  document.documentElement.setAttribute('data-classic-theme', 'true');
+  useAppStore.setState({ classicTheme: true });
+} else {
+  document.documentElement.setAttribute('data-classic-theme', 'false');
 }
 

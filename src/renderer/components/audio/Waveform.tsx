@@ -69,6 +69,8 @@ const Waveform: React.FC = () => {
   const duration = useAppStore((state) => state.audio.duration);
   const isPlaying = useAppStore((state) => state.audio.isPlaying);
   const activeMarkerId = useAppStore((state) => state.ui.selectedMarkerId); // For triggering redraw when marker changes
+  const markers = useAppStore((state) => state.markers); // For triggering redraw when markers change
+  const classicTheme = useAppStore((state) => state.classicTheme); // Classic theme state
   
   // Note: Active marker data is read inside drawWaveformWithBuffer from store state
   // to ensure fresh values during animation frames
@@ -544,8 +546,8 @@ const Waveform: React.FC = () => {
     // Use provided buffer or current audioBuffer from closure
     const bufferToUse = buffer !== undefined ? buffer : audioBuffer;
 
-    // Draw dark background (use actual color, not CSS variable - canvas doesn't support CSS vars)
-    ctx.fillStyle = '#0F0F0F';
+    // Draw background - black for classic theme, dark for normal
+    ctx.fillStyle = classicTheme ? '#000000' : '#0F0F0F';
     ctx.fillRect(0, 0, width, height);
 
     if (!bufferToUse) {
@@ -790,8 +792,8 @@ const Waveform: React.FC = () => {
           // Use marker color for active marker section
           color = activeMarkerRange.color;
         } else {
-          // Greyish color for inactive sections
-          color = '#444444'; // Darker grey to show inactivity
+          // Greyish color for inactive sections - classic theme uses grey, normal uses dark grey
+          color = classicTheme ? '#2a2a2a' : '#444444';
         }
       } else {
         // Normal behavior: color based on playback progress
@@ -799,31 +801,36 @@ const Waveform: React.FC = () => {
         const isPlayed = x < progressX;
         
         if (isPlayed) {
-          // Played portion: gradient from white → green → red based on position
-          const playedRatio = progressX > offsetX ? (x - offsetX) / (progressX - offsetX) : 0;
-          
-          // Smooth gradient: white (start) → green (middle) → red (near playhead)
-          if (playedRatio < 0.4) {
-            // White to Green
-            const t = playedRatio / 0.4;
-            const r = Math.round(255 - 255 * t);
-            const g = Math.round(255 - (255 - 180) * t);
-            const b = Math.round(255 - (255 - 100) * t);
-            color = `rgb(${r}, ${g}, ${b})`;
-          } else if (playedRatio < 0.7) {
-            // Green to Red
-            const t = (playedRatio - 0.4) / 0.3;
-            const r = Math.round(0 + 220 * t);
-            const g = Math.round(180 - 140 * t);
-            const b = Math.round(100 - 80 * t);
-            color = `rgb(${r}, ${g}, ${b})`;
+          // Played portion: black for classic theme, gradient for normal
+          if (classicTheme) {
+            color = '#000000'; // Black for played area in classic theme
           } else {
-            // Red (near playhead) - brightest
-            color = '#DE2910';
+            // Normal behavior: gradient from white → green → red based on position
+            const playedRatio = progressX > offsetX ? (x - offsetX) / (progressX - offsetX) : 0;
+            
+            // Smooth gradient: white (start) → green (middle) → red (near playhead)
+            if (playedRatio < 0.4) {
+              // White to Green
+              const t = playedRatio / 0.4;
+              const r = Math.round(255 - 255 * t);
+              const g = Math.round(255 - (255 - 180) * t);
+              const b = Math.round(255 - (255 - 100) * t);
+              color = `rgb(${r}, ${g}, ${b})`;
+            } else if (playedRatio < 0.7) {
+              // Green to Red
+              const t = (playedRatio - 0.4) / 0.3;
+              const r = Math.round(0 + 220 * t);
+              const g = Math.round(180 - 140 * t);
+              const b = Math.round(100 - 80 * t);
+              color = `rgb(${r}, ${g}, ${b})`;
+            } else {
+              // Red (near playhead) - brightest
+              color = '#DE2910';
+            }
           }
         } else {
-          // Unplayed portion: grey
-          color = '#555555';
+          // Unplayed portion: grey for classic theme, darker grey for normal
+          color = classicTheme ? '#2a2a2a' : '#555555';
         }
       }
       
@@ -880,7 +887,7 @@ const Waveform: React.FC = () => {
     // Reset transform and redraw
     ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     drawWaveformWithBuffer(ctx, canvasSize.width, canvasSize.height, audioBuffer);
-  }, [audioBuffer, zoomLevel, canvasSize, duration, animationTick, activeMarkerId]); // Redraw when active marker changes
+  }, [audioBuffer, zoomLevel, canvasSize, duration, animationTick, activeMarkerId, markers, classicTheme]); // Redraw when active marker, markers array, or theme changes
 
   /**
    * Animation frame loop for smooth playback updates
@@ -1074,15 +1081,13 @@ const Waveform: React.FC = () => {
         width: '100%', 
         flex: '0 0 45%',
         minHeight: '0',
-        background: 'var(--bg-primary)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid rgba(222, 41, 16, 0.3)',
+        background: 'var(--neu-bg-base)',
+        border: 'none',
         borderRadius: 'var(--radius-md)',
         padding: '0',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 4px 16px rgba(222, 41, 16, 0.2)',
+        boxShadow: 'var(--neu-raised)',
         transition: 'all var(--transition-normal)',
         overflow: 'hidden',
         position: 'relative'
@@ -1122,7 +1127,7 @@ const Waveform: React.FC = () => {
       {/* Hover indicator - green vertical line */}
       {hoverInfo.visible && duration > 0 && (
         <>
-          {/* Thin green line */}
+          {/* Thin line - black for classic theme, green for normal */}
           <div
             style={{
               position: 'absolute',
@@ -1130,23 +1135,27 @@ const Waveform: React.FC = () => {
               top: 0,
               bottom: 0,
               width: '1px',
-              background: 'linear-gradient(to bottom, rgba(0, 255, 128, 0.8), rgba(0, 255, 128, 0.3))',
+              background: classicTheme 
+                ? 'linear-gradient(to bottom, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.3))'
+                : 'linear-gradient(to bottom, rgba(0, 255, 128, 0.8), rgba(0, 255, 128, 0.3))',
               pointerEvents: 'none',
               transform: 'translateX(-0.5px)',
-              boxShadow: '0 0 6px rgba(0, 255, 128, 0.6)',
+              boxShadow: classicTheme 
+                ? '0 0 6px rgba(0, 0, 0, 0.6)'
+                : '0 0 6px rgba(0, 255, 128, 0.6)',
               animation: 'pulse 1.5s ease-in-out infinite'
             }}
           />
           
-          {/* Time tooltip */}
+          {/* Time tooltip - white bg with black text for classic theme */}
           <div
             style={{
               position: 'absolute',
               left: `${hoverInfo.x}px`,
               top: '8px',
               transform: 'translateX(-50%)',
-              background: 'rgba(0, 20, 10, 0.95)',
-              color: '#00FF80',
+              background: classicTheme ? '#ffffff' : 'rgba(0, 20, 10, 0.95)',
+              color: classicTheme ? '#000000' : '#00FF80',
               padding: '4px 10px',
               borderRadius: '4px',
               fontSize: '12px',
@@ -1154,8 +1163,12 @@ const Waveform: React.FC = () => {
               fontFamily: 'monospace',
               pointerEvents: 'none',
               whiteSpace: 'nowrap',
-              border: '1px solid rgba(0, 255, 128, 0.4)',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 255, 128, 0.2)',
+              border: classicTheme 
+                ? '1px solid rgba(0, 0, 0, 0.4)'
+                : '1px solid rgba(0, 255, 128, 0.4)',
+              boxShadow: classicTheme
+                ? '0 2px 8px rgba(0, 0, 0, 0.4)'
+                : '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 12px rgba(0, 255, 128, 0.2)',
               animation: 'fadeIn 0.15s ease-out',
               zIndex: 10
             }}

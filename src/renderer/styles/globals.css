@@ -69,6 +69,32 @@
   --transition-normal: 250ms ease;
   --transition-slow: 350ms ease;
   --transition-theme: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Neumorphic Design System - Subtle shadows */
+  --neu-bg-base: #1a1a1a;
+  --neu-shadow-light: rgba(255, 255, 255, 0.02);
+  --neu-shadow-dark: rgba(0, 0, 0, 0.3);
+  --neu-shadow-distance: 4px;
+  --neu-shadow-blur: 8px;
+  --neu-inset-shadow-light: rgba(255, 255, 255, 0.01);
+  --neu-inset-shadow-dark: rgba(0, 0, 0, 0.2);
+  
+  /* Neumorphic raised element - subtle */
+  --neu-raised: 
+    var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light);
+  
+  /* Neumorphic pressed element - subtle */
+  --neu-pressed: 
+    inset var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    inset calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light);
+  
+  /* Neumorphic flat element - subtle */
+  --neu-flat: 
+    var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light),
+    inset 1px 1px 2px var(--neu-inset-shadow-dark),
+    inset -1px -1px 2px var(--neu-inset-shadow-light);
 }
 
 /* Light Theme */
@@ -92,6 +118,77 @@
   --glass-bg-light: rgba(245, 245, 245, 0.7);
   --glass-border: rgba(0, 0, 0, 0.1);
   --glass-shadow: rgba(0, 0, 0, 0.1);
+  
+  /* Neumorphic Design System for Light Theme - Subtle */
+  --neu-bg-base: #e8e8e8;
+  --neu-shadow-light: rgba(255, 255, 255, 0.4);
+  --neu-shadow-dark: rgba(0, 0, 0, 0.1);
+  --neu-shadow-distance: 3px;
+  --neu-shadow-blur: 6px;
+  --neu-inset-shadow-light: rgba(255, 255, 255, 0.3);
+  --neu-inset-shadow-dark: rgba(0, 0, 0, 0.08);
+  
+  /* Neumorphic raised element (light) - subtle */
+  --neu-raised: 
+    var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light);
+  
+  /* Neumorphic pressed element (light) - subtle */
+  --neu-pressed: 
+    inset var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    inset calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light);
+  
+  /* Neumorphic flat element (light) - subtle */
+  --neu-flat: 
+    var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light),
+    inset 1px 1px 2px var(--neu-inset-shadow-dark),
+    inset -1px -1px 2px var(--neu-inset-shadow-light);
+}
+
+/* Classic Theme - Black, White, Dark Grey with Neumorphism */
+[data-classic-theme="true"] {
+  /* Classic theme color palette - only 3 colors */
+  --classic-white: #FFFFFF;
+  --classic-black: #000000;
+  --classic-grey: #2a2a2a;
+  
+  /* Backgrounds - white dominating */
+  --bg-primary: var(--classic-white);
+  --bg-secondary: #f5f5f5;
+  --bg-tertiary: #e8e8e8;
+  --neu-bg-base: var(--classic-white);
+  
+  /* Text - black */
+  --text-primary: var(--classic-black);
+  --text-secondary: var(--classic-grey);
+  --text-accent-red: var(--classic-black);
+  --text-accent-green: var(--classic-black);
+  
+  /* Neumorphic shadows for classic theme - more pronounced */
+  --neu-shadow-light: rgba(255, 255, 255, 0.8);
+  --neu-shadow-dark: rgba(0, 0, 0, 0.25);
+  --neu-shadow-distance: 6px;
+  --neu-shadow-blur: 12px;
+  --neu-inset-shadow-light: rgba(255, 255, 255, 0.6);
+  --neu-inset-shadow-dark: rgba(0, 0, 0, 0.15);
+  
+  /* Neumorphic raised element - classic */
+  --neu-raised: 
+    var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light);
+  
+  /* Neumorphic pressed element - classic */
+  --neu-pressed: 
+    inset var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    inset calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light);
+  
+  /* Neumorphic flat element - classic */
+  --neu-flat: 
+    var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
+    calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light),
+    inset 2px 2px 4px var(--neu-inset-shadow-dark),
+    inset -2px -2px 4px var(--neu-inset-shadow-light);
 }
 
 /* Dark Theme (default) */
@@ -113,7 +210,7 @@ html, body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif !important;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%) !important;
+  background: var(--neu-bg-base) !important;
   color: var(--text-primary) !important;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -146,16 +243,16 @@ html, body {
 .menu-bar-container {
   height: var(--header-height);
   min-height: var(--header-height);
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border-bottom: 1px solid var(--glass-border);
+  background: rgba(26, 26, 26, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   padding: 0;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px var(--glass-shadow);
-  transition: background var(--transition-theme), border-color var(--transition-theme), box-shadow var(--transition-theme);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: background var(--transition-theme), box-shadow var(--transition-theme);
   position: relative;
   z-index: 10;
 }
@@ -182,10 +279,8 @@ html, body {
 .waveform-section {
   flex: 0 0 60%;
   max-height: 60%;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--blur-lg));
-  -webkit-backdrop-filter: blur(var(--blur-lg));
-  border: 1px solid var(--glass-border);
+  background: var(--neu-bg-base);
+  border: none;
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   overflow: hidden;
@@ -193,8 +288,8 @@ html, body {
   flex-direction: column;
   gap: var(--spacing-md);
   min-height: 0;
-  box-shadow: 0 4px 16px var(--glass-shadow);
-  transition: background var(--transition-theme), border-color var(--transition-theme), box-shadow var(--transition-theme);
+  box-shadow: var(--neu-raised);
+  transition: background var(--transition-theme), box-shadow var(--transition-theme);
 }
 
 .panels-section {
@@ -210,22 +305,18 @@ html, body {
 }
 
 .panel {
-  background: var(--glass-bg-light);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border: 1px solid var(--glass-border);
+  background: var(--neu-bg-base);
+  border: none;
   border-radius: var(--radius-md);
   padding: var(--spacing-md);
   overflow-y: auto;
   min-height: 120px;
-  box-shadow: 0 2px 12px var(--glass-shadow);
-  transition: background var(--transition-theme), border-color var(--transition-theme), box-shadow var(--transition-theme);
+  box-shadow: var(--neu-raised);
+  transition: background var(--transition-theme), box-shadow var(--transition-theme);
 }
 
 .panel:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px var(--glass-shadow);
-  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: var(--neu-raised), 0 0 20px rgba(0, 102, 68, 0.2);
 }
 
 /* Component placeholders - styles are now inline for better visibility */
@@ -410,20 +501,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */
@@ -462,20 +551,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */
@@ -514,20 +601,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */
@@ -566,20 +651,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */
@@ -618,20 +701,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */
@@ -670,20 +751,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */
@@ -723,20 +802,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */
@@ -776,20 +853,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */
@@ -829,20 +904,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container */
+/* Marker Timeline Container - Neumorphic */
 .marker-timeline {
   position: relative;
   width: 100%;
   min-height: 60px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(0, 102, 68, 0.4);
+  background: rgba(0, 102, 68, 0.15);
+  border: none;
   border-radius: var(--radius-md);
   padding: 8px;
   overflow: visible;
   z-index: 10;
-  box-shadow: 0 2px 12px rgba(0, 102, 68, 0.2);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--neu-raised);
 }
 
 /* Marker Tooltip */

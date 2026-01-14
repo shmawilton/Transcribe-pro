@@ -62,6 +62,11 @@ export class AudioEngine {
   // Time tracking
   private positionTrackingId: number | null = null;
 
+  // Loop state tracking
+  private loopStart: number | null = null;
+  private loopEnd: number | null = null;
+  private isLooping: boolean = false;
+
   // Blob URL for cleanup
   private blobUrl: string | null = null;
 
@@ -299,6 +304,11 @@ export class AudioEngine {
       this.isPlaying = false;
       useAppStore.getState().setIsPlaying(false);
       useAppStore.getState().setCurrentTime(0);
+      
+      // Reset loop state when loading new audio
+      this.isLooping = false;
+      this.loopStart = null;
+      this.loopEnd = null;
 
       // Step 9: Set volume to +6 dB (maximum volume) when audio loads - CRITICAL
       const storeVolume = useAppStore.getState().globalControls.volume;
@@ -694,8 +704,31 @@ export class AudioEngine {
         // Update store with current time
         useAppStore.getState().setCurrentTime(currentTime);
 
-        // Check if reached end of audio
-        if (currentTime >= duration - 0.05) {
+        // Check for marker loop end - jump back to start if looping
+        // Only check if we're actually looping and have valid loop bounds
+        if (this.isLooping && this.loopEnd !== null && this.loopStart !== null) {
+          // Check if we've reached or passed the loop end
+          // Use a threshold (0.1s) to account for timing precision and ensure we catch it
+          const loopEndThreshold = this.loopEnd - 0.1;
+          if (currentTime >= loopEndThreshold) {
+            console.log('[AudioEngine] Loop end detected:', { 
+              currentTime, 
+              loopEnd: this.loopEnd, 
+              loopStart: this.loopStart,
+              loopEndThreshold,
+              isLooping: this.isLooping,
+              isPlaying: this.isPlaying
+            });
+            // Call handleLoopEnd - it's async but we don't await it in the callback
+            this.handleLoopEnd().catch(err => {
+              console.error('[AudioEngine] Error in handleLoopEnd:', err);
+            });
+            return; // Don't check for audio end if we're looping
+          }
+        }
+
+        // Check if reached end of audio (only if not looping)
+        if (!this.isLooping && currentTime >= duration - 0.05) {
           this.handlePlaybackEnd();
         }
       }
@@ -732,6 +765,58 @@ export class AudioEngine {
     }
 
     console.log('[AudioEngine] Playback ended');
+  }
+
+  /**
+   * Handle loop end - jump back to loop start
+   */
+  private async handleLoopEnd(): Promise<void> {
+    if (!this.isLooping || this.loopStart === null) {
+      console.warn('[AudioEngine] handleLoopEnd called but loop is not active:', {
+        isLooping: this.isLooping,
+        loopStart: this.loopStart
+      });
+      return;
+    }
+
+    console.log('[AudioEngine] Loop end reached, jumping to loop start:', this.loopStart);
+    
+    // Get current playback state BEFORE making any changes
+    const wasPlaying = this.isPlaying;
+    
+    // Update position immediately to prevent multiple triggers
+    this.playbackStartPosition = this.loopStart;
+    useAppStore.getState().setCurrentTime(this.loopStart);
+    
+    // If playing, seek without stopping (Tone.Player can seek during playback)
+    if (wasPlaying && this.player) {
+      try {
+        // Stop current playback
+        if (this.player.state === 'started') {
+          this.player.stop();
+        }
+        this.stopPositionTracking();
+        
+        // Immediately restart from loop start
+        this.playbackStartTime = Tone.now();
+        this.player.start(Tone.now(), this.loopStart);
+        
+        // Restart position tracking
+        this.startPositionTracking();
+        
+        console.log('[AudioEngine] Looped back to start:', this.loopStart, '- playback continued');
+      } catch (error) {
+        console.error('[AudioEngine] Error looping during playback:', error);
+        // Fallback: use seek method
+        await this.seek(this.loopStart);
+        if (wasPlaying && !this.isPlaying) {
+          await this.play();
+        }
+      }
+    } else {
+      // Not playing, just update position
+      await this.seek(this.loopStart);
+    }
   }
 
   /**
@@ -785,6 +870,47 @@ export class AudioEngine {
     const speed = speedMap[preset] || 1.0;
     this.setSpeed(speed);
     console.log('[AudioEngine] Speed preset applied:', preset, '=', speed, 'x');
+  }
+
+  /**
+   * Enable looping between start and end times
+   * When playback reaches end, automatically jumps back to start
+   * @param start - Loop start time in seconds
+   * @param end - Loop end time in seconds
+   */
+  public setLoop(start: number, end: number): void {
+    const duration = this.getDuration();
+    
+    // Validate loop bounds
+    if (start < 0 || end > duration || start >= end) {
+      console.warn('[AudioEngine] Invalid loop bounds:', { start, end, duration });
+      return;
+    }
+
+    this.loopStart = start;
+    this.loopEnd = end;
+    this.isLooping = true;
+
+    console.log('[AudioEngine] Loop enabled:', { 
+      start, 
+      end, 
+      duration,
+      isLooping: this.isLooping,
+      loopStart: this.loopStart,
+      loopEnd: this.loopEnd
+    });
+  }
+
+  /**
+   * Disable looping
+   * Playback will continue normally without jumping back
+   */
+  public disableLoop(): void {
+    this.isLooping = false;
+    this.loopStart = null;
+    this.loopEnd = null;
+
+    console.log('[AudioEngine] Loop disabled');
   }
 
   /**

@@ -156,23 +156,21 @@ const PlaybackPanel: React.FC = () => {
     ? (audio.currentTime / audio.duration) * 100 
     : 0;
 
-  // Glassmorphism button style
+  // Neumorphic button style
   const glassButtonStyle = (isActive: boolean, isDisabled: boolean, color: string = textColor) => ({
     width: '48px',
     height: '48px',
     borderRadius: '50%',
     background: isActive 
       ? `linear-gradient(135deg, ${KENYAN_GREEN}40, ${KENYAN_RED}40)`
-      : buttonBg,
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    border: `2px solid ${isActive ? KENYAN_GREEN : borderColor}`,
+      : 'var(--neu-bg-base)',
+    border: 'none',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: isActive 
-      ? `0 0 20px ${KENYAN_GREEN}60, 0 4px 15px rgba(0, 0, 0, 0.3)`
-      : '0 4px 15px rgba(0, 0, 0, 0.2)',
+      ? 'var(--neu-pressed), 0 0 20px rgba(0, 102, 68, 0.3)'
+      : 'var(--neu-raised)',
     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     cursor: isDisabled ? 'not-allowed' : 'pointer',
     opacity: isDisabled ? 0.4 : 1,
@@ -190,14 +188,10 @@ const PlaybackPanel: React.FC = () => {
       justifyContent: 'flex-start',
       gap: '0.75rem',
       padding: '1rem',
-      background: bgPrimary,
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
+      background: 'var(--neu-bg-base)',
       borderRadius: 'var(--radius-md)',
-      border: `1px solid ${isLightMode ? 'rgba(222, 41, 16, 0.3)' : 'rgba(222, 41, 16, 0.2)'}`,
-      boxShadow: isLightMode 
-        ? '0 4px 20px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5)' 
-        : '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+      border: 'none',
+      boxShadow: 'var(--neu-raised)',
       transition: 'all 0.3s ease',
       overflow: 'hidden',
       position: 'relative',
@@ -329,10 +323,10 @@ const PlaybackPanel: React.FC = () => {
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '0.3rem 0.5rem',
-          background: glassBg,
-          backdropFilter: 'blur(8px)',
+          background: 'var(--neu-bg-base)',
           borderRadius: '8px',
-          border: `1px solid ${borderColor}`
+          border: 'none',
+          boxShadow: 'var(--neu-pressed)'
         }}>
           <div style={{
             display: 'flex',
@@ -465,12 +459,12 @@ const PlaybackPanel: React.FC = () => {
           onMouseEnter={(e) => {
             if (isAudioLoaded) {
               e.currentTarget.style.transform = 'scale(1.1)';
-              e.currentTarget.style.boxShadow = `0 0 25px ${KENYAN_RED}60`;
+              e.currentTarget.style.boxShadow = 'var(--neu-pressed), 0 0 25px rgba(222, 41, 16, 0.4)';
             }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
+            e.currentTarget.style.boxShadow = 'var(--neu-raised)';
           }}
           title="Stop"
         >
@@ -516,12 +510,12 @@ const PlaybackPanel: React.FC = () => {
             onMouseEnter={(e) => {
               if (isAudioLoaded) {
                 e.currentTarget.style.transform = 'scale(1.1)';
-                e.currentTarget.style.boxShadow = `0 0 25px #f39c1260`;
+                e.currentTarget.style.boxShadow = 'var(--neu-pressed), 0 0 25px rgba(243, 156, 18, 0.4)';
               }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = playbackSpeed !== 1.0 ? `0 0 15px #f39c1260` : '0 4px 15px rgba(0, 0, 0, 0.2)';
+              e.currentTarget.style.boxShadow = playbackSpeed !== 1.0 ? 'var(--neu-pressed), 0 0 15px rgba(243, 156, 18, 0.3)' : 'var(--neu-raised)';
             }}
             title={`Playback Speed: ${playbackSpeed.toFixed(2)}x`}
           >
@@ -559,12 +553,12 @@ const PlaybackPanel: React.FC = () => {
                 padding: '16px',
                 width: '260px',
                 maxWidth: 'calc(100vw - 40px)',
-                background: isLightMode ? 'rgba(255,255,255,0.98)' : 'rgba(30,30,35,0.98)',
-                backdropFilter: 'blur(25px)',
-                WebkitBackdropFilter: 'blur(25px)',
+                background: 'rgba(26, 26, 26, 0.85)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
                 borderRadius: '12px',
-                border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)'}`,
-                boxShadow: '0 12px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
                 zIndex: 1000,
                 display: 'flex',
                 flexDirection: 'column',
