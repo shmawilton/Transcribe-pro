@@ -146,51 +146,6 @@
     inset -1px -1px 2px var(--neu-inset-shadow-light);
 }
 
-/* Classic Theme - Black, White, Dark Grey with Neumorphism */
-[data-classic-theme="true"] {
-  /* Classic theme color palette - only 3 colors */
-  --classic-white: #FFFFFF;
-  --classic-black: #000000;
-  --classic-grey: #2a2a2a;
-  
-  /* Backgrounds - white dominating */
-  --bg-primary: var(--classic-white);
-  --bg-secondary: #f5f5f5;
-  --bg-tertiary: #e8e8e8;
-  --neu-bg-base: var(--classic-white);
-  
-  /* Text - black */
-  --text-primary: var(--classic-black);
-  --text-secondary: var(--classic-grey);
-  --text-accent-red: var(--classic-black);
-  --text-accent-green: var(--classic-black);
-  
-  /* Neumorphic shadows for classic theme - more pronounced */
-  --neu-shadow-light: rgba(255, 255, 255, 0.8);
-  --neu-shadow-dark: rgba(0, 0, 0, 0.25);
-  --neu-shadow-distance: 6px;
-  --neu-shadow-blur: 12px;
-  --neu-inset-shadow-light: rgba(255, 255, 255, 0.6);
-  --neu-inset-shadow-dark: rgba(0, 0, 0, 0.15);
-  
-  /* Neumorphic raised element - classic */
-  --neu-raised: 
-    var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
-    calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light);
-  
-  /* Neumorphic pressed element - classic */
-  --neu-pressed: 
-    inset var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
-    inset calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light);
-  
-  /* Neumorphic flat element - classic */
-  --neu-flat: 
-    var(--neu-shadow-distance) var(--neu-shadow-distance) var(--neu-shadow-blur) var(--neu-shadow-dark),
-    calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) var(--neu-shadow-blur) var(--neu-shadow-light),
-    inset 2px 2px 4px var(--neu-inset-shadow-dark),
-    inset -2px -2px 4px var(--neu-inset-shadow-light);
-}
-
 /* Dark Theme (default) */
 [data-theme="dark"] {
   /* Dark theme uses default root variables */

@@ -44,8 +44,6 @@ interface AppStore {
   theme: 'dark' | 'light';
   setTheme: (theme: 'dark' | 'light') => void;
   toggleTheme: () => void;
-  classicTheme: boolean;
-  setClassicTheme: (enabled: boolean) => void;
 
   // Undo/Redo
   undoHistory: Marker[][];
@@ -309,12 +307,6 @@ export const useAppStore = create<AppStore>((set) => ({
       return { theme: newTheme };
     });
   },
-  classicTheme: false,
-  setClassicTheme: (enabled) => {
-    set({ classicTheme: enabled });
-    document.documentElement.setAttribute('data-classic-theme', enabled ? 'true' : 'false');
-    localStorage.setItem('classicTheme', enabled.toString());
-  },
 
   // Undo/Redo State
   undoHistory: [],
@@ -401,14 +393,5 @@ if (savedTheme) {
   useAppStore.setState({ theme: savedTheme });
 } else {
   document.documentElement.setAttribute('data-theme', 'dark');
-}
-
-// Initialize classic theme from localStorage
-const savedClassicTheme = localStorage.getItem('classicTheme') === 'true';
-if (savedClassicTheme) {
-  document.documentElement.setAttribute('data-classic-theme', 'true');
-  useAppStore.setState({ classicTheme: true });
-} else {
-  document.documentElement.setAttribute('data-classic-theme', 'false');
 }
 
