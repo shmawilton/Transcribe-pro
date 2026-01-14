@@ -342,6 +342,30 @@ export function useAudioEngine() {
   }, []);
 
   /**
+   * Set loop between start and end times
+   * @param start - Loop start time in seconds
+   * @param end - Loop end time in seconds
+   */
+  const setLoop = useCallback((start: number, end: number) => {
+    if (engineRef.current && (engineRef.current as any).setLoop) {
+      (engineRef.current as any).setLoop(start, end);
+    } else {
+      console.warn('[useAudioEngine] setLoop not available');
+    }
+  }, []);
+
+  /**
+   * Disable looping
+   */
+  const disableLoop = useCallback(() => {
+    if (engineRef.current && (engineRef.current as any).disableLoop) {
+      (engineRef.current as any).disableLoop();
+    } else {
+      console.warn('[useAudioEngine] disableLoop not available');
+    }
+  }, []);
+
+  /**
    * Unload current audio and reset state
    */
   const unloadAudio = useCallback(async () => {
@@ -391,5 +415,8 @@ export function useAudioEngine() {
     getPlaybackRate,
     getSpeed,
     getPitch,
+    // Loop control
+    setLoop,
+    disableLoop,
   };
 }

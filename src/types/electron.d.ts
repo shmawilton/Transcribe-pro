@@ -14,6 +14,11 @@ export interface ElectronAPI {
   readAudioFile: (filePath: string) => Promise<number[]>;
   cleanupTempFile: (filePath: string) => Promise<void>;
   checkFFmpeg: () => Promise<boolean>;
+  
+  // File dialogs for project save/load
+  saveProjectDialog: (projectData: string) => Promise<{ canceled: boolean; filePath?: string }>;
+  saveProjectDirect: (projectData: string, filePath: string) => Promise<{ success: boolean; filePath?: string }>;
+  loadProjectDialog: () => Promise<{ canceled: boolean; filePath?: string; projectData?: string }>;
 }
 
 declare global {

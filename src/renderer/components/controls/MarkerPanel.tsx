@@ -54,7 +54,7 @@ const MarkerPanel: React.FC = () => {
   const duration = useAppStore((state) => state.audio.duration || 0);
 
   // TASK 13: Get AudioEngine methods for applying marker settings
-  const { setSpeed, seek } = useAudioEngine();
+  const { setSpeed, seek, setLoop, disableLoop } = useAudioEngine();
   
   // Use hook to apply marker speed only within marker range
   useMarkerSpeedControl();
@@ -83,6 +83,14 @@ const MarkerPanel: React.FC = () => {
       });
     }
   }, [selectedMarkerId]);
+
+  // Disable looping when marker is deactivated
+  useEffect(() => {
+    if (!selectedMarkerId) {
+      // Marker was deactivated - disable looping
+      disableLoop();
+    }
+  }, [selectedMarkerId, disableLoop]);
 
   // TASK 15: Keyboard shortcut for marker creation (M key)
   useEffect(() => {
@@ -135,6 +143,8 @@ const MarkerPanel: React.FC = () => {
           seekToMarker: true, // Always seek to marker start when clicking
           audioEngine: {
             seek, // Seek to marker start
+            setLoop, // Enable looping for markers with loop=true
+            disableLoop, // Disable looping when marker is deactivated
             // Speed is handled by useMarkerSpeedControl hook
           },
         });
@@ -142,7 +152,7 @@ const MarkerPanel: React.FC = () => {
         console.error('[MarkerPanel] Error activating marker:', error);
       }
     },
-    [seek]
+    [seek, setLoop, disableLoop]
   );
 
   // Handle deactivate marker with smooth animation
@@ -153,6 +163,9 @@ const MarkerPanel: React.FC = () => {
       markerPanel.style.transition = 'all 0.3s ease';
     }
     
+    // Disable looping when marker is deactivated
+    disableLoop();
+    
     // Reset speed to normal smoothly
     setSpeed(1.0);
     
@@ -160,9 +173,9 @@ const MarkerPanel: React.FC = () => {
     setTimeout(() => {
       const store = useAppStore.getState();
       store.setSelectedMarkerId(null);
-      console.log('[MarkerPanel] Marker deactivated, speed reset to 1.0x');
+      console.log('[MarkerPanel] Marker deactivated, loop disabled, speed reset to 1.0x');
     }, 50);
-  }, [setSpeed]);
+  }, [setSpeed, disableLoop]);
 
   // TASK 15: Handle Create Marker button click
   // Triggers marker creation form in MarkerTimeline (same as clicking on timeline)
@@ -269,12 +282,11 @@ const MarkerPanel: React.FC = () => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: bgPrimary,
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-        border: `1px solid ${borderColor}`,
+        background: 'var(--neu-bg-base)',
+        border: 'none',
         borderRadius: 'var(--radius-md)',
         overflow: 'hidden',
+        boxShadow: 'var(--neu-raised)',
       }}
     >
       {/* Header */}
@@ -314,32 +326,24 @@ const MarkerPanel: React.FC = () => {
                 width: '36px',
                 height: '36px',
                 padding: 0,
-                background: isLightMode ? '#FFFFFF' : '#1a1a1a',
+                background: 'var(--neu-bg-base)',
                 color: isLightMode ? '#000000' : '#FFFFFF',
-                border: `2px solid ${isLightMode ? '#000000' : '#FFFFFF'}`,
+                border: 'none',
                 borderRadius: '50%',
                 cursor: 'pointer',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: isLightMode 
-                  ? '0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)' 
-                  : '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)',
+                boxShadow: 'var(--neu-raised)',
                 opacity: 1,
                 transform: 'scale(1)',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = 'scale(1.15)';
-                e.currentTarget.style.boxShadow = isLightMode
-                  ? '0 4px 12px rgba(255, 68, 68, 0.3), 0 0 0 1px rgba(255, 68, 68, 0.2)'
-                  : '0 4px 12px rgba(255, 68, 68, 0.5), 0 0 0 1px rgba(255, 68, 68, 0.3)';
-                e.currentTarget.style.borderColor = '#FF4444';
+                e.currentTarget.style.boxShadow = 'var(--neu-pressed), 0 0 12px rgba(255, 68, 68, 0.4)';
                 e.currentTarget.style.color = '#FF4444';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = isLightMode
-                  ? '0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)'
-                  : '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)';
-                e.currentTarget.style.borderColor = isLightMode ? '#000000' : '#FFFFFF';
+                e.currentTarget.style.boxShadow = 'var(--neu-raised)';
                 e.currentTarget.style.color = isLightMode ? '#000000' : '#FFFFFF';
               }}
               title="Deactivate marker (return to normal speed)"
@@ -372,39 +376,27 @@ const MarkerPanel: React.FC = () => {
             width: '36px',
             height: '36px',
             padding: 0,
-            background: duration > 0 
-              ? (isLightMode ? '#FFFFFF' : '#1a1a1a')
-              : (isLightMode ? 'rgba(200, 200, 200, 0.3)' : 'rgba(100, 100, 100, 0.3)'),
+            background: 'var(--neu-bg-base)',
             color: duration > 0 
               ? (isLightMode ? '#000000' : '#FFFFFF')
               : (isLightMode ? '#999999' : '#666666'),
-            border: `2px solid ${duration > 0 
-              ? (isLightMode ? '#000000' : '#FFFFFF')
-              : (isLightMode ? '#CCCCCC' : '#666666')}`,
+            border: 'none',
             borderRadius: '50%',
             cursor: duration > 0 ? 'pointer' : 'not-allowed',
             transition: 'all 0.2s ease',
             opacity: duration > 0 ? 1 : 0.6,
-            boxShadow: duration > 0 
-              ? (isLightMode 
-                  ? '0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)' 
-                  : '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)')
-              : 'none',
+            boxShadow: duration > 0 ? 'var(--neu-raised)' : 'var(--neu-pressed)',
           }}
           onMouseEnter={(e) => {
             if (duration > 0) {
               e.currentTarget.style.transform = 'scale(1.15)';
-              e.currentTarget.style.boxShadow = isLightMode
-                ? '0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.1)'
-                : '0 4px 12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.2)';
+              e.currentTarget.style.boxShadow = 'var(--neu-pressed)';
             }
           }}
           onMouseLeave={(e) => {
             if (duration > 0) {
               e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = isLightMode
-                ? '0 2px 8px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)'
-                : '0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.boxShadow = 'var(--neu-raised)';
             }
           }}
           title={duration > 0 ? 'Create new marker (M)' : 'Load audio file first'}
@@ -501,15 +493,9 @@ const MarkerPanel: React.FC = () => {
                 gap: '0.75rem',
                 padding: '0.75rem 1rem',
                 marginBottom: '0.5rem',
-                // Active marker highlighting - Neutral border, slightly lighter background
-                background: isSelected
-                  ? isLightMode
-                    ? 'rgba(0, 102, 68, 0.1)'
-                    : 'rgba(0, 170, 102, 0.15)'
-                  : itemBg,
-                border: isSelected
-                  ? `3px solid ${activeBorderColor}`
-                  : `1px solid ${borderColor}`,
+                // Active marker highlighting - Neumorphic
+                background: 'var(--neu-bg-base)',
+                border: 'none',
                 borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer', // TASK 13: Visual feedback - change cursor to pointer on hover
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // Smooth transition with easing
@@ -518,10 +504,10 @@ const MarkerPanel: React.FC = () => {
                 WebkitUserSelect: 'none',
                 MozUserSelect: 'none',
                 msUserSelect: 'none',
-                // Subtle shadow for active marker with smooth transition
+                // Neumorphic shadow for active marker
                 boxShadow: isSelected
-                  ? `0 2px 8px rgba(0, 0, 0, 0.2)`
-                  : 'none',
+                  ? 'var(--neu-pressed), 0 0 8px rgba(0, 102, 68, 0.3)'
+                  : 'var(--neu-raised)',
                 opacity: isSelected ? 1 : 0.95,
                 transform: isSelected ? 'scale(1)' : 'scale(0.98)',
               }}
@@ -590,13 +576,14 @@ const MarkerPanel: React.FC = () => {
                       style={{
                         width: '55px',
                         padding: '0.2rem 0.3rem',
-                        background: isLightMode ? '#FFFFFF' : 'rgba(255, 255, 255, 0.1)',
-                        border: `1px solid ${borderColor}`,
+                        background: 'var(--neu-bg-base)',
+                        border: 'none',
                         borderRadius: '3px',
                         color: textColor,
                         fontSize: '0.7rem',
                         fontFamily: 'monospace',
                         textAlign: 'center',
+                        boxShadow: 'var(--neu-pressed)',
                       }}
                       onClick={(e) => e.stopPropagation()}
                     />
@@ -620,13 +607,14 @@ const MarkerPanel: React.FC = () => {
                       style={{
                         width: '55px',
                         padding: '0.2rem 0.3rem',
-                        background: isLightMode ? '#FFFFFF' : 'rgba(255, 255, 255, 0.1)',
-                        border: `1px solid ${borderColor}`,
+                        background: 'var(--neu-bg-base)',
+                        border: 'none',
                         borderRadius: '3px',
                         color: textColor,
                         fontSize: '0.7rem',
                         fontFamily: 'monospace',
                         textAlign: 'center',
+                        boxShadow: 'var(--neu-pressed)',
                       }}
                       onClick={(e) => e.stopPropagation()}
                     />
@@ -807,6 +795,7 @@ const MarkerPanel: React.FC = () => {
                         fontSize: '0.65rem',
                         cursor: 'pointer',
                         fontWeight: '600',
+                        boxShadow: 'var(--neu-pressed)',
                       }}
                     >
                       Save
@@ -818,12 +807,13 @@ const MarkerPanel: React.FC = () => {
                       }}
                       style={{
                         padding: '0.2rem 0.5rem',
-                        background: glassBg,
-                        border: `1px solid ${borderColor}`,
+                        background: 'var(--neu-bg-base)',
+                        border: 'none',
                         borderRadius: '3px',
                         color: textColor,
                         fontSize: '0.65rem',
                         cursor: 'pointer',
+                        boxShadow: 'var(--neu-pressed)',
                       }}
                     >
                       Cancel
@@ -893,21 +883,22 @@ const MarkerPanel: React.FC = () => {
                           onClick={(e) => handleStartEdit(marker, e)}
                           style={{
                             padding: '0.2rem 0.5rem',
-                            background: 'transparent',
-                            border: `1px solid ${borderColor}`,
+                            background: 'var(--neu-bg-base)',
+                            border: 'none',
                             borderRadius: '3px',
                             color: textSecondary,
                             fontSize: '0.65rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
+                            boxShadow: 'var(--neu-pressed)',
                           }}
                           title="Edit marker"
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.background = glassBg;
+                            e.currentTarget.style.boxShadow = 'var(--neu-raised)';
                             e.currentTarget.style.color = textColor;
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.boxShadow = 'var(--neu-pressed)';
                             e.currentTarget.style.color = textSecondary;
                           }}
                         >

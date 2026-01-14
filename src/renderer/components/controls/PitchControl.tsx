@@ -98,12 +98,17 @@ export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAud
       alignItems: 'center',
       gap: '12px',
       padding: '16px',
-      background: 'linear-gradient(145deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.2) 100%)',
+      background: '#000000',
+      backgroundColor: '#000000',
       borderRadius: '16px',
       border: '1px solid rgba(255,255,255,0.1)',
       minWidth: '280px',
       position: 'relative',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.9)',
+      opacity: 1,
+      backdropFilter: 'none',
+      WebkitBackdropFilter: 'none',
     }}>
       {/* Background animated waves when processing */}
       {isProcessing && (
