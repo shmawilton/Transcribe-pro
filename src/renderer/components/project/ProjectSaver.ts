@@ -7,6 +7,7 @@ import { ProjectData, RecentProject } from '../../types/types';
 const PROJECT_VERSION = '1.0.0';
 const APP_VERSION = '1.0.0';
 const RECENT_PROJECTS_KEY = 'transcribe-pro-recent-projects';
+const WEB_AUTOSAVE_KEY = 'transcribe-pro-web-autosave';
 const MAX_RECENT_PROJECTS = 10;
 const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
@@ -19,6 +20,7 @@ export class ProjectSaver {
   private currentProjectPath: string | null = null;
   private onNotification?: (message: string, type: 'success' | 'error') => void;
   private onProjectNameChange?: (name: string) => void;
+  private lastAutoSavedAt: number = 0;
 
   constructor(
     onNotification?: (message: string, type: 'success' | 'error') => void,
@@ -135,6 +137,24 @@ export class ProjectSaver {
   }
 
   /**
+   * Browser-only auto-save to localStorage so reloads don't lose state
+   * Stores the full ProjectData including embedded audio.
+   */
+  private saveToLocalStorage(projectData: ProjectData): void {
+    try {
+      localStorage.setItem(WEB_AUTOSAVE_KEY, JSON.stringify(projectData));
+      this.lastAutoSavedAt = Date.now();
+      // Track in store for unsaved-changes warnings
+      try {
+        (useAppStore.getState() as any).setLastAutoSaveAt?.(this.lastAutoSavedAt);
+      } catch (_) {}
+      console.log('[ProjectSaver] Web auto-saved project to localStorage');
+    } catch (error) {
+      console.warn('[ProjectSaver] Failed to web auto-save to localStorage:', error);
+    }
+  }
+
+  /**
    * Save project data to a file
    */
   private async saveToFile(projectData: ProjectData, filePath?: string): Promise<string | null> {
@@ -182,7 +202,7 @@ export class ProjectSaver {
         URL.revokeObjectURL(url);
         
         // In browser, we can't get the actual file path, so return a placeholder
-        // Auto-save won't work in browser
+        // Auto-save is handled via localStorage instead
         filePath = 'browser-download';
       }
 
@@ -240,6 +260,10 @@ export class ProjectSaver {
 
       // Update current project path
       this.currentProjectPath = filePath;
+      // Mark project as saved for web-restore semantics too
+      try {
+        (useAppStore.getState() as any).setLastManualSaveAt?.(Date.now());
+      } catch (_) {}
 
       // Extract and notify project name change
       const fileName = filePath.split(/[/\\]/).pop() || 'project.tsproj';
@@ -250,6 +274,11 @@ export class ProjectSaver {
 
       // Add to recent projects
       this.addToRecentProjects(filePath, projectData.audioFileName || 'Unknown');
+
+      // Always update web autosave snapshot on manual save too
+      if (!isElectron) {
+        this.saveToLocalStorage(projectData);
+      }
 
       this.notify('Project saved successfully!', 'success');
       return true;
@@ -297,6 +326,9 @@ export class ProjectSaver {
 
       // Update current project path
       this.currentProjectPath = filePath;
+      try {
+        (useAppStore.getState() as any).setLastManualSaveAt?.(Date.now());
+      } catch (_) {}
 
       // Extract and notify project name change
       const fileName = filePath.split(/[/\\]/).pop() || 'project.tsproj';
@@ -307,6 +339,10 @@ export class ProjectSaver {
 
       // Add to recent projects
       this.addToRecentProjects(filePath, projectData.audioFileName || 'Unknown');
+
+      if (!isElectron) {
+        this.saveToLocalStorage(projectData);
+      }
 
       this.notify('Project saved successfully!', 'success');
       return true;
@@ -364,20 +400,49 @@ export class ProjectSaver {
    */
   startAutoSave() {
     this.stopAutoSave(); // Clear any existing timer
-    
-    this.autoSaveTimer = setInterval(async () => {
-      if (this.currentProjectPath) {
-        // Only auto-save if we have a saved project path
-        try {
-          const projectData = await this.getProjectData();
-          await this.saveToFile(projectData, this.currentProjectPath);
-          console.log('[ProjectSaver] Auto-saved project');
-        } catch (error) {
-          console.error('[ProjectSaver] Auto-save failed:', error);
-          // Don't show error notification for auto-save failures
+
+    // Read settings (from SettingsModal localStorage)
+    let enabled = true;
+    let intervalMs = AUTO_SAVE_INTERVAL;
+    try {
+      const raw = localStorage.getItem('appSettings');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.autoSaveEnabled === 'boolean') enabled = parsed.autoSaveEnabled;
+        if (typeof parsed.autoSaveInterval === 'number' && isFinite(parsed.autoSaveInterval)) {
+          const minutes = Math.max(1, Math.min(60, parsed.autoSaveInterval));
+          intervalMs = minutes * 60 * 1000;
         }
       }
-    }, AUTO_SAVE_INTERVAL);
+    } catch (_) {}
+
+    if (!enabled) {
+      console.log('[ProjectSaver] Auto-save disabled in settings');
+      return;
+    }
+
+    this.autoSaveTimer = setInterval(async () => {
+      try {
+        const store = useAppStore.getState();
+        if (!store.audio.file || !store.audio.isLoaded) return;
+
+        const projectData = await this.getProjectData();
+
+        if (isElectron) {
+          // Only auto-save to disk if we have a saved project path
+          if (this.currentProjectPath) {
+            await this.saveToFile(projectData, this.currentProjectPath);
+            console.log('[ProjectSaver] Auto-saved project to file');
+          }
+        } else {
+          // Web: always auto-save to localStorage snapshot
+          this.saveToLocalStorage(projectData);
+        }
+      } catch (error) {
+        console.error('[ProjectSaver] Auto-save failed:', error);
+        // Don't show error notification for auto-save failures
+      }
+    }, intervalMs);
   }
 
   /**

@@ -209,7 +209,11 @@ html, body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: background var(--transition-theme), box-shadow var(--transition-theme);
   position: relative;
-  z-index: 10;
+  z-index: 999999; /* Very high z-index to ensure dropdowns are visible */
+  max-width: 100vw;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible; /* Allow dropdowns to overflow vertically */
 }
 
 .menu-bar {
@@ -218,6 +222,16 @@ html, body {
   display: flex;
   align-items: center;
   font-family: 'Inter', sans-serif;
+  overflow-x: hidden; /* Prevent horizontal scrolling */
+  overflow-y: visible; /* Allow dropdowns to overflow vertically */
+}
+
+/* Responsive menu bar padding */
+@media (max-width: 1024px) {
+  .menu-bar {
+    padding: 0 0.75rem;
+    gap: 0.5rem;
+  }
 }
 
 .main-content {
@@ -229,6 +243,16 @@ html, body {
   background: transparent;
   padding: var(--spacing-md);
   gap: var(--spacing-md);
+  max-width: 100vw;
+  width: 100%;
+}
+
+/* Responsive padding for smaller screens */
+@media (max-width: 1024px) {
+  .main-content {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
 }
 
 .waveform-section {
@@ -257,6 +281,67 @@ html, body {
   background: transparent;
   flex-shrink: 0;
   min-height: 0;
+}
+
+/* Responsive: Stack panels vertically on smaller screens */
+@media (max-width: 1024px) {
+  .panels-section {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+  
+  .waveform-section {
+    flex: 0 0 50%;
+    max-height: 50%;
+  }
+  
+  .panels-section {
+    flex: 0 0 45%;
+    max-height: 45%;
+  }
+}
+
+/* Responsive adjustments for smaller laptops */
+@media (max-width: 1366px) {
+  .playback-panel {
+    padding: 0.75rem;
+  }
+  
+  .playback-panel button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+/* Responsive for very small screens */
+@media (max-width: 768px) {
+  .main-content {
+    padding: var(--spacing-xs);
+    gap: var(--spacing-xs);
+  }
+  
+  .waveform-section {
+    flex: 0 0 45%;
+    max-height: 45%;
+    padding: var(--spacing-sm);
+  }
+  
+  .panels-section {
+    flex: 0 0 50%;
+    max-height: 50%;
+  }
+  
+  .playback-panel {
+    padding: 0.5rem;
+    gap: 0.5rem;
+  }
+  
+  .playback-panel button {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px;
+    min-height: 32px;
+  }
 }
 
 .panel {

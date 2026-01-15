@@ -7,6 +7,7 @@ import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
 
 const PROJECT_VERSION = '1.0.0';
 const RECENT_PROJECTS_KEY = 'transcribe-pro-recent-projects';
+const WEB_AUTOSAVE_KEY = 'transcribe-pro-web-autosave';
 
 // Detect Electron environment
 const isElectron = !!(window as any).electronAPI || 
@@ -196,6 +197,97 @@ export class ProjectLoader {
       const errorMessage = error instanceof Error ? error.message : 'Unknown validation error';
       return { valid: false, error: `Validation error: ${errorMessage}` };
     }
+  }
+
+  /**
+   * Load an auto-saved project snapshot from localStorage (web only).
+   * Returns false if none exists or if invalid.
+   */
+  async loadAutoSavedProject(loadFileCallback?: (file: File) => Promise<void>): Promise<boolean> {
+    if (isElectron) return false;
+    try {
+      const raw = localStorage.getItem(WEB_AUTOSAVE_KEY);
+      if (!raw) return false;
+      const parsed = JSON.parse(raw);
+      const validation = this.validateProjectData(parsed);
+      if (!validation.valid || !validation.projectData) return false;
+      return await this.applyProjectData(validation.projectData, loadFileCallback, { silent: true, filePath: 'web-autosave' });
+    } catch (e) {
+      console.warn('[ProjectLoader] Failed to load auto-saved project:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Apply already-parsed ProjectData into the app (shared by loadProject + autosave restore).
+   */
+  private async applyProjectData(
+    projectData: ProjectData,
+    loadFileCallback?: (file: File) => Promise<void>,
+    opts?: { silent?: boolean; filePath?: string }
+  ): Promise<boolean> {
+    // Load audio file (from embedded data or prompt user)
+    const audioFile = await this.loadAudioFile(projectData);
+    if (!audioFile) {
+      if (!opts?.silent) this.notify('Audio file is required to load the project', 'error');
+      return false;
+    }
+
+    const store = useAppStore.getState();
+
+    // Load audio using provided callback (preferred)
+    if (loadFileCallback) {
+      try {
+        await loadFileCallback(audioFile);
+      } catch (audioError) {
+        const errorMessage = audioError instanceof Error ? audioError.message : 'Failed to load audio file';
+        if (!opts?.silent) this.notify(`Failed to load audio: ${errorMessage}`, 'error');
+        return false;
+      }
+    } else {
+      store.setAudioFile(audioFile);
+    }
+
+    // Wait a bit for audio file to be set
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Apply markers
+    store.setMarkers(projectData.markers);
+
+    // Apply global controls
+    store.setPitch(projectData.globalControls.pitch);
+    store.setVolume(projectData.globalControls.volume);
+    store.setPlaybackRate(projectData.globalControls.playbackRate);
+    if (projectData.globalControls.isMuted !== store.globalControls.isMuted) {
+      store.toggleMute();
+    }
+
+    // Apply UI state
+    if (projectData.uiState) {
+      store.setZoomLevel(projectData.uiState.zoomLevel);
+    }
+
+    // Poll for audio load completion then apply viewport
+    let attempts = 0;
+    const maxAttempts = 100;
+    const checkAudioLoaded = setInterval(() => {
+      attempts++;
+      const audioStore = useAppStore.getState();
+      if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
+        clearInterval(checkAudioLoaded);
+        if (projectData.uiState) {
+          const duration = audioStore.audio.duration;
+          const viewportStart = Math.max(0, Math.min(projectData.uiState.viewportStart, duration));
+          const viewportEnd = Math.max(viewportStart + 0.1, Math.min(projectData.uiState.viewportEnd, duration));
+          audioStore.setViewport(viewportStart, viewportEnd);
+        }
+      } else if (attempts >= maxAttempts) {
+        clearInterval(checkAudioLoaded);
+      }
+    }, 100);
+
+    if (!opts?.silent) this.notify('Project loaded successfully!', 'success');
+    return true;
   }
 
   /**
@@ -430,51 +522,9 @@ export class ProjectLoader {
       }
 
       const projectData = fileResult.projectData;
-
-      // Load audio file (from embedded data or prompt user)
-      const audioFile = await this.loadAudioFile(projectData);
-
-      if (!audioFile) {
-        this.notify('Audio file is required to load the project', 'error');
-        return false;
-      }
-
-      // Get store reference before using it
-      const store = useAppStore.getState();
-
-      // Load audio using the provided callback (from useAudioEngine)
-      if (loadFileCallback) {
-        try {
-          await loadFileCallback(audioFile);
-        } catch (audioError) {
-          const errorMessage = audioError instanceof Error ? audioError.message : 'Failed to load audio file';
-          this.notify(`Failed to load audio: ${errorMessage}`, 'error');
-          return false;
-        }
-      } else {
-        // Fallback: set audio file in store (component will handle loading)
-        store.setAudioFile(audioFile);
-      }
-
-      // Wait a bit for audio file to be set, then apply project settings
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Apply markers
-      store.setMarkers(projectData.markers);
-
-      // Apply global controls
-      store.setPitch(projectData.globalControls.pitch);
-      store.setVolume(projectData.globalControls.volume);
-      store.setPlaybackRate(projectData.globalControls.playbackRate);
-      if (projectData.globalControls.isMuted !== store.globalControls.isMuted) {
-        store.toggleMute();
-      }
-
-      // Apply UI state (after audio is loaded, we'll update viewport)
-      if (projectData.uiState) {
-        store.setZoomLevel(projectData.uiState.zoomLevel);
-        // Viewport will be set after audio duration is known
-      }
+      // Apply to app
+      const applied = await this.applyProjectData(projectData, loadFileCallback, { silent: false, filePath: fileResult.filePath });
+      if (!applied) return false;
 
       // Update project name and path
       if (fileResult.filePath) {
@@ -499,27 +549,6 @@ export class ProjectLoader {
       }
 
       // Wait for audio to load, then apply viewport
-      // Poll for audio load completion (max 10 seconds)
-      let attempts = 0;
-      const maxAttempts = 100; // 10 seconds with 100ms intervals
-      const checkAudioLoaded = setInterval(() => {
-        attempts++;
-        const audioStore = useAppStore.getState();
-        if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
-          clearInterval(checkAudioLoaded);
-          if (projectData.uiState) {
-            const duration = audioStore.audio.duration;
-            const viewportStart = Math.max(0, Math.min(projectData.uiState.viewportStart, duration));
-            const viewportEnd = Math.max(viewportStart + 0.1, Math.min(projectData.uiState.viewportEnd, duration));
-            audioStore.setViewport(viewportStart, viewportEnd);
-          }
-        } else if (attempts >= maxAttempts) {
-          clearInterval(checkAudioLoaded);
-          console.warn('[ProjectLoader] Audio did not load within timeout, viewport may not be restored');
-        }
-      }, 100);
-
-      this.notify('Project loaded successfully!', 'success');
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load project';
@@ -677,9 +706,7 @@ export class ProjectLoader {
 }
 
 // Export singleton instance
-let projectLoaderInstance: ProjectLoader | null = null;
-
-/**
+let projectLoaderInstance: ProjectLoader | null = null;/**
  * Get or create the ProjectLoader singleton instance
  */
 export function getProjectLoader(
@@ -702,9 +729,7 @@ export function getProjectLoader(
     }
   }
   return projectLoaderInstance;
-}
-
-/**
+}/**
  * Reset the singleton (useful for testing)
  */
 export function resetProjectLoader() {

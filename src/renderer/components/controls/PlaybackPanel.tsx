@@ -179,8 +179,7 @@ const PlaybackPanel: React.FC = () => {
   });
 
   return (
-    <div className="playback-panel" style={{ 
-      width: '100%', 
+    <div className="playback-panel mx-auto w-full max-w-full overflow-x-auto" style={{ 
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
@@ -193,7 +192,7 @@ const PlaybackPanel: React.FC = () => {
       border: 'none',
       boxShadow: 'var(--neu-raised)',
       transition: 'all 0.3s ease',
-      overflow: 'hidden',
+      overflowY: 'auto',
       position: 'relative',
       fontFamily: HANDWRITTEN_FONT
     }}>
@@ -291,7 +290,7 @@ const PlaybackPanel: React.FC = () => {
       `}</style>
 
       {/* Time Progress Display - Now at top */}
-      <div style={{
+      <div className="mx-auto w-full max-w-full px-1" style={{
         display: 'flex',
         flexDirection: 'column',
         gap: '0.4rem',
@@ -377,14 +376,12 @@ const PlaybackPanel: React.FC = () => {
       </div>
 
       {/* Main Playback Controls */}
-      <div style={{
-        display: 'flex',
-        gap: '0.5rem',
-        alignItems: 'center',
-        justifyContent: 'center',
+      <div className="mx-auto flex flex-wrap justify-center items-center gap-2 px-2" style={{
         flexShrink: 0,
         position: 'relative',
-        zIndex: 1
+        zIndex: 1,
+        maxWidth: '100%',
+        width: '100%'
       }}>
         {/* Skip Backward -5s */}
         <button
@@ -544,6 +541,7 @@ const PlaybackPanel: React.FC = () => {
           {showSpeedPopup && (
             <div 
               ref={speedPopupRef}
+              className="mx-auto"
               style={{
                 position: 'absolute',
                 bottom: '100%',
@@ -552,7 +550,7 @@ const PlaybackPanel: React.FC = () => {
                 marginBottom: '8px',
                 padding: '16px',
                 width: '260px',
-                maxWidth: 'calc(100vw - 40px)',
+                maxWidth: 'min(260px, calc(100vw - 40px))',
                 background: 'rgba(26, 26, 26, 0.85)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',

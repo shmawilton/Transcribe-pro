@@ -2,6 +2,7 @@
 // Menu bar component with dropdown menus and icons
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppStore } from '../../store/store';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
@@ -225,6 +226,8 @@ const MenuBar: React.FC = () => {
   const [showVolumePopup, setShowVolumePopup] = useState(false);
   const volumePopupRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
   
   // Store state
   const theme = useAppStore((state) => state.theme);
@@ -357,16 +360,42 @@ const MenuBar: React.FC = () => {
   const duration = useAppStore((state) => state.audio.duration);
   const currentTime = useAppStore((state) => state.audio.currentTime);
   
+  // Calculate dropdown position when menu opens
+  useEffect(() => {
+    if (openMenu && menuButtonRefs.current[openMenu]) {
+      const button = menuButtonRefs.current[openMenu];
+      if (button) {
+        const rect = button.getBoundingClientRect();
+        // Use fixed positioning (relative to viewport)
+        setDropdownPosition({
+          top: rect.bottom,
+          left: rect.left,
+        });
+      }
+    } else {
+      setDropdownPosition(null);
+    }
+  }, [openMenu]);
+
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      // Check if click is on the portal dropdown
+      const portalDropdown = document.querySelector('[data-dropdown-portal]');
+      if (portalDropdown && portalDropdown.contains(target)) {
+        return; // Click is inside dropdown, don't close
+      }
+      // Check if click is outside menu bar
+      if (menuRef.current && !menuRef.current.contains(target)) {
         setOpenMenu(null);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    if (openMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [openMenu]);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -837,35 +866,39 @@ const MenuBar: React.FC = () => {
       className="menu-bar" 
       style={{ 
         display: 'flex', 
-        width: '100%',
         alignItems: 'center',
         height: '100%',
+        width: '100%',
         gap: '1rem',
         justifyContent: 'space-between',
         position: 'relative',
+        zIndex: 999999, // Very high z-index to ensure dropdowns are visible
         padding: '0 1.5rem',
         background: 'rgba(26, 26, 26, 0.6)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        fontFamily: HANDWRITTEN_FONT
+        fontFamily: HANDWRITTEN_FONT,
+        overflowX: 'hidden', // Prevent horizontal scrolling
+        overflowY: 'visible', // Allow dropdowns to overflow vertically
       }}
     >
       {/* Left side - Menu items */}
       <div style={{ 
-        display: 'flex', 
-        gap: '0.25rem', 
-        flex: 1,
-        justifyContent: 'flex-start',
-        alignItems: 'center'
+        display: 'flex',
+        gap: '0.25rem',
+        alignItems: 'center',
+        flexShrink: 0,
+        whiteSpace: 'nowrap', // Prevent wrapping
       }}>
         {menuItems.map((item) => {
           const IconComponent = item.icon;
           const isOpen = openMenu === item.id;
           const isHovered = hoveredItem === item.id;
           return (
-            <div key={item.id} style={{ position: 'relative' }}>
+            <div key={item.id} style={{ position: 'relative', zIndex: isOpen ? 999999 : 'auto' }}>
               <button
+                ref={(el) => { menuButtonRefs.current[item.id] = el; }}
                 className="menu-bar-button"
           style={{
             padding: '0.4rem 0.9rem',
@@ -919,124 +952,7 @@ const MenuBar: React.FC = () => {
                 </span>
               </button>
 
-              {/* Dropdown Menu */}
-              {isOpen && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    minWidth: '240px',
-                    background: '#000000',
-                    backgroundColor: '#000000',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '8px',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.9)',
-                    padding: '4px',
-                    zIndex: 1000,
-                    animation: 'dropdownFadeIn 0.15s ease-out',
-                    overflow: 'hidden',
-                    opacity: 1,
-                    backdropFilter: 'none',
-                    WebkitBackdropFilter: 'none',
-                  }}
-                >
-                  {item.items.map((dropItem) => {
-                    if (dropItem.divider) {
-                      return (
-                        <div
-                          key={dropItem.id}
-                          style={{
-                            height: '1px',
-                            background: borderColor,
-                            margin: '4px 8px',
-                          }}
-                        />
-                      );
-                    }
-                    
-                    // Custom render for Audio Effects controls
-                    if ((dropItem as any).customRender) {
-                      if (dropItem.id === 'pitch-control') {
-                        return (
-                          <div 
-                            key={dropItem.id} 
-                            style={{ 
-                              background: '#000000',
-                              backgroundColor: '#000000',
-                              borderRadius: '8px',
-                              margin: '-4px',
-                              padding: '4px',
-                              opacity: 1,
-                              backdropFilter: 'none',
-                              WebkitBackdropFilter: 'none',
-                            }}
-                          >
-                            <PitchControl 
-                              onPitchChange={handlePitchChange}
-                              isAudioLoaded={isAudioLoaded}
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      return null;
-                    }
-                    
-                    const DropIcon = dropItem.icon;
-                    return (
-                      <button
-                        key={dropItem.id}
-                        onClick={dropItem.action}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          background: '#000000',
-                          border: 'none',
-                          borderRadius: '4px',
-                          color: textColor,
-                          fontFamily: HANDWRITTEN_FONT,
-                          fontSize: '0.95rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '12px',
-                          transition: 'all 0.15s ease',
-                          whiteSpace: 'nowrap',
-                          minWidth: 0,
-                          opacity: 1,
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = '#1a1a1a';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = '#000000';
-                        }}
-                      >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {DropIcon && <DropIcon />}
-                          {dropItem.label}
-                          {dropItem.checked && (
-                            <span style={{ marginLeft: '4px', color: KENYAN_GREEN }}>
-                              <CheckIcon />
-                            </span>
-                          )}
-                        </span>
-                        {dropItem.shortcut && (
-                          <span style={{ 
-                            fontSize: '0.75rem', 
-                            opacity: 0.5,
-                            fontFamily: 'monospace'
-                          }}>
-                            {dropItem.shortcut}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {/* Dropdown Menu - rendered via portal below */}
             </div>
           );
         })}
@@ -1044,6 +960,7 @@ const MenuBar: React.FC = () => {
 
       {/* Center - Project Name */}
       <div
+        className="mx-auto"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -1073,10 +990,10 @@ const MenuBar: React.FC = () => {
 
       {/* Center - Zoom Controls */}
       <div
+          className="mx-auto flex items-center gap-1 px-2 flex-shrink-0"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
+            marginLeft: 'auto',
+            marginRight: 'auto',
             background: 'rgba(255, 255, 255, 0.08)',
             backdropFilter: 'blur(10px)',
             WebkitBackdropFilter: 'blur(10px)',
@@ -1085,6 +1002,7 @@ const MenuBar: React.FC = () => {
             border: '1px solid rgba(255, 255, 255, 0.1)',
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
             transition: 'all 0.3s ease',
+            maxWidth: '100%',
           }}
       >
         {/* Zoom Out Button */}
@@ -1413,10 +1331,8 @@ const MenuBar: React.FC = () => {
       </div>
 
       {/* Right side - Icon buttons */}
-      <div style={{ 
-        display: 'flex', 
+      <div className="flex gap-2 items-center flex-shrink-0" style={{ 
         gap: '0.5rem',
-        alignItems: 'center'
       }}>
         {/* Neumorphic Theme Toggle - Hidden for now (dark mode only) */}
         {/* <ThemeToggle /> */}
@@ -1459,6 +1375,136 @@ const MenuBar: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Portal-based Dropdown Menu */}
+      {openMenu && dropdownPosition && (() => {
+        const currentMenu = menuItems.find(m => m.id === openMenu);
+        if (!currentMenu) return null;
+        
+        const dropdownContent = (
+          <div
+            data-dropdown-portal
+            style={{
+              position: 'fixed',
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
+              minWidth: '240px',
+              background: 'rgba(26, 26, 26, 0.95)',
+              backgroundColor: 'rgba(26, 26, 26, 0.95)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '8px',
+              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.8)',
+              padding: '4px',
+              zIndex: 1000001,
+              animation: 'dropdownFadeIn 0.15s ease-out',
+              overflow: 'visible',
+              opacity: 1,
+            }}
+          >
+            {currentMenu.items.map((dropItem) => {
+              if (dropItem.divider) {
+                return (
+                  <div
+                    key={dropItem.id}
+                    style={{
+                      height: '1px',
+                      background: borderColor,
+                      margin: '4px 8px',
+                    }}
+                  />
+                );
+              }
+              
+              // Custom render for Audio Effects controls
+              if ((dropItem as any).customRender) {
+                if (dropItem.id === 'pitch-control') {
+                  return (
+                    <div 
+                      key={dropItem.id} 
+                      style={{ 
+                        background: 'rgba(0, 0, 0, 0.25)',
+                        backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                        backdropFilter: 'blur(14px)',
+                        WebkitBackdropFilter: 'blur(14px)',
+                        borderRadius: '8px',
+                        margin: '-4px',
+                        padding: '4px',
+                        opacity: 1,
+                      }}
+                    >
+                      <PitchControl 
+                        onPitchChange={handlePitchChange}
+                        isAudioLoaded={isAudioLoaded}
+                      />
+                    </div>
+                  );
+                }
+                
+                return null;
+              }
+              
+              const DropIcon = dropItem.icon;
+              return (
+                <button
+                  key={dropItem.id}
+                  onClick={() => {
+                    if (dropItem.action) dropItem.action();
+                    setOpenMenu(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: '4px',
+                    color: textColor,
+                    fontFamily: HANDWRITTEN_FONT,
+                    fontSize: '0.95rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    transition: 'all 0.15s ease',
+                    whiteSpace: 'nowrap',
+                    minWidth: 0,
+                    opacity: 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {DropIcon && <DropIcon />}
+                    {dropItem.label}
+                    {dropItem.checked && (
+                      <span style={{ marginLeft: '4px', color: KENYAN_GREEN }}>
+                        <CheckIcon />
+                      </span>
+                    )}
+                  </span>
+                  {dropItem.shortcut && (
+                    <span style={{ 
+                      fontSize: '0.75rem', 
+                      opacity: 0.5,
+                      fontFamily: 'monospace'
+                    }}>
+                      {dropItem.shortcut}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        );
+        
+        return createPortal(dropdownContent, document.body);
+      })()}
 
       {/* CSS Animations */}
       <style>{`

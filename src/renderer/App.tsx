@@ -10,6 +10,7 @@ import WelcomeScreen from './components/ui/WelcomeScreen';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import { useAppStore } from './store/store';
 import { useAudioEngine } from './components/audio/useAudioEngine';
+import { getProjectLoader } from './components/project/ProjectLoader';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -20,10 +21,11 @@ const App: React.FC = () => {
   const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
   const isLoading = useAppStore((state) => state.audio.isLoading); // Use global store
   const [showWelcome, setShowWelcome] = useState(true);
+  const restoreAttemptedRef = React.useRef(false);
   
   // Initialize audio engine (but don't use its local loading state)
   // This hook should not cause re-renders
-  const { play, pause, stop, seek, getCurrentTime, setVolume } = useAudioEngine();
+  const { play, pause, stop, seek, getCurrentTime, setVolume, loadFile, resumeAudioContext } = useAudioEngine();
   
   // Get store values for keyboard shortcuts
   const isPlaying = useAppStore((state) => state.audio.isPlaying);
@@ -34,6 +36,78 @@ const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Web-only: restore last auto-saved project on reload (offline-friendly)
+  useEffect(() => {
+    const isElectron = !!(window as any).electronAPI || 
+      (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron);
+    if (isElectron) return;
+    if (restoreAttemptedRef.current) return;
+    restoreAttemptedRef.current = true;
+
+    (async () => {
+      try {
+        // Only restore if nothing is loaded and we're not currently loading
+        const store = useAppStore.getState();
+        if (store.audio.isLoaded || store.audio.isLoading) return;
+
+        await resumeAudioContext();
+        const loader = getProjectLoader();
+        const restored = await loader.loadAutoSavedProject(loadFile);
+        if (restored) {
+          setShowWelcome(false);
+          // Mark autosave timestamp so exit warnings don't fire immediately
+          try {
+            (useAppStore.getState() as any).setLastAutoSaveAt?.(Date.now());
+          } catch (_) {}
+          console.log('[App] Restored last auto-saved project');
+        }
+      } catch (e) {
+        console.warn('[App] Auto-restore failed:', e);
+      }
+    })();
+  }, [loadFile, resumeAudioContext]);
+
+  // Web-only: warn before leaving if changes haven't been auto-saved
+  useEffect(() => {
+    const isElectron = !!(window as any).electronAPI || 
+      (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron);
+    if (isElectron) return;
+
+    const handler = (e: BeforeUnloadEvent) => {
+      const store = useAppStore.getState() as any;
+      const hasProject = !!store.audio?.file && !!store.audio?.isLoaded;
+      if (!hasProject) return;
+
+      // Respect settings (auto-save on/off)
+      let autoSaveEnabled = true;
+      try {
+        const raw = localStorage.getItem('appSettings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed.autoSaveEnabled === 'boolean') autoSaveEnabled = parsed.autoSaveEnabled;
+        }
+      } catch (_) {}
+
+      const lastChangeAt = store.projectLastChangeAt || 0;
+      const lastAutoSaveAt = store.lastAutoSaveAt || 0;
+      const lastManualSaveAt = store.lastManualSaveAt || 0;
+      const lastSaveAt = Math.max(lastAutoSaveAt, lastManualSaveAt);
+
+      const hasUnsaved = lastChangeAt > 0 && lastSaveAt < lastChangeAt;
+      if (!hasUnsaved) return;
+
+      // If autosave is enabled, we still warn if it hasn't run since the last change
+      // If autosave is disabled, always warn.
+      if (!autoSaveEnabled || lastAutoSaveAt < lastChangeAt) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   // Keyboard shortcuts handler
   useEffect(() => {
