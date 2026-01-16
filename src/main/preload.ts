@@ -55,4 +55,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadProjectDialog: async (): Promise<{ canceled: boolean; filePath?: string; projectData?: string }> => {
     return await ipcRenderer.invoke('load-project-dialog');
   },
+  
+  loadProjectFromPath: async (filePath: string): Promise<{ success: boolean; filePath?: string; projectData?: string }> => {
+    return await ipcRenderer.invoke('load-project-from-path', filePath);
+  },
 });

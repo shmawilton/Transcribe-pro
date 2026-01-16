@@ -9,6 +9,10 @@ import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
 import PitchControl from '../controls/PitchControl';
 import { getProjectSaver } from '../project/ProjectSaver';
 import { getProjectLoader } from '../project/ProjectLoader';
+import { showToast } from './Toast';
+import LoadingSpinner from './LoadingSpinner';
+import WorkspaceLayoutModal from './WorkspaceLayoutModal';
+import RecentProjectsModal from './RecentProjectsModal';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -217,6 +221,103 @@ interface DropdownItem {
   checked?: boolean;
 }
 
+// Editable project name component
+const EditableProjectName: React.FC<{
+  projectName: string;
+  setProjectName: (name: string) => void;
+  textColor: string;
+}> = ({ projectName, setProjectName, textColor }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(projectName);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    setEditValue(projectName);
+  }, [projectName]);
+
+  const handleClick = () => {
+    setIsEditing(true);
+  };
+
+  const handleBlur = () => {
+    if (editValue.trim()) {
+      setProjectName(editValue.trim());
+    } else {
+      setEditValue(projectName);
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleBlur();
+    } else if (e.key === 'Escape') {
+      setEditValue(projectName);
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          outline: 'none',
+          color: textColor,
+          fontFamily: HANDWRITTEN_FONT,
+          fontSize: '1.05rem',
+          fontWeight: '600',
+          width: '100%',
+          minWidth: '200px',
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={handleClick}
+      style={{
+        position: 'relative',
+        zIndex: 1,
+        color: textColor,
+        fontFamily: HANDWRITTEN_FONT,
+        fontSize: '1.05rem',
+        fontWeight: '600',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        maxWidth: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        cursor: 'text',
+      }}
+      title="Click to edit project name"
+    >
+      <span style={{ 
+        fontSize: '1.1rem',
+        opacity: 0.8,
+      }}>📄</span>
+      <span>{projectName}</span>
+    </div>
+  );
+};
+
 const MenuBar: React.FC = () => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
@@ -224,17 +325,25 @@ const MenuBar: React.FC = () => {
   const [volume, setVolume] = useState(0);
   const [isPitchAnimating, setIsPitchAnimating] = useState(false);
   const [showVolumePopup, setShowVolumePopup] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const volumePopupRef = useRef<HTMLDivElement>(null);
+  const volumeButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+  const [volumePopupPosition, setVolumePopupPosition] = useState<{ top: number; left: number } | null>(null);
   
   // Store state
   const theme = useAppStore((state) => state.theme);
   const toggleTheme = useAppStore((state) => state.toggleTheme);
   const isLightMode = theme === 'light';
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
-  const setIsHelpModalOpen = useAppStore((state) => state.setIsHelpModalOpen);
+  const setIsExportModalOpen = useAppStore((state) => state.setIsExportModalOpen);
+  const [isWorkspaceLayoutModalOpen, setIsWorkspaceLayoutModalOpen] = useState(false);
+  const [isRecentProjectsModalOpen, setIsRecentProjectsModalOpen] = useState(false);
+  const currentTime = useAppStore((state) => state.audio.currentTime);
+  const duration = useAppStore((state) => state.audio.duration);
   
   // Audio engine
   const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, setVolume: setAudioVolume, resetPitch } = useAudioEngine();
@@ -242,19 +351,18 @@ const MenuBar: React.FC = () => {
   // Project reset
   const resetProject = useAppStore((state) => state.resetProject);
   
+  // Get markers for export feature
+  const markers = useAppStore((state) => state.markers);
+  
   // Project name state
   const [projectName, setProjectName] = useState<string>('Untitled Project');
   
   // Project saver
   const [projectSaver] = useState(() => getProjectSaver(
     (message, type) => {
-      // Simple notification - could be enhanced with a toast component
-      if (type === 'error') {
-        alert(`Error: ${message}`);
-      } else {
-        console.log(`Success: ${message}`);
-        // Could show a success toast here
-      }
+      // Show toast notification
+      showToast(message, type === 'error' ? 'error' : 'success', type === 'error' ? 5000 : 3000);
+      setIsSaving(false);
     },
     (name) => {
       // Update project name when it changes
@@ -265,13 +373,9 @@ const MenuBar: React.FC = () => {
   // Project loader
   const [projectLoader] = useState(() => getProjectLoader(
     (message: string, type: 'success' | 'error') => {
-      // Simple notification - could be enhanced with a toast component
-      if (type === 'error') {
-        alert(`Error: ${message}`);
-      } else {
-        console.log(`Success: ${message}`);
-        // Could show a success toast here
-      }
+      // Show toast notification
+      showToast(message, type === 'error' ? 'error' : 'success', type === 'error' ? 5000 : 3000);
+      setIsLoading(false);
     },
     (name: string) => {
       // Update project name when it changes
@@ -282,6 +386,20 @@ const MenuBar: React.FC = () => {
       projectSaver.setCurrentProjectPath(filePath);
     }
   ));
+
+  // Handle recent project click
+  const handleRecentProject = async (filePath: string) => {
+    setIsLoading(true);
+    setOpenMenu(null);
+    try {
+      await projectLoader.loadProjectFromPath(filePath, loadFile);
+    } catch (error) {
+      console.error('Failed to load recent project:', error);
+      showToast('Failed to load recent project', 'error', 5000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Get pitch from store
   const storedPitch = useAppStore((state) => state.globalControls.pitch);
@@ -357,8 +475,6 @@ const MenuBar: React.FC = () => {
   const viewportStart = useAppStore((state) => state.ui.viewportStart);
   const viewportEnd = useAppStore((state) => state.ui.viewportEnd);
   const setViewport = useAppStore((state) => state.setViewport);
-  const duration = useAppStore((state) => state.audio.duration);
-  const currentTime = useAppStore((state) => state.audio.currentTime);
   
   // Calculate dropdown position when menu opens
   useEffect(() => {
@@ -377,6 +493,21 @@ const MenuBar: React.FC = () => {
     }
   }, [openMenu]);
 
+  // Calculate volume popup position when it opens
+  useEffect(() => {
+    if (showVolumePopup && volumeButtonRef.current) {
+      const button = volumeButtonRef.current;
+      const rect = button.getBoundingClientRect();
+      // Use fixed positioning (relative to viewport)
+      setVolumePopupPosition({
+        top: rect.bottom + 8,
+        left: rect.right - 280, // Align to right edge, accounting for popup width
+      });
+    } else {
+      setVolumePopupPosition(null);
+    }
+  }, [showVolumePopup]);
+
   // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -386,16 +517,25 @@ const MenuBar: React.FC = () => {
       if (portalDropdown && portalDropdown.contains(target)) {
         return; // Click is inside dropdown, don't close
       }
+      // Check if click is on the volume popup
+      const volumePopup = document.querySelector('[data-volume-popup]');
+      if (volumePopup && volumePopup.contains(target)) {
+        return; // Click is inside volume popup, don't close
+      }
       // Check if click is outside menu bar
       if (menuRef.current && !menuRef.current.contains(target)) {
         setOpenMenu(null);
       }
+      // Close volume popup if clicking outside
+      if (volumeButtonRef.current && !volumeButtonRef.current.contains(target)) {
+        setShowVolumePopup(false);
+      }
     };
-    if (openMenu) {
+    if (openMenu || showVolumePopup) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [openMenu]);
+  }, [openMenu, showVolumePopup]);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -445,24 +585,16 @@ const MenuBar: React.FC = () => {
         }
       }
       
-      // Reset project state (fresh start)
+      // Reset project state immediately (fresh start) - this will show welcome screen
       stop();
       unloadAudio();
       resetProject();
       projectSaver.setCurrentProjectPath(null);
       setProjectName('Untitled Project');
-      
-      // Now load new audio
-      await resumeAudioContext();
-      const file = await pickAudioFile();
-      if (!file) return;
-      const validation = validateAudioFile(file);
-      if (!validation.valid) {
-        console.error('Invalid file:', validation.error);
-        return;
-      }
-      await loadFile(file);
       setOpenMenu(null);
+      
+      // Welcome screen will be shown automatically when isAudioLoaded becomes false
+      // User can then pick file from welcome screen
     } catch (err) {
       console.error('Failed to start new project:', err);
     }
@@ -481,7 +613,9 @@ const MenuBar: React.FC = () => {
         );
         
         if (shouldSave) {
+          setIsSaving(true);
           const saved = await projectSaver.saveProject();
+          setIsSaving(false);
           if (!saved) {
             // User cancelled save, don't proceed with loading
             return;
@@ -489,15 +623,19 @@ const MenuBar: React.FC = () => {
         }
       }
       
+      setIsLoading(true);
       await resumeAudioContext();
       const loaded = await projectLoader.loadProject(loadFile);
       if (loaded) {
         // Project name and path will be updated via callbacks
         // Audio will be loaded automatically by the loader
+        // Toast notification will be shown via callback
       }
       setOpenMenu(null);
     } catch (error) {
       console.error('[MenuBar] Failed to load project:', error);
+      showToast('Failed to load project', 'error', 5000);
+      setIsLoading(false);
     }
   };
 
@@ -514,21 +652,29 @@ const MenuBar: React.FC = () => {
 
   const handleSaveProject = async () => {
     try {
+      setIsSaving(true);
       await projectSaver.saveProject();
       // Project name will be updated via callback
+      // Toast notification will be shown via callback
       setOpenMenu(null);
     } catch (error) {
       console.error('[MenuBar] Failed to save project:', error);
+      showToast('Failed to save project', 'error', 5000);
+      setIsSaving(false);
     }
   };
 
   const handleSaveProjectAs = async () => {
     try {
+      setIsSaving(true);
       await projectSaver.saveProjectAs();
       // Project name will be updated via callback
+      // Toast notification will be shown via callback
       setOpenMenu(null);
     } catch (error) {
       console.error('[MenuBar] Failed to save project as:', error);
+      showToast('Failed to save project', 'error', 5000);
+      setIsSaving(false);
     }
   };
 
@@ -665,10 +811,13 @@ const MenuBar: React.FC = () => {
       items: [
         { id: 'open', label: 'Start New Project', icon: NewProjectIcon, shortcut: 'Ctrl+O', action: handleStartNewProject },
         { id: 'load-project', label: 'Load Project', icon: FolderOpenIcon, shortcut: 'Ctrl+L', action: handleLoadProject },
+        { id: 'recent-projects', label: 'Recent Projects...', icon: FolderOpenIcon, action: () => { setIsRecentProjectsModalOpen(true); setOpenMenu(null); } },
         { id: 'divider1', label: '', divider: true },
         { id: 'save', label: 'Save Project', icon: SaveIcon, shortcut: 'Ctrl+S', action: handleSaveProject },
         { id: 'save-as', label: 'Save Project As...', icon: SaveAsIcon, shortcut: 'Ctrl+Shift+S', action: handleSaveProjectAs },
         { id: 'divider2', label: '', divider: true },
+        { id: 'export-region', label: 'Export Marker Sections...', icon: SaveAsIcon, shortcut: 'Ctrl+E', action: () => { setIsExportModalOpen(true); setOpenMenu(null); }, disabled: markers.length === 0 },
+        { id: 'divider-export', label: '', divider: true },
         { id: 'close', label: 'Close Audio', icon: CloseIcon, action: handleCloseAudio },
         { id: 'divider3', label: '', divider: true },
         { id: 'exit', label: 'Exit', icon: ExitIcon, shortcut: 'Alt+F4', action: handleExit },
@@ -682,14 +831,18 @@ const MenuBar: React.FC = () => {
       items: [] as DropdownItem[] // Will be populated dynamically
     },
     { 
-      id: 'help', 
-      label: 'Help', 
-      icon: undefined, // No icon to prevent wrapping issues
+      id: 'view', 
+      label: 'View', 
+      icon: ViewIcon,
       color: KENYAN_GREEN,
       items: [
-        { id: 'docs', label: 'Documentation', icon: BookIcon, shortcut: 'F1', action: () => { setIsHelpModalOpen(true); setOpenMenu(null); } },
+        { id: 'zoom-in', label: 'Zoom In', icon: undefined, shortcut: 'Ctrl++', action: () => { handleZoomIn(); setOpenMenu(null); } },
+        { id: 'zoom-out', label: 'Zoom Out', icon: undefined, shortcut: 'Ctrl+-', action: () => { handleZoomOut(); setOpenMenu(null); } },
+        { id: 'zoom-reset', label: 'Reset Zoom', icon: undefined, shortcut: 'Ctrl+0', action: () => { handleZoomReset(); setOpenMenu(null); } },
         { id: 'divider1', label: '', divider: true },
-        { id: 'about', label: 'About', icon: InfoIcon, action: () => { setIsSettingsModalOpen(true); setOpenMenu(null); } },
+        { id: 'workspace-layouts', label: 'Workspace Layouts...', icon: undefined, action: () => { setIsWorkspaceLayoutModalOpen(true); setOpenMenu(null); } },
+        { id: 'divider2', label: '', divider: true },
+        { id: 'settings', label: 'Settings', icon: SettingsIcon, shortcut: 'Ctrl+,', action: () => { setIsSettingsModalOpen(true); setOpenMenu(null); } },
       ] as DropdownItem[]
     },
   ];
@@ -872,24 +1025,37 @@ const MenuBar: React.FC = () => {
         gap: '1rem',
         justifyContent: 'space-between',
         position: 'relative',
-        zIndex: 999999, // Very high z-index to ensure dropdowns are visible
-        padding: '0 1.5rem',
-        background: 'rgba(26, 26, 26, 0.6)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        zIndex: 999999,
+        padding: '0 2rem',
+        background: isLightMode 
+          ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 250, 250, 0.98) 100%)'
+          : 'linear-gradient(135deg, rgba(15, 15, 15, 0.85) 0%, rgba(26, 26, 26, 0.9) 100%)',
+        backdropFilter: 'blur(30px)',
+        WebkitBackdropFilter: 'blur(30px)',
+        borderBottom: isLightMode 
+          ? '1px solid rgba(0, 0, 0, 0.08)'
+          : '1px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: isLightMode
+          ? '0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+          : '0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         fontFamily: HANDWRITTEN_FONT,
-        overflowX: 'hidden', // Prevent horizontal scrolling
-        overflowY: 'visible', // Allow dropdowns to overflow vertically
+        overflowX: 'hidden',
+        overflowY: 'visible',
+        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Left side - Menu items */}
+      {/* Left side - Menu items with enhanced styling */}
       <div style={{ 
         display: 'flex',
-        gap: '0.25rem',
+        gap: '0.5rem',
         alignItems: 'center',
         flexShrink: 0,
-        whiteSpace: 'nowrap', // Prevent wrapping
+        whiteSpace: 'nowrap',
+        padding: '0.25rem',
+        borderRadius: '12px',
+        background: isLightMode 
+          ? 'rgba(0, 0, 0, 0.02)'
+          : 'rgba(255, 255, 255, 0.03)',
       }}>
         {menuItems.map((item) => {
           const IconComponent = item.icon;
@@ -900,24 +1066,34 @@ const MenuBar: React.FC = () => {
               <button
                 ref={(el) => { menuButtonRefs.current[item.id] = el; }}
                 className="menu-bar-button"
-          style={{
-            padding: '0.4rem 0.9rem',
-            height: '2rem',
-            background: isOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
-            color: isOpen ? item.color : textColor,
-            fontFamily: HANDWRITTEN_FONT,
-            fontSize: '1rem',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.4rem',
-          }}
+                style={{
+                  padding: '0.45rem 1rem',
+                  height: '2rem',
+                  background: isOpen 
+                    ? (isLightMode 
+                        ? `linear-gradient(135deg, ${item.color}15, ${item.color}08)`
+                        : `linear-gradient(135deg, ${item.color}25, ${item.color}15)`)
+                    : 'transparent',
+                  border: isOpen 
+                    ? `1.5px solid ${item.color}40`
+                    : '1.5px solid transparent',
+                  borderRadius: '10px',
+                  color: isOpen ? item.color : textColor,
+                  fontFamily: HANDWRITTEN_FONT,
+                  fontSize: '0.95rem',
+                  fontWeight: isOpen ? '600' : '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  boxShadow: isOpen 
+                    ? `0 4px 12px ${item.color}30, inset 0 1px 0 ${item.color}20`
+                    : 'none',
+                  transform: isOpen ? 'translateY(-1px)' : 'translateY(0)',
+                }}
                 onMouseEnter={() => {
                   setHoveredItem(item.id);
                   if (openMenu && openMenu !== item.id) {
@@ -927,16 +1103,34 @@ const MenuBar: React.FC = () => {
                 onMouseLeave={() => setHoveredItem(null)}
                 onClick={() => setOpenMenu(isOpen ? null : item.id)}
               >
-                {/* Animated bottom border */}
+                {/* Animated glow effect */}
+                {isOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: '-2px',
+                      borderRadius: '12px',
+                      background: `linear-gradient(135deg, ${item.color}20, transparent)`,
+                      opacity: 0.6,
+                      animation: 'pulseGlow 2s ease-in-out infinite',
+                      zIndex: 0,
+                    }}
+                  />
+                )}
+                
+                {/* Animated bottom accent */}
                 <div
                   style={{
                     position: 'absolute',
                     bottom: 0,
-                    left: 0,
-                    width: isOpen || isHovered ? '100%' : '0%',
-                    height: '2px',
-                    background: item.color,
-                    transition: 'width 0.2s ease',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: isOpen || isHovered ? '80%' : '0%',
+                    height: '3px',
+                    background: `linear-gradient(90deg, transparent, ${item.color}, transparent)`,
+                    borderRadius: '2px',
+                    transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: isOpen ? `0 0 8px ${item.color}60` : 'none',
                   }}
                 />
                 
@@ -945,9 +1139,20 @@ const MenuBar: React.FC = () => {
                   zIndex: 2,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.4rem',
+                  gap: '0.5rem',
+                  transition: 'transform 0.2s ease',
+                  transform: isOpen ? 'scale(1.05)' : 'scale(1)',
                 }}>
-                  {IconComponent && <IconComponent />}
+                  {IconComponent && (
+                    <span style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'transform 0.3s ease',
+                      transform: isOpen ? 'rotate(5deg) scale(1.1)' : 'rotate(0) scale(1)',
+                    }}>
+                      <IconComponent />
+                    </span>
+                  )}
                   {item.label}
                 </span>
               </button>
@@ -958,7 +1163,7 @@ const MenuBar: React.FC = () => {
         })}
       </div>
 
-      {/* Center - Project Name */}
+      {/* Center - Project Name with enhanced styling */}
       <div
         className="mx-auto"
         style={{
@@ -966,74 +1171,107 @@ const MenuBar: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           flex: 1,
-          padding: '0 1rem',
+          padding: '0 1.5rem',
           minWidth: 0,
         }}
       >
         <div
           style={{
-            color: textColor,
-            fontFamily: HANDWRITTEN_FONT,
-            fontSize: '1rem',
-            fontWeight: '600',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            position: 'relative',
+            padding: '0.4rem 1.2rem',
+            borderRadius: '10px',
+            background: isLightMode
+              ? 'linear-gradient(135deg, rgba(0, 102, 68, 0.08), rgba(222, 41, 16, 0.05))'
+              : 'linear-gradient(135deg, rgba(0, 102, 68, 0.15), rgba(222, 41, 16, 0.1))',
+            border: isLightMode
+              ? '1px solid rgba(0, 102, 68, 0.15)'
+              : '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: isLightMode
+              ? 'inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 2px 8px rgba(0, 0, 0, 0.05)'
+              : 'inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 0, 0, 0.2)',
+            transition: 'all 0.3s ease',
             maxWidth: '100%',
-            opacity: 0.9,
+            overflow: 'hidden',
           }}
           title={projectName}
         >
-          {projectName}
+          {/* Animated background gradient */}
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: `linear-gradient(90deg, 
+              ${KENYAN_GREEN}10 0%, 
+              ${KENYAN_RED}10 50%, 
+              ${KENYAN_GREEN}10 100%)`,
+            backgroundSize: '200% 100%',
+            animation: 'shimmer 3s ease-in-out infinite',
+            opacity: 0.5,
+          }} />
+          
+          <EditableProjectName
+            projectName={projectName}
+            setProjectName={setProjectName}
+            textColor={textColor}
+          />
         </div>
       </div>
 
-      {/* Center - Zoom Controls */}
+      {/* Center-Right - Compact Zoom Controls */}
       <div
-          className="mx-auto flex items-center gap-1 px-2 flex-shrink-0"
+          className="mx-auto flex items-center gap-0.5 flex-shrink-0"
           style={{
             marginLeft: 'auto',
             marginRight: 'auto',
-            background: 'rgba(255, 255, 255, 0.08)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            padding: '4px 12px',
-            borderRadius: '24px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-            transition: 'all 0.3s ease',
+            background: isLightMode
+              ? 'rgba(255, 255, 255, 0.6)'
+              : 'rgba(255, 255, 255, 0.08)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            padding: '4px 8px',
+            borderRadius: '12px',
+            border: isLightMode
+              ? '1px solid rgba(0, 0, 0, 0.06)'
+              : '1px solid rgba(255, 255, 255, 0.12)',
+            boxShadow: isLightMode
+              ? '0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+              : '0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+            transition: 'all 0.2s ease',
             maxWidth: '100%',
+            gap: '4px',
+            height: '28px',
+            alignItems: 'center',
           }}
       >
-        {/* Zoom Out Button */}
+        {/* Compact Zoom Out */}
         <button
           onClick={handleZoomOut}
           disabled={zoomLevel <= 1}
           style={{
-            background: 'rgba(255, 255, 255, 0.08)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: zoomLevel <= 1 ? '#666' : '#FFFFFF',
-            padding: '4px',
-            borderRadius: '50%',
+            background: 'transparent',
+            border: 'none',
+            color: zoomLevel <= 1 
+              ? (isLightMode ? '#ccc' : '#666')
+              : (isLightMode ? '#1a1a1a' : '#FFFFFF'),
+            padding: '2px',
+            borderRadius: '6px',
             cursor: zoomLevel <= 1 ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.2s ease',
-            opacity: zoomLevel <= 1 ? 0.4 : 1,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+            opacity: zoomLevel <= 1 ? 0.3 : 1,
+            width: '20px',
+            height: '20px',
           }}
           onMouseEnter={(e) => {
             if (zoomLevel > 1) {
-              e.currentTarget.style.transform = 'scale(1.15)';
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+              e.currentTarget.style.background = isLightMode 
+                ? 'rgba(0, 0, 0, 0.08)'
+                : 'rgba(255, 255, 255, 0.15)';
             }
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+            e.currentTarget.style.background = 'transparent';
           }}
           title="Zoom Out"
         >
@@ -1044,90 +1282,79 @@ const MenuBar: React.FC = () => {
           </svg>
         </button>
 
-        {/* Zoom Level Display */}
+        {/* Compact Zoom Level Display */}
         <div
           onClick={handleZoomReset}
           style={{
-            position: 'relative',
-            width: '36px',
-            height: '36px',
+            minWidth: '32px',
+            height: '20px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
-            background: 'rgba(255, 255, 255, 0.08)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '50%',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+            padding: '0 6px',
+            borderRadius: '6px',
+            background: isLightMode
+              ? `linear-gradient(135deg, ${zoomColor}15, ${zoomColor}08)`
+              : `linear-gradient(135deg, ${zoomColor}25, ${zoomColor}15)`,
+            border: `1px solid ${zoomColor}30`,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.1)';
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+            e.currentTarget.style.background = isLightMode
+              ? `linear-gradient(135deg, ${zoomColor}20, ${zoomColor}12)`
+              : `linear-gradient(135deg, ${zoomColor}35, ${zoomColor}25)`;
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+            e.currentTarget.style.background = isLightMode
+              ? `linear-gradient(135deg, ${zoomColor}15, ${zoomColor}08)`
+              : `linear-gradient(135deg, ${zoomColor}25, ${zoomColor}15)`;
           }}
           title="Click to reset zoom"
         >
-          <svg style={{ position: 'absolute', width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
-            <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2.5"/>
-            <circle
-              cx="18"
-              cy="18"
-              r="14"
-              fill="none"
-              stroke={zoomColor}
-              strokeWidth="2.5"
-              strokeDasharray={`${zoomPercent * 0.88} 88`}
-              strokeLinecap="round"
-              style={{ transition: 'stroke-dasharray 0.3s ease' }}
-            />
-          </svg>
           <span
             style={{
               fontSize: '10px',
               fontWeight: 'bold',
-              color: '#FFFFFF',
+              color: isLightMode ? '#1a1a1a' : '#FFFFFF',
               fontFamily: 'monospace',
+              lineHeight: '1',
             }}
           >
             {zoomLevel.toFixed(1)}x
           </span>
         </div>
 
-        {/* Zoom In Button */}
+        {/* Compact Zoom In */}
         <button
           onClick={handleZoomIn}
           disabled={zoomLevel >= 8}
           style={{
-            background: 'rgba(255, 255, 255, 0.08)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: zoomLevel >= 8 ? '#666' : '#FFFFFF',
-            padding: '4px',
-            borderRadius: '50%',
+            background: 'transparent',
+            border: 'none',
+            color: zoomLevel >= 8
+              ? (isLightMode ? '#ccc' : '#666')
+              : (isLightMode ? '#1a1a1a' : '#FFFFFF'),
+            padding: '2px',
+            borderRadius: '6px',
             cursor: zoomLevel >= 8 ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.2s ease',
-            opacity: zoomLevel >= 8 ? 0.4 : 1,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+            opacity: zoomLevel >= 8 ? 0.3 : 1,
+            width: '20px',
+            height: '20px',
           }}
           onMouseEnter={(e) => {
             if (zoomLevel < 8) {
-              e.currentTarget.style.transform = 'scale(1.15)';
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+              e.currentTarget.style.background = isLightMode 
+                ? 'rgba(0, 0, 0, 0.08)'
+                : 'rgba(255, 255, 255, 0.15)';
             }
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+            e.currentTarget.style.background = 'transparent';
           }}
           title="Zoom In"
         >
@@ -1140,241 +1367,353 @@ const MenuBar: React.FC = () => {
         </button>
       </div>
 
-      {/* Volume Control Button - Next to Zoom Controls */}
+      {/* Volume Control Button - Enhanced styling */}
       <div style={{ position: 'relative' }} ref={volumePopupRef}>
         <button
+          ref={volumeButtonRef}
           onClick={() => setShowVolumePopup(!showVolumePopup)}
           disabled={!isAudioLoaded}
           style={{
-            background: 'rgba(255, 255, 255, 0.08)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: isMuted ? '#ff6b7a' : '#ffffff',
-            padding: '6px 10px',
-            borderRadius: '20px',
+            background: isMuted
+              ? (isLightMode 
+                  ? 'linear-gradient(135deg, rgba(222, 41, 16, 0.15), rgba(222, 41, 16, 0.08))'
+                  : 'linear-gradient(135deg, rgba(222, 41, 16, 0.25), rgba(222, 41, 16, 0.15))')
+              : (isLightMode
+                  ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(250, 250, 250, 0.95))'
+                  : 'linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.08))'),
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: isMuted
+              ? `2px solid ${KENYAN_RED}50`
+              : (isLightMode
+                  ? '1px solid rgba(0, 0, 0, 0.08)'
+                  : '1px solid rgba(255, 255, 255, 0.15)'),
+            color: isMuted 
+              ? (isLightMode ? KENYAN_RED : '#ff6b7a')
+              : (isLightMode ? '#1a1a1a' : '#ffffff'),
+            padding: '6px 12px',
+            borderRadius: '12px',
             cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'all 0.2s ease',
+            gap: '0.5rem',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             opacity: isAudioLoaded ? 1 : 0.4,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+            boxShadow: isMuted
+              ? `0 4px 16px ${KENYAN_RED}30, inset 0 1px 0 rgba(255, 255, 255, 0.1)`
+              : (isLightMode
+                  ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+                  : '0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'),
+            position: 'relative',
+            overflow: 'hidden',
           }}
           onMouseEnter={(e) => {
             if (isAudioLoaded) {
-              e.currentTarget.style.transform = 'scale(1.1)';
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+              e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
+              e.currentTarget.style.boxShadow = isMuted
+                ? `0 6px 24px ${KENYAN_RED}40, inset 0 1px 0 rgba(255, 255, 255, 0.15)`
+                : (isLightMode
+                    ? '0 6px 20px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+                    : '0 6px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15)');
             }
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+            e.currentTarget.style.boxShadow = isMuted
+              ? `0 4px 16px ${KENYAN_RED}30, inset 0 1px 0 rgba(255, 255, 255, 0.1)`
+              : (isLightMode
+                  ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+                  : '0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)');
           }}
           title={isMuted ? 'Unmute' : 'Volume Control'}
         >
-          {isMuted ? <MuteIcon /> : <UnmuteIcon />}
+          {/* Pulse effect when muted */}
+          {isMuted && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: '14px',
+              background: `radial-gradient(circle, ${KENYAN_RED}20, transparent)`,
+              animation: 'pulseGlow 2s ease-in-out infinite',
+            }} />
+          )}
+          <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center' }}>
+            {isMuted ? <MuteIcon /> : <UnmuteIcon />}
+          </span>
         </button>
 
-        {/* Volume Control Popup */}
-        {showVolumePopup && (
-          <div             style={{
-              position: 'absolute',
-              top: 'calc(100% + 8px)',
-              right: 0,
-              padding: '20px',
-              minWidth: '280px',
-              background: 'rgba(26, 26, 26, 0.85)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '16px',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-              zIndex: 1000,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              animation: 'fadeInScale 0.2s ease-out'
-            }}>
-            {/* Header */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '4px'
-            }}>
-              <span style={{
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: isLightMode ? '#666' : '#aaa',
-                textTransform: 'uppercase',
-                letterSpacing: '1px'
-              }}>
-                Volume Control
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{
-                  fontSize: '1.2rem',
-                  fontWeight: '700',
-                  color: isLightMode ? '#1a1a1a' : '#ffffff',
-                  fontFamily: HANDWRITTEN_FONT
-                }}>
-                  {isMuted ? 'Muted' : `${volume > 0 ? '+' : ''}${volume} dB`}
-                </span>
-                <button
-                  onClick={() => {
-                    handleVolumeChange(6);
-                  }}
-                  disabled={!isAudioLoaded || volume === 6}
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: '0.7rem',
-                    background: volume === 6 ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') : 'transparent',
-                    border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'}`,
-                    borderRadius: '6px',
-                    color: isLightMode ? '#666' : '#aaa',
-                    cursor: (!isAudioLoaded || volume === 6) ? 'not-allowed' : 'pointer',
-                    opacity: (!isAudioLoaded || volume === 6) ? 0.4 : 1,
-                    transition: 'all 0.2s ease'
-                  }}
-                  title="Reset to +6 dB"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-
-            {/* Volume Labels */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              fontSize: '0.7rem',
-              color: isLightMode ? '#999' : '#666',
-              fontWeight: '500'
-            }}>
-              <span>-60 dB</span>
-              <span>0 dB</span>
-              <span>+6 dB</span>
-            </div>
-
-            {/* Volume Slider */}
-            <input
-              type="range"
-              min="-60"
-              max="6"
-              step="1"
-              value={volume}
-              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-              onInput={(e) => handleVolumeChange(parseFloat((e.target as HTMLInputElement).value))}
-              disabled={!isAudioLoaded}
-              style={{
-                width: '100%',
-                height: '8px',
-                borderRadius: '4px',
-                position: 'relative',
-                display: 'block',
-                background: isLightMode 
-                  ? `linear-gradient(to right, #ccc 0%, #ccc ${((volume + 60) / 66) * 100}%, #e0e0e0 ${((volume + 60) / 66) * 100}%, #e0e0e0 100%)`
-                  : `linear-gradient(to right, #555 0%, #555 ${((volume + 60) / 66) * 100}%, #333 ${((volume + 60) / 66) * 100}%, #333 100%)`,
-                outline: 'none',
-                cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-                WebkitAppearance: 'none',
-                appearance: 'none',
-                opacity: isAudioLoaded ? 1 : 0.4,
-                transition: 'background 0.1s ease'
-              }}
-              className="volume-popup-slider"
-            />
-
-            {/* Mute/Unmute Toggle Button - Icon Only */}
-            <button
-              onClick={handleMuteToggle}
-              disabled={!isAudioLoaded}
-              style={{
-                padding: '10px',
-                background: isMuted 
-                  ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
-                  : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'),
-                border: `1px solid ${isMuted 
-                  ? (isLightMode ? 'rgba(220,53,69,0.3)' : 'rgba(220,53,69,0.4)')
-                  : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)')}`,
-                borderRadius: '10px',
-                color: isMuted 
-                  ? (isLightMode ? '#dc3545' : '#ff6b7a')
-                  : (isLightMode ? '#1a1a1a' : '#ffffff'),
-                cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-                opacity: isAudioLoaded ? 1 : 0.4,
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%'
-              }}
-              onMouseEnter={(e) => {
-                if (isAudioLoaded) {
-                  e.currentTarget.style.background = isMuted 
-                    ? (isLightMode ? 'rgba(220,53,69,0.15)' : 'rgba(220,53,69,0.3)')
-                    : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)');
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = isMuted 
-                  ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
-                  : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)');
-              }}
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted ? <MuteIcon /> : <UnmuteIcon />}
-            </button>
-          </div>
-        )}
+        {/* Volume Control Popup - rendered via portal below */}
       </div>
 
-      {/* Right side - Icon buttons */}
+      {/* Right side - Icon buttons with enhanced styling */}
       <div className="flex gap-2 items-center flex-shrink-0" style={{ 
-        gap: '0.5rem',
+        gap: '0.75rem',
+        padding: '0.25rem',
+        borderRadius: '12px',
+        background: isLightMode 
+          ? 'rgba(0, 0, 0, 0.02)'
+          : 'rgba(255, 255, 255, 0.03)',
       }}>
-        {/* Neumorphic Theme Toggle - Hidden for now (dark mode only) */}
-        {/* <ThemeToggle /> */}
-        
         {iconButtons.map((btn) => {
           const IconComponent = btn.icon;
+          const canUndo = btn.id === 'undo' ? useAppStore.getState().canUndo() : true;
+          const canRedo = btn.id === 'redo' ? useAppStore.getState().canRedo() : true;
+          const isDisabled = (btn.id === 'undo' && !canUndo) || (btn.id === 'redo' && !canRedo);
+          
           return (
             <button
               key={btn.id}
               className="icon-button"
               title={btn.label}
+              disabled={isDisabled}
               style={{
-                width: '2rem',
-                height: '2rem',
-                background: 'rgba(255, 255, 255, 0.08)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: 'var(--radius-md)',
-                color: textColor,
-                cursor: 'pointer',
+                width: '2.25rem',
+                height: '2.25rem',
+                background: isDisabled
+                  ? (isLightMode ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.03)')
+                  : (isLightMode 
+                      ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(250, 250, 250, 0.95))'
+                      : 'linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.08))'),
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                border: isDisabled
+                  ? (isLightMode ? '1px solid rgba(0, 0, 0, 0.05)' : '1px solid rgba(255, 255, 255, 0.05)')
+                  : (isLightMode 
+                      ? '1px solid rgba(0, 0, 0, 0.08)'
+                      : '1px solid rgba(255, 255, 255, 0.15)'),
+                borderRadius: '12px',
+                color: isDisabled 
+                  ? (isLightMode ? '#999' : '#666')
+                  : textColor,
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                opacity: isDisabled ? 0.4 : 1,
+                boxShadow: isDisabled
+                  ? 'none'
+                  : (isLightMode
+                      ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+                      : '0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'),
+                position: 'relative',
+                overflow: 'hidden',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-                e.currentTarget.style.transform = 'translateY(-2px) scale(1.1)';
+                if (!isDisabled) {
+                  e.currentTarget.style.transform = 'translateY(-3px) scale(1.1) rotate(5deg)';
+                  e.currentTarget.style.boxShadow = isLightMode
+                    ? '0 6px 20px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+                    : '0 6px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15)';
+                  // Show glow effect
+                  const glow = e.currentTarget.querySelector('.icon-glow') as HTMLElement;
+                  if (glow) glow.style.opacity = '1';
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.transform = 'translateY(0) scale(1) rotate(0)';
+                e.currentTarget.style.boxShadow = isDisabled
+                  ? 'none'
+                  : (isLightMode
+                      ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+                      : '0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)');
+                // Hide glow effect
+                const glow = e.currentTarget.querySelector('.icon-glow') as HTMLElement;
+                if (glow) glow.style.opacity = '0';
               }}
               onClick={btn.action}
             >
-              <IconComponent />
+              {/* Hover glow effect */}
+              <div 
+                className="icon-glow"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  borderRadius: '12px',
+                  background: `radial-gradient(circle at center, ${btn.id === 'settings' ? KENYAN_GREEN : KENYAN_RED}20, transparent)`,
+                  opacity: 0,
+                  transition: 'opacity 0.3s ease',
+                  pointerEvents: 'none',
+                }}
+              />
+              
+              <span style={{ 
+                position: 'relative', 
+                zIndex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                transition: 'transform 0.2s ease',
+              }}>
+                <IconComponent />
+              </span>
             </button>
           );
         })}
       </div>
+
+      {/* Portal-based Volume Popup */}
+      {showVolumePopup && volumePopupPosition && createPortal(
+        <div
+          data-volume-popup
+          style={{
+            position: 'fixed',
+            top: `${volumePopupPosition.top}px`,
+            left: `${volumePopupPosition.left}px`,
+            padding: '24px',
+            minWidth: '300px',
+            background: isLightMode
+              ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(250, 250, 250, 0.95))'
+              : 'linear-gradient(135deg, rgba(15, 15, 15, 0.98), rgba(26, 26, 26, 0.95))',
+            backdropFilter: 'blur(30px)',
+            WebkitBackdropFilter: 'blur(30px)',
+            border: isLightMode
+              ? '1px solid rgba(0, 0, 0, 0.1)'
+              : '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '18px',
+            boxShadow: isLightMode
+              ? '0 12px 40px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+              : '0 12px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+            zIndex: 1000001,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '18px',
+            animation: 'fadeInScale 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '4px'
+          }}>
+            <span style={{
+              fontSize: '0.85rem',
+              fontWeight: '600',
+              color: isLightMode ? '#666' : '#aaa',
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}>
+              Volume Control
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{
+                fontSize: '1.2rem',
+                fontWeight: '700',
+                color: isLightMode ? '#1a1a1a' : '#ffffff',
+                fontFamily: HANDWRITTEN_FONT
+              }}>
+                {isMuted ? 'Muted' : `${volume > 0 ? '+' : ''}${volume} dB`}
+              </span>
+              <button
+                onClick={() => {
+                  handleVolumeChange(6);
+                }}
+                disabled={!isAudioLoaded || volume === 6}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '0.7rem',
+                  background: volume === 6 ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') : 'transparent',
+                  border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'}`,
+                  borderRadius: '6px',
+                  color: isLightMode ? '#666' : '#aaa',
+                  cursor: (!isAudioLoaded || volume === 6) ? 'not-allowed' : 'pointer',
+                  opacity: (!isAudioLoaded || volume === 6) ? 0.4 : 1,
+                  transition: 'all 0.2s ease'
+                }}
+                title="Reset to +6 dB"
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+
+          {/* Volume Labels */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: '0.7rem',
+            color: isLightMode ? '#999' : '#666',
+            fontWeight: '500'
+          }}>
+            <span>-60 dB</span>
+            <span>0 dB</span>
+            <span>+6 dB</span>
+          </div>
+
+          {/* Volume Slider */}
+          <input
+            type="range"
+            min="-60"
+            max="6"
+            step="1"
+            value={volume}
+            onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+            onInput={(e) => handleVolumeChange(parseFloat((e.target as HTMLInputElement).value))}
+            disabled={!isAudioLoaded}
+            style={{
+              width: '100%',
+              height: '8px',
+              borderRadius: '4px',
+              position: 'relative',
+              display: 'block',
+              background: isLightMode 
+                ? `linear-gradient(to right, #ccc 0%, #ccc ${((volume + 60) / 66) * 100}%, #e0e0e0 ${((volume + 60) / 66) * 100}%, #e0e0e0 100%)`
+                : `linear-gradient(to right, #555 0%, #555 ${((volume + 60) / 66) * 100}%, #333 ${((volume + 60) / 66) * 100}%, #333 100%)`,
+              outline: 'none',
+              cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              opacity: isAudioLoaded ? 1 : 0.4,
+              transition: 'background 0.1s ease'
+            }}
+            className="volume-popup-slider"
+          />
+
+          {/* Mute/Unmute Toggle Button - Icon Only */}
+          <button
+            onClick={handleMuteToggle}
+            disabled={!isAudioLoaded}
+            style={{
+              padding: '10px',
+              background: isMuted 
+                ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
+                : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'),
+              border: `1px solid ${isMuted 
+                ? (isLightMode ? 'rgba(220,53,69,0.3)' : 'rgba(220,53,69,0.4)')
+                : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)')}`,
+              borderRadius: '10px',
+              color: isMuted 
+                ? (isLightMode ? '#dc3545' : '#ff6b7a')
+                : (isLightMode ? '#1a1a1a' : '#ffffff'),
+              cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+              opacity: isAudioLoaded ? 1 : 0.4,
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%'
+            }}
+            onMouseEnter={(e) => {
+              if (isAudioLoaded) {
+                e.currentTarget.style.background = isMuted 
+                  ? (isLightMode ? 'rgba(220,53,69,0.15)' : 'rgba(220,53,69,0.3)')
+                  : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)');
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = isMuted 
+                ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
+                : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)');
+            }}
+            title={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted ? <MuteIcon /> : <UnmuteIcon />}
+          </button>
+        </div>,
+        document.body
+      )}
 
       {/* Portal-based Dropdown Menu */}
       {openMenu && dropdownPosition && (() => {
@@ -1388,52 +1727,67 @@ const MenuBar: React.FC = () => {
               position: 'fixed',
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
-              minWidth: '240px',
-              background: 'rgba(26, 26, 26, 0.95)',
-              backgroundColor: 'rgba(26, 26, 26, 0.95)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '8px',
-              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.8)',
-              padding: '4px',
+              minWidth: '260px',
+              background: isLightMode
+                ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(250, 250, 250, 0.95))'
+                : 'linear-gradient(135deg, rgba(15, 15, 15, 0.98), rgba(26, 26, 26, 0.95))',
+              backdropFilter: 'blur(30px)',
+              WebkitBackdropFilter: 'blur(30px)',
+              border: isLightMode
+                ? '1px solid rgba(0, 0, 0, 0.1)'
+                : `1px solid ${currentMenu.color}40`,
+              borderRadius: '14px',
+              boxShadow: isLightMode
+                ? '0 12px 40px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+                : `0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px ${currentMenu.color}20, inset 0 1px 0 rgba(255, 255, 255, 0.05)`,
+              padding: '8px',
               zIndex: 1000001,
-              animation: 'dropdownFadeIn 0.15s ease-out',
+              animation: 'dropdownFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
               overflow: 'visible',
               opacity: 1,
             }}
           >
             {currentMenu.items.map((dropItem) => {
               if (dropItem.divider) {
-                return (
-                  <div
-                    key={dropItem.id}
-                    style={{
-                      height: '1px',
-                      background: borderColor,
-                      margin: '4px 8px',
-                    }}
-                  />
-                );
+                    return (
+                      <div
+                        key={dropItem.id}
+                        style={{
+                          height: '1px',
+                          background: isLightMode
+                            ? 'linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.1), transparent)'
+                            : `linear-gradient(90deg, transparent, ${currentMenu.color}40, transparent)`,
+                          margin: '6px 12px',
+                          borderRadius: '1px',
+                        }}
+                      />
+                    );
               }
               
               // Custom render for Audio Effects controls
               if ((dropItem as any).customRender) {
                 if (dropItem.id === 'pitch-control') {
-                  return (
-                    <div 
-                      key={dropItem.id} 
-                      style={{ 
-                        background: 'rgba(0, 0, 0, 0.25)',
-                        backgroundColor: 'rgba(0, 0, 0, 0.25)',
-                        backdropFilter: 'blur(14px)',
-                        WebkitBackdropFilter: 'blur(14px)',
-                        borderRadius: '8px',
-                        margin: '-4px',
-                        padding: '4px',
-                        opacity: 1,
-                      }}
-                    >
+                      return (
+                        <div 
+                          key={dropItem.id} 
+                          style={{ 
+                            background: isLightMode
+                              ? 'linear-gradient(135deg, rgba(0, 102, 68, 0.08), rgba(0, 102, 68, 0.05))'
+                              : 'linear-gradient(135deg, rgba(0, 102, 68, 0.2), rgba(0, 102, 68, 0.15))',
+                            backdropFilter: 'blur(20px)',
+                            WebkitBackdropFilter: 'blur(20px)',
+                            borderRadius: '12px',
+                            margin: '4px',
+                            padding: '12px',
+                            border: isLightMode
+                              ? '1px solid rgba(0, 102, 68, 0.15)'
+                              : '1px solid rgba(0, 102, 68, 0.3)',
+                            boxShadow: isLightMode
+                              ? 'inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 2px 8px rgba(0, 102, 68, 0.1)'
+                              : 'inset 0 1px 2px rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 102, 68, 0.2)',
+                            opacity: 1,
+                          }}
+                        >
                       <PitchControl 
                         onPitchChange={handlePitchChange}
                         isAudioLoaded={isAudioLoaded}
@@ -1446,53 +1800,110 @@ const MenuBar: React.FC = () => {
               }
               
               const DropIcon = dropItem.icon;
+              const isSavingItem = (dropItem.id === 'save' || dropItem.id === 'save-as') && isSaving;
+              const isLoadingItem = dropItem.id === 'load-project' && isLoading;
+              const isProcessing = isSavingItem || isLoadingItem;
+              const isDisabled = isProcessing || (dropItem as any).disabled;
+              
               return (
                 <button
                   key={dropItem.id}
                   onClick={() => {
-                    if (dropItem.action) dropItem.action();
-                    setOpenMenu(null);
+                    if (dropItem.action && !isProcessing && !isDisabled) {
+                      dropItem.action();
+                      if (dropItem.id !== 'save' && dropItem.id !== 'save-as' && dropItem.id !== 'load-project') {
+                        setOpenMenu(null);
+                      }
+                    }
                   }}
+                  disabled={isDisabled}
                   style={{
                     width: '100%',
-                    padding: '8px 12px',
+                    padding: '10px 14px',
                     background: 'transparent',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '10px',
                     color: textColor,
                     fontFamily: HANDWRITTEN_FONT,
                     fontSize: '0.95rem',
-                    cursor: 'pointer',
+                    fontWeight: '500',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     gap: '12px',
-                    transition: 'all 0.15s ease',
+                    transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                     whiteSpace: 'nowrap',
                     minWidth: 0,
-                    opacity: 1,
+                    opacity: isDisabled ? 0.5 : 1,
+                    cursor: isDisabled ? 'not-allowed' : (isProcessing ? 'wait' : 'pointer'),
+                    position: 'relative',
+                    overflow: 'hidden',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                    if (!isProcessing && !isDisabled) {
+                      e.currentTarget.style.background = isLightMode
+                        ? `linear-gradient(135deg, ${currentMenu.color}12, ${currentMenu.color}08)`
+                        : `linear-gradient(135deg, ${currentMenu.color}25, ${currentMenu.color}15)`;
+                      e.currentTarget.style.transform = 'translateX(4px)';
+                      e.currentTarget.style.boxShadow = isLightMode
+                        ? `inset 0 1px 2px ${currentMenu.color}20`
+                        : `inset 0 1px 2px ${currentMenu.color}30`;
+                    }
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                    e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {DropIcon && <DropIcon />}
-                    {dropItem.label}
+                  <span style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '12px',
+                    position: 'relative',
+                    zIndex: 1,
+                  }}>
+                    {isProcessing ? (
+                      <LoadingSpinner size="small" color={currentMenu.color} />
+                    ) : (
+                      DropIcon && (
+                        <span style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          transition: 'transform 0.2s ease',
+                        }}>
+                          <DropIcon />
+                        </span>
+                      )
+                    )}
+                    <span style={{ fontWeight: '500' }}>{dropItem.label}</span>
                     {dropItem.checked && (
-                      <span style={{ marginLeft: '4px', color: KENYAN_GREEN }}>
+                      <span style={{ 
+                        marginLeft: '4px', 
+                        color: currentMenu.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        animation: 'iconBounce 0.5s ease',
+                      }}>
                         <CheckIcon />
                       </span>
                     )}
                   </span>
-                  {dropItem.shortcut && (
+                  {dropItem.shortcut && !isProcessing && (
                     <span style={{ 
-                      fontSize: '0.75rem', 
-                      opacity: 0.5,
-                      fontFamily: 'monospace'
+                      fontSize: '0.7rem', 
+                      opacity: 0.6,
+                      fontFamily: 'monospace',
+                      padding: '2px 6px',
+                      background: isLightMode
+                        ? 'rgba(0, 0, 0, 0.05)'
+                        : 'rgba(255, 255, 255, 0.08)',
+                      borderRadius: '4px',
+                      border: isLightMode
+                        ? '1px solid rgba(0, 0, 0, 0.08)'
+                        : '1px solid rgba(255, 255, 255, 0.1)',
+                      position: 'relative',
+                      zIndex: 1,
                     }}>
                       {dropItem.shortcut}
                     </span>
@@ -1513,12 +1924,49 @@ const MenuBar: React.FC = () => {
         @keyframes dropdownFadeIn {
           from {
             opacity: 0;
-            transform: translateY(-8px);
+            transform: translateY(-8px) scale(0.95);
           }
           to {
             opacity: 1;
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
           }
+        }
+        
+        @keyframes pulseGlow {
+          0%, 100% {
+            opacity: 0.6;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.05);
+          }
+        }
+        
+        @keyframes shimmer {
+          0% {
+            background-position: -200% 0;
+          }
+          100% {
+            background-position: 200% 0;
+          }
+        }
+        
+        @keyframes iconGlow {
+          0%, 100% {
+            opacity: 0;
+          }
+          50% {
+            opacity: 0.8;
+          }
+        }
+        
+        .icon-button:hover .icon-glow {
+          opacity: 1 !important;
+        }
+        
+        .icon-button:active {
+          transform: translateY(-1px) scale(1.05) rotate(2deg) !important;
         }
         
         @keyframes pitchPulse {
@@ -1670,7 +2118,56 @@ const MenuBar: React.FC = () => {
             transform: scale(1) translateY(0);
           }
         }
+        
+        /* Enhanced menu button animations */
+        .menu-bar-button {
+          position: relative;
+          overflow: hidden;
+        }
+        
+        .menu-bar-button::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 0;
+          height: 0;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.1), transparent);
+          transform: translate(-50%, -50%);
+          transition: width 0.6s ease, height 0.6s ease;
+          pointer-events: none;
+        }
+        
+        .menu-bar-button:hover::before {
+          width: 200px;
+          height: 200px;
+        }
+        
+        .menu-bar-button:active {
+          transform: translateY(1px) scale(0.98);
+        }
+        
+        /* Smooth icon rotation on menu open */
+        .menu-bar-button[data-open="true"] svg {
+          animation: iconBounce 0.5s ease;
+        }
+        
+        @keyframes iconBounce {
+          0%, 100% { transform: rotate(0deg) scale(1); }
+          25% { transform: rotate(-10deg) scale(1.1); }
+          75% { transform: rotate(10deg) scale(1.1); }
+        }
       `}</style>
+      <WorkspaceLayoutModal 
+        isOpen={isWorkspaceLayoutModalOpen}
+        onClose={() => setIsWorkspaceLayoutModalOpen(false)}
+      />
+      <RecentProjectsModal
+        isOpen={isRecentProjectsModalOpen}
+        onClose={() => setIsRecentProjectsModalOpen(false)}
+        onProjectSelect={handleRecentProject}
+      />
     </div>
   );
 };

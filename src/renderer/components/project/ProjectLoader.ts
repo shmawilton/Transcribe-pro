@@ -329,14 +329,76 @@ export class ProjectLoader {
           input.accept = '.tsproj,application/json';
           input.style.display = 'none';
 
+          // Safe cleanup function that checks if element is still in DOM
+          const safeCleanup = () => {
+            console.log('[ProjectLoader] safeCleanup called');
+            try {
+              console.log('[ProjectLoader] Checking if input is in DOM...', {
+                parentNode: input.parentNode,
+                isBody: input.parentNode === document.body,
+                bodyChildren: document.body.children.length
+              });
+              // Check if input is still a child of body before removing
+              if (input.parentNode === document.body) {
+                console.log('[ProjectLoader] Removing input from DOM');
+                document.body.removeChild(input);
+                console.log('[ProjectLoader] Input removed successfully');
+              } else {
+                console.log('[ProjectLoader] Input not in body, skipping removal', {
+                  parentNode: input.parentNode,
+                  parentNodeType: input.parentNode?.nodeName
+                });
+              }
+            } catch (error) {
+              // Element might have already been removed, ignore error
+              console.error('[ProjectLoader] Cleanup error:', error);
+              console.error('[ProjectLoader] Error details:', {
+                errorName: error instanceof Error ? error.name : 'Unknown',
+                errorMessage: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined,
+                inputParent: input.parentNode,
+                inputInBody: input.parentNode === document.body
+              });
+            }
+          };
+
+          let resolved = false;
+          console.log('[ProjectLoader] Setting up file input for project file selection');
+          
+          // Safety timeout: only fires if user cancels and onchange never fires (5 minutes)
+          const safetyTimeout = setTimeout(() => {
+            console.log('[ProjectLoader] Safety timeout fired (user likely cancelled)');
+            if (!resolved) {
+              console.log('[ProjectLoader] Resolving with canceled (timeout)');
+              safeCleanup();
+              resolved = true;
+              resolve({ canceled: true });
+            }
+          }, 5 * 60 * 1000); // 5 minutes
+
           input.onchange = async (event) => {
+            console.log('[ProjectLoader] onchange event fired');
             const target = event.target as HTMLInputElement;
             const file = target.files?.[0];
+            console.log('[ProjectLoader] File selected:', file ? { name: file.name, size: file.size } : 'null');
             
-            document.body.removeChild(input);
+            console.log('[ProjectLoader] Clearing safety timeout');
+            clearTimeout(safetyTimeout);
+            
+            // Clean up safely after a small delay to avoid React render conflicts
+            setTimeout(() => {
+              console.log('[ProjectLoader] Executing cleanup in setTimeout');
+              safeCleanup();
+            }, 0);
 
             if (!file) {
-              resolve({ canceled: true });
+              if (!resolved) {
+                console.log('[ProjectLoader] No file selected, resolving with canceled');
+                resolved = true;
+                resolve({ canceled: true });
+              } else {
+                console.log('[ProjectLoader] Already resolved, ignoring');
+              }
               return;
             }
 
@@ -358,25 +420,40 @@ export class ProjectLoader {
                 throw new Error(validation.error || 'Project validation failed');
               }
 
-              resolve({
-                canceled: false,
-                filePath: file.name,
-                projectData: validation.projectData,
-              });
+              if (!resolved) {
+                console.log('[ProjectLoader] Resolving with project data:', {
+                  filePath: file.name,
+                  hasProjectData: !!validation.projectData
+                });
+                resolved = true;
+                resolve({
+                  canceled: false,
+                  filePath: file.name,
+                  projectData: validation.projectData,
+                });
+              } else {
+                console.log('[ProjectLoader] Already resolved, ignoring result');
+              }
             } catch (error) {
+              console.error('[ProjectLoader] Error loading project file:', error);
               const errorMessage = error instanceof Error ? error.message : 'Failed to load project file';
               this.notify(errorMessage, 'error');
-              resolve({ canceled: true });
+              if (!resolved) {
+                console.log('[ProjectLoader] Resolving with canceled due to error');
+                resolved = true;
+                resolve({ canceled: true });
+              }
             }
           };
 
-          input.oncancel = () => {
-            document.body.removeChild(input);
-            resolve({ canceled: true });
-          };
+          // Note: We don't handle oncancel explicitly because it's not reliably supported
+          // The safety timeout (5 minutes) will handle cancellation cases
 
+          console.log('[ProjectLoader] Appending input to body and triggering click');
           document.body.appendChild(input);
+          console.log('[ProjectLoader] Input appended, body children count:', document.body.children.length);
           input.click();
+          console.log('[ProjectLoader] Click triggered, waiting for user selection...');
         });
       }
     } catch (error) {
@@ -559,16 +636,18 @@ export class ProjectLoader {
 
   /**
    * Load project from file path (for recent projects)
+   * @param filePath - Path to project file
+   * @param loadFileCallback - Function to load audio file (from useAudioEngine hook)
    */
-  async loadProjectFromPath(filePath: string): Promise<boolean> {
+  async loadProjectFromPath(filePath: string, loadFileCallback?: (file: File) => Promise<void>): Promise<boolean> {
     try {
       let projectData: ProjectData;
 
       if (isElectron && (window as any).electronAPI) {
-        // Read file directly in Electron
-        const result = await (window as any).electronAPI.loadProjectDialog();
-        if (result.canceled || !result.projectData) {
-          return false;
+        // Read file directly from path in Electron
+        const result = await (window as any).electronAPI.loadProjectFromPath(filePath);
+        if (!result.success || !result.projectData) {
+          throw new Error('Failed to load project file');
         }
 
         // Parse and validate

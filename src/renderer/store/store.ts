@@ -25,6 +25,7 @@ interface AppStore {
   setIsMarkerEditorOpen: (isOpen: boolean) => void;
   setIsSettingsModalOpen: (isOpen: boolean) => void;
   setIsHelpModalOpen: (isOpen: boolean) => void;
+  setIsExportModalOpen: (isOpen: boolean, startTime?: number, endTime?: number) => void;
   setZoomLevel: (zoom: number) => void;
   setViewport: (start: number, end: number) => void;
   setRequestMarkerCreation: (request: boolean) => void;
@@ -77,6 +78,9 @@ const initialUIState: UIState = {
   isMarkerEditorOpen: false,
   isSettingsModalOpen: false,
   isHelpModalOpen: false,
+  isExportModalOpen: false,
+  exportStartTime: undefined,
+  exportEndTime: undefined,
   zoomLevel: 1,
   viewportStart: 0,
   viewportEnd: 0,
@@ -244,6 +248,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => ({ ui: { ...state.ui, isSettingsModalOpen: isOpen } })),
   setIsHelpModalOpen: (isOpen) =>
     set((state) => ({ ui: { ...state.ui, isHelpModalOpen: isOpen } })),
+  setIsExportModalOpen: (isOpen, startTime, endTime) =>
+    set((state) => ({ 
+      ui: { 
+        ...state.ui, 
+        isExportModalOpen: isOpen,
+        exportStartTime: startTime,
+        exportEndTime: endTime,
+      } 
+    })),
   setZoomLevel: (zoom) =>
     set((state) => ({ ui: { ...state.ui, zoomLevel: zoom } })),
   setViewport: (start, end) =>

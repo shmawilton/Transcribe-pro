@@ -11,32 +11,91 @@ export async function pickAudioFile(
   accept: string = 'audio/*,.mp3,.wav,.ogg,.flac,.m4a,.aac'
 ): Promise<File | null> {
   return new Promise((resolve) => {
+    console.log('[pickAudioFile] Creating file input element');
     // Create file input element
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = accept;
     input.style.display = 'none';
 
-    // Handle file selection
-    input.onchange = (event) => {
-      const target = event.target as HTMLInputElement;
-      const file = target.files?.[0] || null;
-      
-      // Clean up
-      document.body.removeChild(input);
-      
-      resolve(file);
+    // Safe cleanup function that checks if element is still in DOM
+    const safeCleanup = () => {
+      console.log('[pickAudioFile] safeCleanup called');
+      try {
+        console.log('[pickAudioFile] Checking if input is in DOM...', {
+          parentNode: input.parentNode,
+          isBody: input.parentNode === document.body,
+          bodyChildren: document.body.children.length
+        });
+        // Check if input is still a child of body before removing
+        if (input.parentNode === document.body) {
+          console.log('[pickAudioFile] Removing input from DOM');
+          document.body.removeChild(input);
+          console.log('[pickAudioFile] Input removed successfully');
+        } else {
+          console.log('[pickAudioFile] Input not in body, skipping removal', {
+            parentNode: input.parentNode,
+            parentNodeType: input.parentNode?.nodeName
+          });
+        }
+      } catch (error) {
+        // Element might have already been removed, ignore error
+        console.error('[pickAudioFile] Cleanup error:', error);
+        console.error('[pickAudioFile] Error details:', {
+          errorName: error instanceof Error ? error.name : 'Unknown',
+          errorMessage: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          inputParent: input.parentNode,
+          inputInBody: input.parentNode === document.body
+        });
+      }
     };
 
-    // Handle cancellation
-    input.oncancel = () => {
-      document.body.removeChild(input);
-      resolve(null);
+    // Handle file selection
+    let resolved = false;
+    
+    // Safety timeout: only fires if user cancels and onchange never fires (5 minutes)
+    // This is very long to ensure it doesn't interfere with normal file selection
+    const safetyTimeout = setTimeout(() => {
+      console.log('[pickAudioFile] Safety timeout fired (user likely cancelled)');
+      if (!resolved) {
+        console.log('[pickAudioFile] Resolving with null (cancelled/no selection)');
+        safeCleanup();
+        resolved = true;
+        resolve(null);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    input.onchange = (event) => {
+      console.log('[pickAudioFile] onchange event fired');
+      if (resolved) {
+        console.log('[pickAudioFile] Already resolved, ignoring onchange');
+        return; // Already resolved, ignore
+      }
+      
+      console.log('[pickAudioFile] Clearing safety timeout');
+      clearTimeout(safetyTimeout);
+      
+      const target = event.target as HTMLInputElement;
+      const file = target.files?.[0] || null;
+      console.log('[pickAudioFile] File selected:', file ? { name: file.name, size: file.size } : 'null');
+      
+      // Clean up safely after a small delay to avoid React render conflicts
+      setTimeout(() => {
+        console.log('[pickAudioFile] Executing cleanup in setTimeout');
+        safeCleanup();
+        resolved = true;
+        console.log('[pickAudioFile] Resolving with file:', file ? file.name : 'null');
+        resolve(file);
+      }, 0);
     };
 
     // Add to DOM and trigger click
+    console.log('[pickAudioFile] Appending input to body and triggering click');
     document.body.appendChild(input);
+    console.log('[pickAudioFile] Input appended, body children count:', document.body.children.length);
     input.click();
+    console.log('[pickAudioFile] Click triggered, waiting for user selection...');
   });
 }
 

@@ -28,6 +28,9 @@ export interface UIState {
   isMarkerEditorOpen: boolean;
   isSettingsModalOpen: boolean;
   isHelpModalOpen: boolean;
+  isExportModalOpen: boolean;
+  exportStartTime?: number;
+  exportEndTime?: number;
   zoomLevel: number; // waveform zoom
   viewportStart: number; // waveform viewport start time
   viewportEnd: number; // waveform viewport end time
