@@ -34,6 +34,7 @@ export interface ExportOptions {
   endTime?: number; // End time in seconds (undefined = end)
   format?: 'mp3' | 'wav' | 'ogg' | 'flac';
   quality?: number; // 0-100 for MP3 bitrate
+  speed?: number; // Speed multiplier (0.25 to 4.0) - applies atempo filter
   onProgress?: (progress: number) => void;
 }
 
@@ -50,6 +51,7 @@ export class AudioExporter {
       endTime,
       format = 'mp3',
       quality = 128,
+      speed = 1.0,
       onProgress,
     } = options;
 
@@ -84,6 +86,31 @@ export class AudioExporter {
         '-ss', startTime.toString(),
         '-t', (actualEndTime - startTime).toString(),
       ];
+
+      // Apply speed using atempo filter if speed is not 1.0
+      if (speed !== 1.0) {
+        const clampedSpeed = Math.max(0.25, Math.min(4.0, speed));
+        
+        // Build atempo filter chain (atempo only accepts 0.5-2.0)
+        let atempoFilters: string[] = [];
+        let remainingSpeed = clampedSpeed;
+        
+        while (remainingSpeed < 0.5 || remainingSpeed > 2.0) {
+          if (remainingSpeed < 0.5) {
+            atempoFilters.push('atempo=0.5');
+            remainingSpeed = remainingSpeed / 0.5;
+          } else if (remainingSpeed > 2.0) {
+            atempoFilters.push('atempo=2.0');
+            remainingSpeed = remainingSpeed / 2.0;
+          }
+        }
+        
+        // Add final atempo filter with remaining speed
+        atempoFilters.push(`atempo=${remainingSpeed.toFixed(6)}`);
+        
+        const filterComplex = atempoFilters.join(',');
+        args.push('-af', filterComplex);
+      }
 
       if (format === 'mp3') {
         args.push('-b:a', `${quality}k`);

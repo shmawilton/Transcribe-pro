@@ -251,23 +251,21 @@ export class ProjectLoader {
     // Wait a bit for audio file to be set
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Apply markers
+    // Apply markers only - reset all other settings to defaults
     store.setMarkers(projectData.markers);
 
-    // Apply global controls
-    store.setPitch(projectData.globalControls.pitch);
-    store.setVolume(projectData.globalControls.volume);
-    store.setPlaybackRate(projectData.globalControls.playbackRate);
-    if (projectData.globalControls.isMuted !== store.globalControls.isMuted) {
-      store.toggleMute();
+    // Reset global controls to defaults (don't restore saved values)
+    store.setPitch(0); // Default pitch
+    store.setVolume(6); // Default volume (+6 dB)
+    store.setPlaybackRate(1); // Default speed (1.0x)
+    if (store.globalControls.isMuted) {
+      store.toggleMute(); // Unmute if muted
     }
 
-    // Apply UI state
-    if (projectData.uiState) {
-      store.setZoomLevel(projectData.uiState.zoomLevel);
-    }
+    // Reset UI state to defaults
+    store.setZoomLevel(1); // Default zoom level
 
-    // Poll for audio load completion then apply viewport
+    // Poll for audio load completion then reset viewport to full duration
     let attempts = 0;
     const maxAttempts = 100;
     const checkAudioLoaded = setInterval(() => {
@@ -275,12 +273,9 @@ export class ProjectLoader {
       const audioStore = useAppStore.getState();
       if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
         clearInterval(checkAudioLoaded);
-        if (projectData.uiState) {
-          const duration = audioStore.audio.duration;
-          const viewportStart = Math.max(0, Math.min(projectData.uiState.viewportStart, duration));
-          const viewportEnd = Math.max(viewportStart + 0.1, Math.min(projectData.uiState.viewportEnd, duration));
-          audioStore.setViewport(viewportStart, viewportEnd);
-        }
+        // Reset viewport to show full duration (default view)
+        const duration = audioStore.audio.duration;
+        audioStore.setViewport(0, duration);
       } else if (attempts >= maxAttempts) {
         clearInterval(checkAudioLoaded);
       }
@@ -694,36 +689,37 @@ export class ProjectLoader {
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Apply project settings (same as loadProject)
+      // Apply markers only - reset all other settings to defaults
       const store = useAppStore.getState();
       store.setMarkers(projectData.markers);
-      store.setPitch(projectData.globalControls.pitch);
-      store.setVolume(projectData.globalControls.volume);
-      store.setPlaybackRate(projectData.globalControls.playbackRate);
-      if (projectData.globalControls.isMuted !== store.globalControls.isMuted) {
-        store.toggleMute();
+      
+      // Reset global controls to defaults
+      store.setPitch(0); // Default pitch
+      store.setVolume(6); // Default volume (+6 dB)
+      store.setPlaybackRate(1); // Default speed (1.0x)
+      if (store.globalControls.isMuted) {
+        store.toggleMute(); // Unmute if muted
       }
 
-      if (projectData.uiState) {
-        store.setZoomLevel(projectData.uiState.zoomLevel);
-        // Poll for audio load completion
-        let attempts = 0;
-        const maxAttempts = 100;
-        const checkAudioLoaded = setInterval(() => {
-          attempts++;
-          const audioStore = useAppStore.getState();
-          if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
-            clearInterval(checkAudioLoaded);
-            const duration = audioStore.audio.duration;
-            const viewportStart = Math.max(0, Math.min(projectData.uiState!.viewportStart, duration));
-            const viewportEnd = Math.max(viewportStart + 0.1, Math.min(projectData.uiState!.viewportEnd, duration));
-            audioStore.setViewport(viewportStart, viewportEnd);
-          } else if (attempts >= maxAttempts) {
-            clearInterval(checkAudioLoaded);
-            console.warn('[ProjectLoader] Audio did not load within timeout, viewport may not be restored');
-          }
-        }, 100);
-      }
+      // Reset UI state to defaults
+      store.setZoomLevel(1); // Default zoom level
+      
+      // Poll for audio load completion then reset viewport to full duration
+      let attempts = 0;
+      const maxAttempts = 100;
+      const checkAudioLoaded = setInterval(() => {
+        attempts++;
+        const audioStore = useAppStore.getState();
+        if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
+          clearInterval(checkAudioLoaded);
+          // Reset viewport to show full duration (default view)
+          const duration = audioStore.audio.duration;
+          audioStore.setViewport(0, duration);
+        } else if (attempts >= maxAttempts) {
+          clearInterval(checkAudioLoaded);
+          console.warn('[ProjectLoader] Audio did not load within timeout, viewport may not be restored');
+        }
+      }, 100);
 
       // Update project name
       if (this.onProjectNameChange) {

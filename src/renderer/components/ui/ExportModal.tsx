@@ -97,6 +97,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
           endTime: marker.end,
           format,
           quality,
+          speed: marker.speed || 1.0, // Apply marker's speed setting
           onProgress: (progress) => {
             // Calculate overall progress
             totalProgress = (i * progressPerMarker) + (progress * progressPerMarker / 100);
