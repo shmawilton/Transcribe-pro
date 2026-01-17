@@ -227,15 +227,21 @@ export class HowlerAudioEngine {
           
           // If preserving state, seek and play
           if (preserveState) {
-            // preserveState.time is effective time, convert to file time
-            const effectiveTime = Math.min(preserveState.time, this.duration);
-            const fileTime = this.currentSpeed !== 1.0 && this.currentSpeed > 0
-              ? effectiveTime * this.currentSpeed
-              : effectiveTime;
-            newHowl.seek(fileTime);
+            // preserveState.time is the original timeline time (not affected by speed)
+            // Duration never changes with speed, so we can seek directly
+            const seekTime = Math.min(preserveState.time, this.duration);
+            newHowl.seek(seekTime);
             
             if (preserveState.playing) {
               this.currentSoundId = newHowl.play() as number;
+              
+              // CRITICAL: Apply current speed to the playing sound instance
+              // This preserves marker speeds when pitch changes
+              if (this.currentSpeed !== 1.0 && this.currentSoundId !== null) {
+                newHowl.rate(this.currentSpeed, this.currentSoundId);
+                console.log(`[HowlerEngine] Preserved speed ${this.currentSpeed}x on new pitch-switched sound ID ${this.currentSoundId}`);
+              }
+              
               this.startTimeUpdate();
             }
           }
@@ -258,7 +264,8 @@ export class HowlerAudioEngine {
               this.setSpeed(storedSpeed);
             }
           } else {
-            // Preserve speed when switching pitch
+            // Speed is already applied above to the specific sound ID
+            // Also ensure it's set on the main instance for future plays
             if (this.currentSpeed !== 1.0) {
               newHowl.rate(this.currentSpeed);
             }

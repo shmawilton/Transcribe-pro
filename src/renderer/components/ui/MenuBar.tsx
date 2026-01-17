@@ -1541,7 +1541,7 @@ const MenuBar: React.FC = () => {
                             WebkitBackdropFilter: 'blur(20px)',
                             borderRadius: '12px',
                             margin: '4px',
-                            padding: '12px',
+                            padding: '8px',
                             border: isLightMode
                               ? '1px solid rgba(0, 102, 68, 0.15)'
                               : '1px solid rgba(0, 102, 68, 0.3)',

@@ -1,5 +1,5 @@
-// PitchControl.tsx - Beautiful animated pitch control with processing indicator
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+// PitchControl.tsx - Simple compact pitch control similar to zoom controls
+import React, { useState, useEffect, useRef } from 'react';
 import { useAppStore } from '../../store/store';
 import { onPitchStatus } from '../audio/HowlerAudioEngine';
 
@@ -10,12 +10,13 @@ interface PitchControlProps {
 
 export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAudioLoaded }) => {
   const pitch = useAppStore((state) => state.globalControls.pitch);
+  const isLightMode = useAppStore((state) => state.ui.isLightMode);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [targetPitch, setTargetPitch] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [localPitch, setLocalPitch] = useState(pitch);
-  const dialRef = useRef<HTMLDivElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Subscribe to pitch processing status
@@ -28,394 +29,409 @@ export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAud
     return unsubscribe;
   }, []);
 
-  // Sync local pitch with store
-  useEffect(() => {
-    if (!isDragging) {
-      setLocalPitch(pitch);
-    }
-  }, [pitch, isDragging]);
-
-  // Debounced pitch change
-  const handlePitchChange = useCallback((value: number) => {
-    setLocalPitch(value);
-    
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-    
-    debounceRef.current = setTimeout(() => {
-      onPitchChange(value);
-    }, 300);
-  }, [onPitchChange]);
-
-  // Dial interaction
-  const handleDialInteraction = useCallback((e: React.MouseEvent | MouseEvent) => {
-    if (!dialRef.current || !isAudioLoaded) return;
-    
-    const rect = dialRef.current.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    const angle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
-    // Map angle to pitch: -π/2 to π/2 => -2 to 2
-    let pitch = (angle / (Math.PI / 2)) * 2;
-    pitch = Math.max(-2, Math.min(2, Math.round(pitch * 10) / 10));
-    
-    handlePitchChange(pitch);
-  }, [handlePitchChange, isAudioLoaded]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsDragging(true);
-    handleDialInteraction(e);
-    
-    const handleMouseMove = (e: MouseEvent) => handleDialInteraction(e);
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-    
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [handleDialInteraction]);
-
-  // Get color based on pitch
-  const getPitchColor = (p: number): string => {
-    if (p < -1) return '#e74c3c'; // Deep low - red
-    if (p < 0) return '#e67e22'; // Low - orange
-    if (p === 0) return '#2ecc71'; // Original - green
-    if (p < 1) return '#3498db'; // High - blue
-    return '#9b59b6'; // Very high - purple
+  // Get pitch color based on value
+  const getPitchColor = (value: number): string => {
+    if (value === 0) return isLightMode ? '#666' : '#aaa';
+    if (value > 0) return '#006644'; // KENYAN_GREEN
+    return '#de2910'; // KENYAN_RED
   };
 
-  // Calculate rotation for dial indicator
-  const dialRotation = (localPitch / 2) * 135; // -2 to 2 => -135 to 135 degrees
+  const pitchColor = getPitchColor(pitch);
+
+  // Handle pitch step change (increment/decrement by 0.1)
+  const handlePitchStep = (step: number) => {
+    if (!isAudioLoaded || isProcessing) return;
+    const newPitch = Math.max(-2, Math.min(2, Math.round((pitch + step) * 10) / 10));
+    onPitchChange(newPitch);
+  };
+
+  // Handle pitch reset
+  const handlePitchReset = () => {
+    if (!isAudioLoaded || isProcessing) return;
+    onPitchChange(0);
+  };
+
+  // Format pitch display
+  const formatPitch = (value: number): string => {
+    if (value === 0) return '0%';
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${value.toFixed(1)}%`;
+  };
+
+  // Handle direct input
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  };
+
+  const handleInputBlur = () => {
+    setIsEditing(false);
+    const numValue = parseFloat(inputValue);
+    if (!isNaN(numValue)) {
+      const clampedValue = Math.max(-2, Math.min(2, Math.round(numValue * 10) / 10));
+      onPitchChange(clampedValue);
+      setInputValue('');
+    } else {
+      setInputValue('');
+    }
+  };
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleInputBlur();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+      setInputValue('');
+    }
+  };
+
+  const handleValueClick = () => {
+    if (!isAudioLoaded || isProcessing) return;
+    setIsEditing(true);
+    setInputValue(pitch.toString());
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  // Handle preset selection
+  const handlePresetClick = (preset: number) => {
+    if (!isAudioLoaded || isProcessing) return;
+    onPitchChange(preset);
+  };
 
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
       gap: '12px',
-      padding: '16px',
-      background: '#000000',
-      backgroundColor: '#000000',
-      borderRadius: '16px',
-      border: '1px solid rgba(255,255,255,0.1)',
-      minWidth: '280px',
-      position: 'relative',
-      overflow: 'hidden',
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.9)',
-      opacity: 1,
-      backdropFilter: 'none',
-      WebkitBackdropFilter: 'none',
+      padding: '8px',
     }}>
-      {/* Background animated waves when processing */}
-      {isProcessing && (
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          overflow: 'hidden',
-          pointerEvents: 'none',
-          opacity: 0.3
-        }}>
-          {[...Array(5)].map((_, i) => (
-            <div key={i} style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              width: `${150 + i * 50}px`,
-              height: `${150 + i * 50}px`,
-              borderRadius: '50%',
-              border: `2px solid ${getPitchColor(targetPitch)}`,
-              transform: 'translate(-50%, -50%)',
-              animation: `pitchWave ${1.5 + i * 0.3}s ease-out infinite`,
-              animationDelay: `${i * 0.2}s`
-            }} />
-          ))}
-        </div>
-      )}
-
-      {/* Header */}
+      {/* Label */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
-        width: '100%',
-        justifyContent: 'center'
+        gap: '6px',
+        fontSize: '12px',
+        fontWeight: 600,
+        color: isLightMode ? '#1a1a1a' : '#FFFFFF',
+        marginBottom: '4px',
       }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{
-          animation: isProcessing ? 'spin 2s linear infinite' : 'none'
-        }}>
-          <path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3M3 12h18M6 9l-3 3 3 3M18 9l3 3-3 3" 
-                stroke={getPitchColor(localPitch)} strokeWidth="2" strokeLinecap="round"/>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={pitchColor} strokeWidth="2" strokeLinecap="round">
+          <path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3M3 12h18"/>
         </svg>
-        <span style={{
-          fontSize: '14px',
-          fontWeight: 600,
-          color: 'white',
-          textTransform: 'uppercase',
-          letterSpacing: '1px'
-        }}>
-          Pitch Shift
-        </span>
+        <span>Pitch Adjustment</span>
       </div>
-
-      {/* Circular Dial */}
-      <div 
-        ref={dialRef}
-        onMouseDown={handleMouseDown}
+      {/* Main pitch control - similar to zoom */}
+      <div
+        className="mx-auto flex items-center gap-0.5 flex-shrink-0"
         style={{
-          width: '140px',
-          height: '140px',
-          borderRadius: '50%',
-          background: `conic-gradient(
-            from -135deg,
-            #e74c3c 0deg,
-            #e67e22 67.5deg,
-            #2ecc71 135deg,
-            #3498db 202.5deg,
-            #9b59b6 270deg
-          )`,
-          padding: '6px',
-          cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-          position: 'relative',
-          boxShadow: `
-            0 0 30px ${getPitchColor(localPitch)}40,
-            inset 0 0 20px rgba(0,0,0,0.5)
-          `,
-          transition: 'box-shadow 0.3s ease',
-          opacity: isAudioLoaded ? 1 : 0.5
+          marginLeft: 'auto',
+          marginRight: 'auto',
+          background: isLightMode
+            ? 'rgba(255, 255, 255, 0.6)'
+            : 'rgba(255, 255, 255, 0.08)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          padding: '4px 8px',
+          borderRadius: '12px',
+          border: isLightMode
+            ? '1px solid rgba(0, 0, 0, 0.06)'
+            : '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: isLightMode
+            ? '0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
+            : '0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+          transition: 'all 0.2s ease',
+          maxWidth: '100%',
+          gap: '4px',
+          height: '28px',
+          alignItems: 'center',
         }}
       >
-        {/* Inner dial */}
-        <div style={{
-          width: '100%',
-          height: '100%',
-          borderRadius: '50%',
-          background: 'linear-gradient(145deg, #1a1a2e 0%, #0f0f1a 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative'
-        }}>
-          {/* Tick marks */}
-          {[-2, -1, 0, 1, 2].map((tick) => {
-            const angle = (tick / 2) * 135 - 90;
-            return (
-              <div key={tick} style={{
-                position: 'absolute',
-                width: '3px',
-                height: tick === 0 ? '12px' : '8px',
-                background: tick === 0 ? '#2ecc71' : 'rgba(255,255,255,0.4)',
-                borderRadius: '2px',
-                transform: `rotate(${angle}deg) translateY(-50px)`,
-                transformOrigin: 'center center'
-              }} />
-            );
-          })}
-
-          {/* Pointer needle */}
-          <div style={{
-            position: 'absolute',
-            width: '4px',
-            height: '45px',
-            background: `linear-gradient(to top, ${getPitchColor(localPitch)}, transparent)`,
-            borderRadius: '2px',
-            transformOrigin: 'bottom center',
-            transform: `translateY(-22px) rotate(${dialRotation}deg)`,
-            transition: isDragging ? 'none' : 'transform 0.2s ease-out',
-            boxShadow: `0 0 10px ${getPitchColor(localPitch)}`
-          }} />
-
-          {/* Center display */}
-          <div style={{
-            width: '60px',
-            height: '60px',
-            borderRadius: '50%',
-            background: 'linear-gradient(145deg, #252540 0%, #1a1a2e 100%)',
+        {/* Pitch Down Button */}
+        <button
+          onClick={() => handlePitchStep(-0.1)}
+          disabled={!isAudioLoaded || isProcessing || pitch <= -2}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: (!isAudioLoaded || isProcessing || pitch <= -2)
+              ? (isLightMode ? '#ccc' : '#666')
+              : (isLightMode ? '#1a1a1a' : '#FFFFFF'),
+            padding: '2px',
+            borderRadius: '6px',
+            cursor: (!isAudioLoaded || isProcessing || pitch <= -2) ? 'not-allowed' : 'pointer',
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.5)',
-            border: `2px solid ${getPitchColor(localPitch)}40`
-          }}>
-            <span style={{
-              fontSize: '18px',
-              fontWeight: 700,
-              color: getPitchColor(localPitch),
+            transition: 'all 0.2s ease',
+            opacity: (!isAudioLoaded || isProcessing || pitch <= -2) ? 0.3 : 1,
+            width: '20px',
+            height: '20px',
+          }}
+          onMouseEnter={(e) => {
+            if (isAudioLoaded && !isProcessing && pitch > -2) {
+              e.currentTarget.style.background = isLightMode 
+                ? 'rgba(0, 0, 0, 0.08)'
+                : 'rgba(255, 255, 255, 0.15)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
+          title="Decrease pitch by 0.1%"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 5v14M7 12l5-5 5 5"/>
+          </svg>
+        </button>
+
+        {/* Pitch Value Display - Clickable for direct input or double-click to reset */}
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onBlur={handleInputBlur}
+            onKeyDown={handleInputKeyDown}
+            style={{
+              minWidth: '48px',
+              height: '20px',
+              padding: '0 6px',
+              borderRadius: '6px',
+              background: isLightMode
+                ? 'rgba(255, 255, 255, 0.9)'
+                : 'rgba(0, 0, 0, 0.3)',
+              border: `2px solid ${pitchColor}`,
+              color: isLightMode ? '#1a1a1a' : '#FFFFFF',
+              fontSize: '10px',
+              fontWeight: 'bold',
               fontFamily: 'monospace',
-              textShadow: `0 0 10px ${getPitchColor(localPitch)}60`
-            }}>
-              {localPitch === 0 ? '0' : (localPitch > 0 ? `+${localPitch.toFixed(1)}` : localPitch.toFixed(1))}
-            </span>
-            <span style={{
-              fontSize: '9px',
-              color: 'rgba(255,255,255,0.5)',
-              textTransform: 'uppercase'
-            }}>
-              {localPitch === 0 ? 'original' : 'semitones'}
+              textAlign: 'center',
+              outline: 'none',
+            }}
+            placeholder={formatPitch(pitch)}
+          />
+        ) : (
+          <div
+            onClick={handleValueClick}
+            onDoubleClick={handlePitchReset}
+            style={{
+              minWidth: '48px',
+              height: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: isAudioLoaded && !isProcessing ? 'pointer' : 'default',
+              transition: 'all 0.2s ease',
+              padding: '0 6px',
+              borderRadius: '6px',
+              background: isLightMode
+                ? `linear-gradient(135deg, ${pitchColor}15, ${pitchColor}08)`
+                : `linear-gradient(135deg, ${pitchColor}25, ${pitchColor}15)`,
+              border: `1px solid ${pitchColor}30`,
+              position: 'relative',
+            }}
+            onMouseEnter={(e) => {
+              if (isAudioLoaded && !isProcessing) {
+                e.currentTarget.style.background = isLightMode
+                  ? `linear-gradient(135deg, ${pitchColor}20, ${pitchColor}12)`
+                  : `linear-gradient(135deg, ${pitchColor}35, ${pitchColor}25)`;
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = isLightMode
+                ? `linear-gradient(135deg, ${pitchColor}15, ${pitchColor}08)`
+                : `linear-gradient(135deg, ${pitchColor}25, ${pitchColor}15)`;
+            }}
+            title="Click to edit, double-click to reset to 0%"
+          >
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 'bold',
+                color: pitch === 0 
+                  ? (isLightMode ? '#666' : '#aaa')
+                  : pitchColor,
+                fontFamily: 'monospace',
+                lineHeight: '1',
+              }}
+            >
+              {formatPitch(pitch)}
             </span>
           </div>
-        </div>
+        )}
+
+        {/* Pitch Up Button */}
+        <button
+          onClick={() => handlePitchStep(0.1)}
+          disabled={!isAudioLoaded || isProcessing || pitch >= 2}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: (!isAudioLoaded || isProcessing || pitch >= 2)
+              ? (isLightMode ? '#ccc' : '#666')
+              : (isLightMode ? '#1a1a1a' : '#FFFFFF'),
+            padding: '2px',
+            borderRadius: '6px',
+            cursor: (!isAudioLoaded || isProcessing || pitch >= 2) ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s ease',
+            opacity: (!isAudioLoaded || isProcessing || pitch >= 2) ? 0.3 : 1,
+            width: '20px',
+            height: '20px',
+          }}
+          onMouseEnter={(e) => {
+            if (isAudioLoaded && !isProcessing && pitch < 2) {
+              e.currentTarget.style.background = isLightMode 
+                ? 'rgba(0, 0, 0, 0.08)'
+                : 'rgba(255, 255, 255, 0.15)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
+          title="Increase pitch by 0.1%"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 19V5M7 12l5 5 5-5"/>
+          </svg>
+        </button>
       </div>
 
-      {/* Processing indicator */}
-      {isProcessing && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          padding: '8px 16px',
-          background: `${getPitchColor(targetPitch)}20`,
-          borderRadius: '20px',
-          border: `1px solid ${getPitchColor(targetPitch)}40`
-        }}>
-          {/* Animated music notes */}
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {['♪', '♫', '♩'].map((note, i) => (
-              <span key={i} style={{
-                fontSize: '14px',
-                color: getPitchColor(targetPitch),
-                animation: `bounce 0.6s ease-in-out infinite`,
-                animationDelay: `${i * 0.15}s`
-              }}>
-                {note}
-              </span>
-            ))}
-          </div>
-          <span style={{
-            fontSize: '12px',
-            color: 'white',
-            fontWeight: 500
-          }}>
-            Shifting to {targetPitch > 0 ? '+' : ''}{targetPitch.toFixed(1)}...
-          </span>
-          {/* Progress bar */}
-          <div style={{
-            width: '40px',
-            height: '4px',
-            background: 'rgba(255,255,255,0.2)',
-            borderRadius: '2px',
-            overflow: 'hidden'
-          }}>
-            <div style={{
-              width: `${progress}%`,
-              height: '100%',
-              background: getPitchColor(targetPitch),
-              transition: 'width 0.3s ease'
-            }} />
-          </div>
-        </div>
-      )}
-
-      {/* Quick preset buttons */}
+      {/* Preset Buttons */}
       <div style={{
         display: 'flex',
-        gap: '6px',
+        gap: '4px',
+        justifyContent: 'center',
         flexWrap: 'wrap',
-        justifyContent: 'center'
       }}>
         {[-2, -1, 0, 1, 2].map((preset) => (
           <button
             key={preset}
-            onClick={() => handlePitchChange(preset)}
+            onClick={() => handlePresetClick(preset)}
             disabled={!isAudioLoaded || isProcessing}
             style={{
-              padding: '6px 12px',
-              borderRadius: '8px',
+              padding: '4px 10px',
+              borderRadius: '6px',
               border: 'none',
-              background: Math.abs(localPitch - preset) < 0.05 
-                ? getPitchColor(preset) 
-                : 'rgba(255,255,255,0.1)',
-              color: Math.abs(localPitch - preset) < 0.05 ? 'white' : 'rgba(255,255,255,0.7)',
-              fontSize: '12px',
-              fontWeight: 600,
+              background: Math.abs(pitch - preset) < 0.05
+                ? (isLightMode
+                    ? `linear-gradient(135deg, ${pitchColor}20, ${pitchColor}15)`
+                    : `linear-gradient(135deg, ${pitchColor}35, ${pitchColor}25)`)
+                : (isLightMode
+                    ? 'rgba(0, 0, 0, 0.05)'
+                    : 'rgba(255, 255, 255, 0.1)'),
+              color: Math.abs(pitch - preset) < 0.05
+                ? pitchColor
+                : (isLightMode ? '#1a1a1a' : '#FFFFFF'),
+              fontSize: '10px',
+              fontWeight: Math.abs(pitch - preset) < 0.05 ? 700 : 500,
               cursor: isAudioLoaded && !isProcessing ? 'pointer' : 'not-allowed',
               transition: 'all 0.2s ease',
               opacity: isAudioLoaded ? 1 : 0.5,
-              transform: Math.abs(localPitch - preset) < 0.05 ? 'scale(1.1)' : 'scale(1)',
-              boxShadow: Math.abs(localPitch - preset) < 0.05 
-                ? `0 0 15px ${getPitchColor(preset)}60` 
-                : 'none'
+              border: Math.abs(pitch - preset) < 0.05
+                ? `1px solid ${pitchColor}50`
+                : (isLightMode
+                    ? '1px solid rgba(0, 0, 0, 0.1)'
+                    : '1px solid rgba(255, 255, 255, 0.15)'),
             }}
+            onMouseEnter={(e) => {
+              if (isAudioLoaded && !isProcessing && Math.abs(pitch - preset) >= 0.05) {
+                e.currentTarget.style.background = isLightMode
+                  ? 'rgba(0, 0, 0, 0.08)'
+                  : 'rgba(255, 255, 255, 0.15)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (Math.abs(pitch - preset) >= 0.05) {
+                e.currentTarget.style.background = isLightMode
+                  ? 'rgba(0, 0, 0, 0.05)'
+                  : 'rgba(255, 255, 255, 0.1)';
+              }
+            }}
+            title={`Set pitch to ${preset > 0 ? '+' : ''}${preset}%`}
           >
-            {preset === 0 ? '⚪' : preset > 0 ? `+${preset}` : preset}
+            {preset === 0 ? '0%' : (preset > 0 ? `+${preset}%` : `${preset}%`)}
           </button>
         ))}
       </div>
 
-      {/* Slider for fine control */}
-      <div style={{
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px'
-      }}>
+      {/* Processing Progress Bar */}
+      {isProcessing && (
         <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: '10px',
-          color: 'rgba(255,255,255,0.4)'
+          flexDirection: 'column',
+          gap: '6px',
+          padding: '8px',
+          background: isLightMode
+            ? `linear-gradient(135deg, ${pitchColor}08, ${pitchColor}05)`
+            : `linear-gradient(135deg, ${pitchColor}20, ${pitchColor}15)`,
+          borderRadius: '8px',
+          border: `1px solid ${pitchColor}30`,
         }}>
-          <span>-2</span>
-          <span style={{ color: 'rgba(255,255,255,0.6)' }}>Fine Adjustment</span>
-          <span>+2</span>
-        </div>
-        <input
-          type="range"
-          min="-2"
-          max="2"
-          step="0.1"
-          value={localPitch}
-          onChange={(e) => handlePitchChange(parseFloat(e.target.value))}
-          disabled={!isAudioLoaded || isProcessing}
-          style={{
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '11px',
+            color: isLightMode ? '#1a1a1a' : '#FFFFFF',
+            fontWeight: 500,
+          }}>
+            {/* Processing icon with animation */}
+            <svg 
+              width="14" 
+              height="14" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke={pitchColor} 
+              strokeWidth="2" 
+              strokeLinecap="round"
+              style={{
+                animation: 'spin 1s linear infinite',
+              }}
+            >
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            <span>Processing pitch shift...</span>
+          </div>
+          
+          {/* Progress bar */}
+          <div style={{
             width: '100%',
-            height: '6px',
-            borderRadius: '3px',
-            background: `linear-gradient(to right, 
-              #e74c3c 0%, 
-              #e67e22 25%, 
-              #2ecc71 50%, 
-              #3498db 75%, 
-              #9b59b6 100%
-            )`,
-            appearance: 'none',
-            cursor: isAudioLoaded && !isProcessing ? 'pointer' : 'not-allowed',
-            opacity: isAudioLoaded ? 1 : 0.5
-          }}
-        />
-      </div>
+            height: '4px',
+            background: isLightMode 
+              ? 'rgba(0, 0, 0, 0.1)' 
+              : 'rgba(255, 255, 255, 0.2)',
+            borderRadius: '2px',
+            overflow: 'hidden',
+            position: 'relative',
+          }}>
+            <div style={{
+              width: `${progress}%`,
+              height: '100%',
+              background: `linear-gradient(90deg, ${pitchColor}, ${pitchColor}dd)`,
+              borderRadius: '2px',
+              transition: 'width 0.3s ease',
+              boxShadow: `0 0 8px ${pitchColor}60`,
+            }} />
+          </div>
+          
+          <div style={{
+            fontSize: '10px',
+            color: isLightMode ? '#666' : '#aaa',
+            textAlign: 'right',
+          }}>
+            {progress.toFixed(0)}%
+          </div>
+        </div>
+      )}
 
       {/* CSS Animations */}
       <style>{`
-        @keyframes pitchWave {
-          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
-          100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
-        }
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
-        }
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
-        }
-        input[type="range"]::-webkit-slider-thumb {
-          appearance: none;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: white;
-          cursor: pointer;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.3), 0 0 10px ${getPitchColor(localPitch)}60;
-          border: 2px solid ${getPitchColor(localPitch)};
-          transition: all 0.2s ease;
-        }
-        input[type="range"]::-webkit-slider-thumb:hover {
-          transform: scale(1.2);
         }
       `}</style>
     </div>
