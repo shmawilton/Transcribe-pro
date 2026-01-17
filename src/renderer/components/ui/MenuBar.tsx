@@ -322,17 +322,12 @@ const MenuBar: React.FC = () => {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [pitch, setPitch] = useState(0);
-  const [volume, setVolume] = useState(0);
   const [isPitchAnimating, setIsPitchAnimating] = useState(false);
-  const [showVolumePopup, setShowVolumePopup] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const volumePopupRef = useRef<HTMLDivElement>(null);
-  const volumeButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
-  const [volumePopupPosition, setVolumePopupPosition] = useState<{ top: number; left: number } | null>(null);
   
   // Store state
   const theme = useAppStore((state) => state.theme);
@@ -346,7 +341,7 @@ const MenuBar: React.FC = () => {
   const duration = useAppStore((state) => state.audio.duration);
   
   // Audio engine
-  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, setVolume: setAudioVolume, resetPitch } = useAudioEngine();
+  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, resetPitch } = useAudioEngine();
   
   // Project reset
   const resetProject = useAppStore((state) => state.resetProject);
@@ -408,7 +403,6 @@ const MenuBar: React.FC = () => {
   // Get mute state from store
   const isMuted = useAppStore((state) => state.globalControls.isMuted);
   const toggleMute = useAppStore((state) => state.toggleMute);
-  const storedVolume = useAppStore((state) => state.globalControls.volume);
   
   // Sync pitch with store
   useEffect(() => {
@@ -417,57 +411,6 @@ const MenuBar: React.FC = () => {
     }
   }, [storedPitch]);
 
-  // Initialize volume to +6 dB (maximum volume) on mount
-  useEffect(() => {
-    // Always initialize to +6 dB (maximum volume) on mount
-    const initialVolume = 6;
-    setVolume(initialVolume);
-    setAudioVolume(initialVolume);
-    useAppStore.getState().setVolume(initialVolume);
-    console.log('[MenuBar] Volume initialized to +6 dB (maximum volume)');
-  }, []); // Only run once on mount
-
-  // Apply volume when audio loads - ensure it's at +6 dB
-  useEffect(() => {
-    if (isAudioLoaded) {
-      // When audio loads, ensure volume is at +6 dB (maximum) if not muted
-      const currentVolume = useAppStore.getState().globalControls.volume;
-      const isCurrentlyMuted = useAppStore.getState().globalControls.isMuted;
-      
-      if (!isCurrentlyMuted && currentVolume !== 6) {
-        // Reset to +6 dB if not muted and not already at +6
-        setVolume(6);
-        setAudioVolume(6);
-        useAppStore.getState().setVolume(6);
-        console.log('[MenuBar] Volume reset to +6 dB on audio load');
-      } else if (!isCurrentlyMuted) {
-        // Ensure volume is applied even if already at +6
-        setAudioVolume(6);
-        console.log('[MenuBar] Volume applied at +6 dB on audio load');
-      }
-    }
-  }, [isAudioLoaded, setAudioVolume]);
-
-  // Sync volume with store
-  useEffect(() => {
-    if (storedVolume !== undefined) {
-      setVolume(storedVolume);
-      setAudioVolume(storedVolume);
-    }
-  }, [storedVolume, setAudioVolume]);
-
-  // Close volume popup when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (volumePopupRef.current && !volumePopupRef.current.contains(e.target as Node)) {
-        setShowVolumePopup(false);
-      }
-    };
-    if (showVolumePopup) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showVolumePopup]);
   
   // Zoom controls state
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
@@ -493,20 +436,6 @@ const MenuBar: React.FC = () => {
     }
   }, [openMenu]);
 
-  // Calculate volume popup position when it opens
-  useEffect(() => {
-    if (showVolumePopup && volumeButtonRef.current) {
-      const button = volumeButtonRef.current;
-      const rect = button.getBoundingClientRect();
-      // Use fixed positioning (relative to viewport)
-      setVolumePopupPosition({
-        top: rect.bottom + 8,
-        left: rect.right - 280, // Align to right edge, accounting for popup width
-      });
-    } else {
-      setVolumePopupPosition(null);
-    }
-  }, [showVolumePopup]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -517,25 +446,16 @@ const MenuBar: React.FC = () => {
       if (portalDropdown && portalDropdown.contains(target)) {
         return; // Click is inside dropdown, don't close
       }
-      // Check if click is on the volume popup
-      const volumePopup = document.querySelector('[data-volume-popup]');
-      if (volumePopup && volumePopup.contains(target)) {
-        return; // Click is inside volume popup, don't close
-      }
       // Check if click is outside menu bar
       if (menuRef.current && !menuRef.current.contains(target)) {
         setOpenMenu(null);
       }
-      // Close volume popup if clicking outside
-      if (volumeButtonRef.current && !volumeButtonRef.current.contains(target)) {
-        setShowVolumePopup(false);
-      }
     };
-    if (openMenu || showVolumePopup) {
+    if (openMenu) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [openMenu, showVolumePopup]);
+  }, [openMenu]);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -771,27 +691,9 @@ const MenuBar: React.FC = () => {
     setTimeout(() => setIsPitchAnimating(false), 400);
   };
 
-  // Handle volume change
-  const handleVolumeChange = (newVolume: number) => {
-    const clampedVolume = Math.max(-60, Math.min(6, newVolume));
-    setVolume(clampedVolume);
-    setAudioVolume(clampedVolume);
-    // Update store volume
-    useAppStore.getState().setVolume(clampedVolume);
-    // If unmuting by changing volume, update mute state
-    if (isMuted && clampedVolume > -60) {
-      useAppStore.getState().toggleMute();
-    }
-  };
-
   // Handle mute toggle
   const handleMuteToggle = () => {
     toggleMute();
-    // Get updated state after toggle
-    const updatedState = useAppStore.getState().globalControls;
-    const newVolume = updatedState.isMuted ? -60 : updatedState.volume;
-    setVolume(newVolume);
-    setAudioVolume(newVolume);
   };
 
   // Get pitch color
@@ -1367,11 +1269,10 @@ const MenuBar: React.FC = () => {
         </button>
       </div>
 
-      {/* Volume Control Button - Enhanced styling */}
-      <div style={{ position: 'relative' }} ref={volumePopupRef}>
+      {/* Mute/Unmute Toggle Button */}
+      <div style={{ position: 'relative' }}>
         <button
-          ref={volumeButtonRef}
-          onClick={() => setShowVolumePopup(!showVolumePopup)}
+          onClick={handleMuteToggle}
           disabled={!isAudioLoaded}
           style={{
             background: isMuted
@@ -1426,7 +1327,7 @@ const MenuBar: React.FC = () => {
                   ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
                   : '0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)');
           }}
-          title={isMuted ? 'Unmute' : 'Volume Control'}
+          title={isMuted ? 'Unmute' : 'Mute'}
         >
           {/* Pulse effect when muted */}
           {isMuted && (
@@ -1442,8 +1343,6 @@ const MenuBar: React.FC = () => {
             {isMuted ? <MuteIcon /> : <UnmuteIcon />}
           </span>
         </button>
-
-        {/* Volume Control Popup - rendered via portal below */}
       </div>
 
       {/* Right side - Icon buttons with enhanced styling */}
@@ -1551,169 +1450,6 @@ const MenuBar: React.FC = () => {
           );
         })}
       </div>
-
-      {/* Portal-based Volume Popup */}
-      {showVolumePopup && volumePopupPosition && createPortal(
-        <div
-          data-volume-popup
-          style={{
-            position: 'fixed',
-            top: `${volumePopupPosition.top}px`,
-            left: `${volumePopupPosition.left}px`,
-            padding: '24px',
-            minWidth: '300px',
-            background: isLightMode
-              ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(250, 250, 250, 0.95))'
-              : 'linear-gradient(135deg, rgba(15, 15, 15, 0.98), rgba(26, 26, 26, 0.95))',
-            backdropFilter: 'blur(30px)',
-            WebkitBackdropFilter: 'blur(30px)',
-            border: isLightMode
-              ? '1px solid rgba(0, 0, 0, 0.1)'
-              : '1px solid rgba(255, 255, 255, 0.15)',
-            borderRadius: '18px',
-            boxShadow: isLightMode
-              ? '0 12px 40px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
-              : '0 12px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-            zIndex: 1000001,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px',
-            animation: 'fadeInScale 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-          }}
-        >
-          {/* Header */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '4px'
-          }}>
-            <span style={{
-              fontSize: '0.85rem',
-              fontWeight: '600',
-              color: isLightMode ? '#666' : '#aaa',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
-            }}>
-              Volume Control
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{
-                fontSize: '1.2rem',
-                fontWeight: '700',
-                color: isLightMode ? '#1a1a1a' : '#ffffff',
-                fontFamily: HANDWRITTEN_FONT
-              }}>
-                {isMuted ? 'Muted' : `${volume > 0 ? '+' : ''}${volume} dB`}
-              </span>
-              <button
-                onClick={() => {
-                  handleVolumeChange(6);
-                }}
-                disabled={!isAudioLoaded || volume === 6}
-                style={{
-                  padding: '4px 8px',
-                  fontSize: '0.7rem',
-                  background: volume === 6 ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') : 'transparent',
-                  border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'}`,
-                  borderRadius: '6px',
-                  color: isLightMode ? '#666' : '#aaa',
-                  cursor: (!isAudioLoaded || volume === 6) ? 'not-allowed' : 'pointer',
-                  opacity: (!isAudioLoaded || volume === 6) ? 0.4 : 1,
-                  transition: 'all 0.2s ease'
-                }}
-                title="Reset to +6 dB"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-
-          {/* Volume Labels */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            fontSize: '0.7rem',
-            color: isLightMode ? '#999' : '#666',
-            fontWeight: '500'
-          }}>
-            <span>-60 dB</span>
-            <span>0 dB</span>
-            <span>+6 dB</span>
-          </div>
-
-          {/* Volume Slider */}
-          <input
-            type="range"
-            min="-60"
-            max="6"
-            step="1"
-            value={volume}
-            onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-            onInput={(e) => handleVolumeChange(parseFloat((e.target as HTMLInputElement).value))}
-            disabled={!isAudioLoaded}
-            style={{
-              width: '100%',
-              height: '8px',
-              borderRadius: '4px',
-              position: 'relative',
-              display: 'block',
-              background: isLightMode 
-                ? `linear-gradient(to right, #ccc 0%, #ccc ${((volume + 60) / 66) * 100}%, #e0e0e0 ${((volume + 60) / 66) * 100}%, #e0e0e0 100%)`
-                : `linear-gradient(to right, #555 0%, #555 ${((volume + 60) / 66) * 100}%, #333 ${((volume + 60) / 66) * 100}%, #333 100%)`,
-              outline: 'none',
-              cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-              WebkitAppearance: 'none',
-              appearance: 'none',
-              opacity: isAudioLoaded ? 1 : 0.4,
-              transition: 'background 0.1s ease'
-            }}
-            className="volume-popup-slider"
-          />
-
-          {/* Mute/Unmute Toggle Button - Icon Only */}
-          <button
-            onClick={handleMuteToggle}
-            disabled={!isAudioLoaded}
-            style={{
-              padding: '10px',
-              background: isMuted 
-                ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
-                : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'),
-              border: `1px solid ${isMuted 
-                ? (isLightMode ? 'rgba(220,53,69,0.3)' : 'rgba(220,53,69,0.4)')
-                : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)')}`,
-              borderRadius: '10px',
-              color: isMuted 
-                ? (isLightMode ? '#dc3545' : '#ff6b7a')
-                : (isLightMode ? '#1a1a1a' : '#ffffff'),
-              cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-              opacity: isAudioLoaded ? 1 : 0.4,
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '100%'
-            }}
-            onMouseEnter={(e) => {
-              if (isAudioLoaded) {
-                e.currentTarget.style.background = isMuted 
-                  ? (isLightMode ? 'rgba(220,53,69,0.15)' : 'rgba(220,53,69,0.3)')
-                  : (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)');
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = isMuted 
-                ? (isLightMode ? 'rgba(220,53,69,0.1)' : 'rgba(220,53,69,0.2)')
-                : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)');
-            }}
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted ? <MuteIcon /> : <UnmuteIcon />}
-          </button>
-        </div>,
-        document.body
-      )}
 
       {/* Portal-based Dropdown Menu */}
       {openMenu && dropdownPosition && (() => {
@@ -2025,41 +1761,6 @@ const MenuBar: React.FC = () => {
           box-shadow: 0 0 15px ${getPitchColor(pitch)}80, 0 4px 10px rgba(0,0,0,0.4);
         }
         
-        /* Volume Slider Thumb - Properly aligned */
-        .volume-slider::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_GREEN}CC);
-          cursor: pointer;
-          border: 3px solid ${isLightMode ? '#FFFFFF' : '#1a1a1a'};
-          box-shadow: 0 0 15px ${KENYAN_GREEN}80, 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
-          transition: all 0.2s ease;
-          position: relative;
-          top: -7px;
-        }
-        
-        .volume-slider::-webkit-slider-thumb:hover {
-          transform: scale(1.2);
-          box-shadow: 0 0 20px ${KENYAN_GREEN}, 0 6px 15px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4);
-        }
-        
-        .volume-slider::-webkit-slider-thumb:active {
-          transform: scale(1.15);
-        }
-        
-        .volume-slider::-moz-range-thumb {
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_GREEN}CC);
-          cursor: pointer;
-          border: 3px solid ${isLightMode ? '#FFFFFF' : '#1a1a1a'};
-          box-shadow: 0 0 15px ${KENYAN_GREEN}80, 0 4px 10px rgba(0,0,0,0.4);
-        }
-        
         .menu-bar input[type="range"]:disabled::-webkit-slider-thumb {
           background: ${isLightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
           box-shadow: none;
@@ -2070,42 +1771,6 @@ const MenuBar: React.FC = () => {
           background: ${isLightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
           box-shadow: none;
           cursor: not-allowed;
-        }
-        
-        /* Volume Popup Slider Thumb - Greyish/White */
-        .volume-popup-slider::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          background: ${isLightMode ? '#ffffff' : '#e0e0e0'};
-          cursor: pointer;
-          border: 2px solid ${isLightMode ? '#999' : '#666'};
-          box-shadow: 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.5);
-          transition: all 0.2s ease;
-          margin-top: -6px;
-        }
-        
-        .volume-popup-slider::-webkit-slider-thumb:hover {
-          transform: scale(1.15);
-          background: ${isLightMode ? '#f5f5f5' : '#f0f0f0'};
-          box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.6);
-        }
-        
-        .volume-popup-slider::-webkit-slider-thumb:active {
-          transform: scale(1.1);
-        }
-        
-        .volume-popup-slider::-moz-range-thumb {
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          background: ${isLightMode ? '#ffffff' : '#e0e0e0'};
-          cursor: pointer;
-          border: 2px solid ${isLightMode ? '#999' : '#666'};
-          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-          margin-top: -6px;
         }
         
         @keyframes fadeInScale {
