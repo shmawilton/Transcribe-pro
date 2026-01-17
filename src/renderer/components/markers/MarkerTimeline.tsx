@@ -32,6 +32,7 @@ export function MarkerTimeline() {
   const [hoverX, setHoverX] = useState<number>(0);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [showMarkerForm, setShowMarkerForm] = useState(false);
+  const [hasDragged, setHasDragged] = useState(false); // Track if user actually dragged
   const [newMarkerName, setNewMarkerName] = useState('');
   const [newMarkerColor, setNewMarkerColor] = useState<string>(DEFAULT_MARKER_COLOR as string);
   const [newMarkerSpeed, setNewMarkerSpeed] = useState(1.0);
@@ -237,10 +238,14 @@ export function MarkerTimeline() {
     // Track mouse position for tooltip positioning
     setMousePosition({ x: e.clientX, y: e.clientY });
     
-    // If creating marker, update end time
+    // If creating marker, update end time and mark as dragged
     if (isCreatingMarker && markerStartTime !== null) {
       const clampedTime = Math.max(0, Math.min(time, duration));
       setMarkerEndTime(clampedTime);
+      // Mark as dragged if end time differs from start time
+      if (Math.abs(clampedTime - markerStartTime) > 0.1) {
+        setHasDragged(true);
+      }
     }
   }, [isCreatingMarker, markerStartTime, duration, pixelToTime]);
   
@@ -253,8 +258,8 @@ export function MarkerTimeline() {
     }
   }, [isCreatingMarker]);
   
-  // Handle SVG click (start marker creation)
-  const handleSvgClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+  // Handle SVG mouse down (start marker creation drag)
+  const handleSvgMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     // Don't start if clicking on existing marker
     if ((e.target as SVGElement).closest('g[data-marker-id]')) {
       return;
@@ -269,10 +274,11 @@ export function MarkerTimeline() {
     const clampedTime = Math.max(0, Math.min(time, duration));
     
     if (!isCreatingMarker) {
-      // Start creating marker
+      // Start creating marker on mousedown
       setIsCreatingMarker(true);
       setMarkerStartTime(clampedTime);
       setMarkerEndTime(clampedTime);
+      setHasDragged(false); // Reset drag flag
     }
   }, [isCreatingMarker, duration, pixelToTime]);
   
@@ -307,31 +313,40 @@ export function MarkerTimeline() {
   useEffect(() => {
     const handleMouseUp = () => {
       if (isCreatingMarker && markerStartTime !== null && markerEndTime !== null) {
-        // Ensure start < end
-        const start = Math.min(markerStartTime, markerEndTime);
-        const end = Math.max(markerStartTime, markerEndTime);
-        
-        // Minimum marker duration (0.5 seconds)
-        if (end - start >= 0.5) {
-          setMarkerStartTime(start);
-          setMarkerEndTime(end);
-          setShowMarkerForm(true);
+        // Only show form if user actually dragged (not just clicked)
+        if (hasDragged) {
+          // Ensure start < end
+          const start = Math.min(markerStartTime, markerEndTime);
+          const end = Math.max(markerStartTime, markerEndTime);
+          
+          // Minimum marker duration (0.5 seconds)
+          if (end - start >= 0.5) {
+            setMarkerStartTime(start);
+            setMarkerEndTime(end);
+            setShowMarkerForm(true);
+          } else {
+            // Too small, cancel
+            setIsCreatingMarker(false);
+            setMarkerStartTime(null);
+            setMarkerEndTime(null);
+            setHasDragged(false);
+          }
         } else {
-          // Too small, cancel
+          // Just clicked without dragging, cancel
           setIsCreatingMarker(false);
           setMarkerStartTime(null);
           setMarkerEndTime(null);
+          setHasDragged(false);
         }
       }
     };
     
     window.addEventListener('mouseup', handleMouseUp);
     return () => window.removeEventListener('mouseup', handleMouseUp);
-  }, [isCreatingMarker, markerStartTime, markerEndTime]);
+  }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged]);
 
-  // Show time tooltip ALWAYS when hovering over timeline (including over markers)
-  // This shows the exact time at the pointer position
-  const showTimeTooltip = hoverTime !== null && !isCreatingMarker && mousePosition !== null;
+  // Disable time tooltip (no hover effects)
+  const showTimeTooltip = true;
   
   // Handle marker form submission - Now uses MarkerManager
   const handleCreateMarker = useCallback(() => {
@@ -389,6 +404,7 @@ export function MarkerTimeline() {
     setNewMarkerLoop(false);
     setStartTimeInput('');
     setEndTimeInput('');
+    setHasDragged(false);
     setRequestMarkerCreation(false); // Clear request from MarkerPanel
   }, [setRequestMarkerCreation]);
 
@@ -571,8 +587,7 @@ export function MarkerTimeline() {
         flexShrink: 0,
       }}
     >
-      {/* Hover tooltip for existing markers */}
-      {/* Tooltip for existing markers */}
+      {/* Marker hover tooltip */}
       {hoveredMarker && hoveredMarkerData && tooltipPosition && !isCreatingMarker && (
         <div 
           className="marker-tooltip"
@@ -1048,7 +1063,7 @@ export function MarkerTimeline() {
           }}
           onMouseMove={handleSvgMouseMove}
           onMouseLeave={handleSvgMouseLeave}
-          onClick={handleSvgClick}
+          onMouseDown={handleSvgMouseDown}
         >
           {/* Time Grid Background */}
           <rect
@@ -1185,8 +1200,8 @@ export function MarkerTimeline() {
                   width={dimensions.width}
                   height={MARKER_HEIGHT}
                   fill={marker.color || '#4CAF50'}
-                  opacity={isActive ? 0.95 : isHovered ? 0.85 : 0.7}
-                  stroke={isActive ? '#FFD700' : isHovered ? '#FFF' : 'rgba(255,255,255,0.3)'}
+                  opacity={isActive ? 0.95 : 0.7}
+                  stroke={isActive ? '#FFD700' : 'rgba(255,255,255,0.3)'}
                   strokeWidth={isActive ? 2 : 1}
                   strokeDasharray={marker.loop ? '4 2' : 'none'} // Dashed border for loop markers
                   rx={4}
@@ -1194,7 +1209,7 @@ export function MarkerTimeline() {
                   onClick={(e) => handleMarkerClick(e, marker.id)}
                   onMouseEnter={() => setHoveredMarker(marker.id)}
                   onMouseLeave={() => setHoveredMarker(null)}
-                  style={{ cursor: 'pointer', transition: 'opacity 0.2s, stroke 0.2s' }}
+                  style={{ cursor: 'pointer' }}
                 />
                 
                 {/* Loop indicator icon - circular arrow (only show if marker is wide enough) */}

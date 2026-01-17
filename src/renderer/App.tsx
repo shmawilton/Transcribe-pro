@@ -5,11 +5,16 @@ import MarkerTimeline from './components/markers/MarkerTimeline';
 import PlaybackPanel from './components/controls/PlaybackPanel';
 import MarkerPanel from './components/controls/MarkerPanel';
 import SettingsModal from './components/ui/SettingsModal';
-import HelpModal from './components/ui/HelpModal';
 import WelcomeScreen from './components/ui/WelcomeScreen';
 import ErrorBoundary from './components/ui/ErrorBoundary';
+import ToastContainer, { useToast } from './components/ui/Toast';
+import StatusBar from './components/ui/StatusBar';
+import CommandPalette from './components/ui/CommandPalette';
+import ExportModal from './components/ui/ExportModal';
 import { useAppStore } from './store/store';
 import { useAudioEngine } from './components/audio/useAudioEngine';
+import { getProjectLoader } from './components/project/ProjectLoader';
+import { getProjectSaver } from './components/project/ProjectSaver';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -20,10 +25,17 @@ const App: React.FC = () => {
   const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
   const isLoading = useAppStore((state) => state.audio.isLoading); // Use global store
   const [showWelcome, setShowWelcome] = useState(true);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const restoreAttemptedRef = React.useRef(false);
+  const { toasts, closeToast } = useToast();
+  
+  // Get export modal state from store
+  const isExportModalOpen = useAppStore((state) => state.ui.isExportModalOpen);
+  const setIsExportModalOpen = useAppStore((state) => state.setIsExportModalOpen);
   
   // Initialize audio engine (but don't use its local loading state)
   // This hook should not cause re-renders
-  const { play, pause, stop, seek, getCurrentTime, setVolume } = useAudioEngine();
+  const { play, pause, stop, seek, getCurrentTime, setVolume, loadFile, resumeAudioContext } = useAudioEngine();
   
   // Get store values for keyboard shortcuts
   const isPlaying = useAppStore((state) => state.audio.isPlaying);
@@ -35,9 +47,121 @@ const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Debug: Track loading state changes
+  useEffect(() => {
+    console.log('[App] Loading state changed:', { isLoading, isAudioLoaded, showWelcome });
+  }, [isLoading, isAudioLoaded, showWelcome]);
+
+  // Web-only: restore last auto-saved project on reload (offline-friendly)
+  useEffect(() => {
+    const isElectron = !!(window as any).electronAPI || 
+      (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron);
+    if (isElectron) return;
+    if (restoreAttemptedRef.current) return;
+    restoreAttemptedRef.current = true;
+
+    (async () => {
+      try {
+        // Only restore if nothing is loaded and we're not currently loading
+        const store = useAppStore.getState();
+        if (store.audio.isLoaded || store.audio.isLoading) return;
+
+        await resumeAudioContext();
+        const loader = getProjectLoader();
+        const restored = await loader.loadAutoSavedProject(loadFile);
+        if (restored) {
+          setShowWelcome(false);
+          // Mark autosave timestamp so exit warnings don't fire immediately
+          try {
+            (useAppStore.getState() as any).setLastAutoSaveAt?.(Date.now());
+          } catch (_) {}
+          console.log('[App] Restored last auto-saved project');
+        }
+      } catch (e) {
+        console.warn('[App] Auto-restore failed:', e);
+      }
+    })();
+  }, [loadFile, resumeAudioContext]);
+
+  // Web-only: warn before leaving if changes haven't been auto-saved
+  useEffect(() => {
+    const isElectron = !!(window as any).electronAPI || 
+      (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron);
+    if (isElectron) return;
+
+    const handler = (e: BeforeUnloadEvent) => {
+      const store = useAppStore.getState() as any;
+      const hasProject = !!store.audio?.file && !!store.audio?.isLoaded;
+      if (!hasProject) return;
+
+      // Respect settings (auto-save on/off)
+      let autoSaveEnabled = true;
+      try {
+        const raw = localStorage.getItem('appSettings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (typeof parsed.autoSaveEnabled === 'boolean') autoSaveEnabled = parsed.autoSaveEnabled;
+        }
+      } catch (_) {}
+
+      const lastChangeAt = store.projectLastChangeAt || 0;
+      const lastAutoSaveAt = store.lastAutoSaveAt || 0;
+      const lastManualSaveAt = store.lastManualSaveAt || 0;
+      const lastSaveAt = Math.max(lastAutoSaveAt, lastManualSaveAt);
+
+      const hasUnsaved = lastChangeAt > 0 && lastSaveAt < lastChangeAt;
+      if (!hasUnsaved) return;
+
+      // If autosave is enabled, we still warn if it hasn't run since the last change
+      // If autosave is disabled, always warn.
+      if (!autoSaveEnabled || lastAutoSaveAt < lastChangeAt) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // Command Palette commands
+  const commandPaletteCommands = React.useMemo(() => {
+    const projectSaver = getProjectSaver();
+    const projectLoader = getProjectLoader();
+    const store = useAppStore.getState();
+    
+    return [
+      // File commands
+      { id: 'new-project', label: 'Start New Project', category: 'File', shortcut: 'Ctrl+O', icon: '📄', action: () => { /* handled in MenuBar */ } },
+      { id: 'load-project', label: 'Load Project', category: 'File', shortcut: 'Ctrl+L', icon: '📂', action: () => { /* handled in MenuBar */ } },
+      { id: 'save-project', label: 'Save Project', category: 'File', shortcut: 'Ctrl+S', icon: '💾', action: () => { /* handled in MenuBar */ } },
+      { id: 'save-as', label: 'Save Project As...', category: 'File', shortcut: 'Ctrl+Shift+S', icon: '💾', action: () => { /* handled in MenuBar */ } },
+      
+      // View commands
+      { id: 'zoom-in', label: 'Zoom In', category: 'View', shortcut: 'Ctrl++', icon: '🔍', action: () => { /* handled in MenuBar */ } },
+      { id: 'zoom-out', label: 'Zoom Out', category: 'View', shortcut: 'Ctrl+-', icon: '🔍', action: () => { /* handled in MenuBar */ } },
+      { id: 'zoom-reset', label: 'Reset Zoom', category: 'View', shortcut: 'Ctrl+0', icon: '🔍', action: () => { /* handled in MenuBar */ } },
+      { id: 'settings', label: 'Settings', category: 'View', shortcut: 'Ctrl+,', icon: '⚙️', action: () => { useAppStore.getState().setIsSettingsModalOpen(true); } },
+      
+      // Playback commands
+      { id: 'play-pause', label: 'Play/Pause', category: 'Playback', shortcut: 'Space', icon: '▶️', action: () => { /* handled globally */ } },
+      { id: 'stop', label: 'Stop', category: 'Playback', shortcut: 'S', icon: '⏹️', action: () => { /* handled globally */ } },
+      
+      // Edit commands
+      { id: 'undo', label: 'Undo', category: 'Edit', shortcut: 'Ctrl+Z', icon: '↶', action: () => { store.undo(); } },
+      { id: 'redo', label: 'Redo', category: 'Edit', shortcut: 'Ctrl+Y', icon: '↷', action: () => { store.redo(); } },
+    ];
+  }, []);
+
   // Keyboard shortcuts handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Command Palette (Ctrl+Shift+P)
+      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        setShowCommandPalette(true);
+        return;
+      }
       // Don't trigger shortcuts if user is typing in an input, textarea, or contenteditable
       const target = e.target as HTMLElement;
       const isInputFocused = 
@@ -45,6 +169,13 @@ const App: React.FC = () => {
         target.tagName === 'TEXTAREA' || 
         target.isContentEditable ||
         target.closest('input, textarea, [contenteditable="true"]');
+
+      // Command Palette (Ctrl+Shift+P) - works everywhere
+      if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+        e.preventDefault();
+        setShowCommandPalette(true);
+        return;
+      }
 
       // Handle undo/redo shortcuts even when audio is not loaded (they work on markers)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'y')) {
@@ -123,7 +254,7 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isAudioLoaded, isPlaying, currentVolume, play, pause, stop, seek, getCurrentTime, setVolume, setVolumeStore]);
+  }, [isAudioLoaded, isPlaying, currentVolume, play, pause, stop, seek, getCurrentTime, setVolume, setVolumeStore, setShowCommandPalette]);
   
   // Show/hide welcome screen based on audio loaded state
   // Don't show welcome when loading (user should see loading animation instead)
@@ -312,7 +443,7 @@ const App: React.FC = () => {
         {/* Main Content Area */}
         <div className="main-content">
           {/* Waveform + Marker Timeline Section (50% of screen) */}
-          <div className="waveform-section">
+          <div className="waveform-section adinkra-pattern panel-pattern">
             <ErrorBoundary>
               <Waveform />
             </ErrorBoundary>
@@ -323,12 +454,12 @@ const App: React.FC = () => {
 
           {/* Two Panels Section */}
           <div className="panels-section">
-            <div className="panel">
+            <div className="panel panel-pattern">
               <ErrorBoundary>
                 <PlaybackPanel />
               </ErrorBoundary>
             </div>
-            <div className="panel">
+            <div className="panel panel-pattern">
               <ErrorBoundary>
                 <MarkerPanel />
               </ErrorBoundary>
@@ -338,7 +469,21 @@ const App: React.FC = () => {
 
         {/* Modals */}
         <SettingsModal />
-        <HelpModal />
+        <CommandPalette 
+          isOpen={showCommandPalette} 
+          onClose={() => setShowCommandPalette(false)}
+          commands={commandPaletteCommands}
+        />
+        <ExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+        />
+        
+        {/* Status Components */}
+        <StatusBar />
+        
+        {/* Toast Notifications */}
+        <ToastContainer toasts={toasts} onClose={closeToast} />
       </div>
     </ErrorBoundary>
   );

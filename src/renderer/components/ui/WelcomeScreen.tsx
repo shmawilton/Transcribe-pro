@@ -66,8 +66,17 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
     try {
       setError(null);
       // Reset project state (fresh start)
-      const { resetProject } = useAppStore.getState();
-      resetProject();
+      const store = useAppStore.getState();
+      store.resetProject();
+      
+      // Reset all settings to defaults
+      store.setPitch(0);
+      store.setVolume(6);
+      store.setPlaybackRate(1);
+      if (store.globalControls.isMuted) {
+        store.toggleMute();
+      }
+      store.setZoomLevel(1);
       
       await resumeAudioContext();
       const file = await pickAudioFile();
@@ -82,6 +91,15 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       }
 
       await loadFile(file);
+      
+      // Reset viewport to full duration after audio loads
+      setTimeout(() => {
+        const audioStore = useAppStore.getState();
+        if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
+          audioStore.setViewport(0, audioStore.audio.duration);
+        }
+      }, 500);
+      
       onAudioLoaded();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start new project');
@@ -135,8 +153,27 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
 
     try {
       setError(null);
+      // Reset all settings to defaults when loading audio
+      const store = useAppStore.getState();
+      store.setPitch(0);
+      store.setVolume(6);
+      store.setPlaybackRate(1);
+      if (store.globalControls.isMuted) {
+        store.toggleMute();
+      }
+      store.setZoomLevel(1);
+      
       await resumeAudioContext();
       await loadFile(file);
+      
+      // Reset viewport to full duration after audio loads
+      setTimeout(() => {
+        const audioStore = useAppStore.getState();
+        if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
+          audioStore.setViewport(0, audioStore.audio.duration);
+        }
+      }, 500);
+      
       onAudioLoaded();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load audio');

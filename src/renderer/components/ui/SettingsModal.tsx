@@ -21,6 +21,31 @@ const SettingsModal: React.FC = () => {
   
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : false);
+  const [availableHeight, setAvailableHeight] = useState(typeof window !== 'undefined' ? window.innerHeight - 64 - 40 : 600); // header (4rem) + margins
+  const [mounted, setMounted] = useState(false);
+  
+  // Mount check for portal safety
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  // Update desktop state and available height on resize
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+      setAvailableHeight(window.innerHeight - 64 - 40); // header (4rem = 64px) + margins (20px top + 20px bottom)
+    };
+    
+    // Set initial values
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -78,46 +103,49 @@ const SettingsModal: React.FC = () => {
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const modalContent = (
     <div
+      className="modal-backdrop"
       style={{
         position: 'fixed',
-        top: 0,
+        top: '4rem', // Start below menu bar (4rem = 64px)
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
         zIndex: 10000,
         padding: '20px',
+        paddingTop: '20px',
       }}
       onClick={handleBackdropClick}
     >
       <div
+        className="modal-content"
         style={{
-          background: 'rgba(26, 26, 26, 0.95)',
+          background: 'rgba(26, 26, 26, 0.98)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
           borderRadius: '20px',
-          padding: '2rem',
-          minWidth: '500px',
-          maxWidth: '600px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: `
-            8px 8px 16px rgba(0, 0, 0, 0.4),
-            -8px -8px 16px rgba(255, 255, 255, 0.02),
-            inset 2px 2px 4px rgba(0, 0, 0, 0.3),
-            inset -2px -2px 4px rgba(255, 255, 255, 0.01)
-          `,
+          padding: '1.5rem',
+          minWidth: '700px',
+          maxWidth: '900px',
+          width: '85vw',
+          height: `${availableHeight}px`,
+          maxHeight: `${availableHeight}px`,
+          overflowY: 'visible',
+          overflowX: 'hidden',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
           position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -156,181 +184,203 @@ const SettingsModal: React.FC = () => {
           ×
         </button>
 
-        {/* Header */}
-        <h2
-          style={{
-            color: '#ffffff',
-            fontSize: '1.5rem',
-            fontWeight: '600',
-            marginBottom: '1.5rem',
-            fontFamily: "'Merienda', 'Caveat', cursive",
-          }}
-        >
-          Settings
-        </h2>
-
-        {/* Auto-Save Settings */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h3
-            style={{
-              color: '#ffffff',
-              fontSize: '1rem',
-              fontWeight: '500',
-              marginBottom: '1rem',
-              fontFamily: "'Merienda', 'Caveat', cursive",
-            }}
-          >
-            Auto-Save
-          </h3>
-          
-          {/* Enable/Disable Toggle */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1rem',
-              padding: '0.75rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-            }}
-          >
-            <label
+        {/* Scrollable Content Area */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          paddingRight: '0.5rem',
+          minHeight: 0,
+        }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+            <h2
               style={{
                 color: '#ffffff',
-                fontSize: '0.9rem',
-                cursor: 'pointer',
+                fontSize: '1.75rem',
+                fontWeight: '600',
+                margin: 0,
+                fontFamily: "'Merienda', 'Caveat', cursive",
               }}
             >
-              Enable Auto-Save
-            </label>
-            <button
-              onClick={() => handleChange('autoSaveEnabled', !settings.autoSaveEnabled)}
-              style={{
-                width: '48px',
-                height: '24px',
-                borderRadius: '12px',
-                border: 'none',
-                background: settings.autoSaveEnabled ? '#006644' : 'rgba(255, 255, 255, 0.2)',
-                position: 'relative',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                boxShadow: settings.autoSaveEnabled
-                  ? 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.05)'
-                  : 'inset -2px -2px 4px rgba(0, 0, 0, 0.3), inset 2px 2px 4px rgba(255, 255, 255, 0.05)',
-              }}
-            >
-              <div
-                style={{
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '50%',
-                  background: '#ffffff',
-                  position: 'absolute',
-                  top: '2px',
-                  left: settings.autoSaveEnabled ? '26px' : '2px',
-                  transition: 'left 0.3s ease',
-                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-                }}
-              />
-            </button>
+              ⚙️ Settings
+            </h2>
           </div>
 
-          {/* Interval Input */}
-          {settings.autoSaveEnabled && (
-            <div
-              style={{
-                padding: '0.75rem',
-                background: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: '12px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-              }}
-            >
-              <label
+          {/* Main Content Grid - Horizontal Layout for Desktop */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isDesktop ? '1fr 1fr' : '1fr',
+            gap: '1.5rem',
+            marginBottom: '1.5rem',
+          }}>
+          {/* Left Column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Auto-Save Settings */}
+            <div>
+              <h3
                 style={{
-                  display: 'block',
                   color: '#ffffff',
-                  fontSize: '0.9rem',
-                  marginBottom: '0.5rem',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  marginBottom: '0.75rem',
+                  fontFamily: "'Merienda', 'Caveat', cursive",
                 }}
               >
-                Auto-Save Interval (minutes)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="60"
-                value={settings.autoSaveInterval}
-                onChange={(e) => handleChange('autoSaveInterval', parseInt(e.target.value) || 1)}
+                Auto-Save
+              </h3>
+              
+              {/* Enable/Disable Toggle */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '0.75rem',
+                  padding: '0.6rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+              >
+                <label
+                  style={{
+                    color: '#ffffff',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Enable Auto-Save
+                </label>
+                <button
+                  onClick={() => handleChange('autoSaveEnabled', !settings.autoSaveEnabled)}
+                  style={{
+                    width: '48px',
+                    height: '24px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: settings.autoSaveEnabled ? '#006644' : 'rgba(255, 255, 255, 0.2)',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    boxShadow: settings.autoSaveEnabled
+                      ? 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.05)'
+                      : 'inset -2px -2px 4px rgba(0, 0, 0, 0.3), inset 2px 2px 4px rgba(255, 255, 255, 0.05)',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      background: '#ffffff',
+                      position: 'absolute',
+                      top: '2px',
+                      left: settings.autoSaveEnabled ? '26px' : '2px',
+                      transition: 'left 0.3s ease',
+                      boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Interval Input */}
+              {settings.autoSaveEnabled && (
+                <div
+                  style={{
+                    padding: '0.6rem',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  <label
+                    style={{
+                      display: 'block',
+                      color: '#ffffff',
+                      fontSize: '0.85rem',
+                      marginBottom: '0.4rem',
+                    }}
+                  >
+                    Auto-Save Interval (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={settings.autoSaveInterval}
+                    onChange={(e) => handleChange('autoSaveInterval', parseInt(e.target.value) || 1)}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      fontSize: '0.85rem',
+                      boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.02)',
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Language Settings */}
+            <div>
+              <h3
+                style={{
+                  color: '#ffffff',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  marginBottom: '0.75rem',
+                  fontFamily: "'Merienda', 'Caveat', cursive",
+                }}
+              >
+                Language
+              </h3>
+              <select
+                value={settings.language}
+                onChange={(e) => handleChange('language', e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.5rem',
-                  background: 'rgba(0, 0, 0, 0.3)',
+                  padding: '0.6rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '8px',
+                  borderRadius: '10px',
                   color: '#ffffff',
-                  fontSize: '0.9rem',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
                   boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.02)',
                 }}
-              />
+              >
+                <option value="English">English</option>
+              </select>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Language Settings */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h3
-            style={{
-              color: '#ffffff',
-              fontSize: '1rem',
-              fontWeight: '500',
-              marginBottom: '1rem',
-              fontFamily: "'Merienda', 'Caveat', cursive",
-            }}
-          >
-            Language
-          </h3>
-          <select
-            value={settings.language}
-            onChange={(e) => handleChange('language', e.target.value)}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '12px',
-              color: '#ffffff',
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              boxShadow: 'inset 2px 2px 4px rgba(0, 0, 0, 0.3), inset -2px -2px 4px rgba(255, 255, 255, 0.02)',
-            }}
-          >
-            <option value="English">English</option>
-          </select>
-        </div>
-
-        {/* Keyboard Shortcuts */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h3
-            style={{
-              color: '#ffffff',
-              fontSize: '1rem',
-              fontWeight: '500',
-              marginBottom: '1rem',
-              fontFamily: "'Merienda', 'Caveat', cursive",
-            }}
-          >
-            Keyboard Shortcuts
-          </h3>
-          <div
-            style={{
-              padding: '1rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-            }}
-          >
+          {/* Right Column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Keyboard Shortcuts */}
+            <div>
+              <h3
+                style={{
+                  color: '#ffffff',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  marginBottom: '0.75rem',
+                  fontFamily: "'Merienda', 'Caveat', cursive",
+                }}
+              >
+                Keyboard Shortcuts
+              </h3>
+              <div
+                style={{
+                  padding: '0.75rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+              >
             {[
               { key: 'Space', desc: 'Play/Pause' },
               { key: 'Ctrl+Z', desc: 'Undo' },
@@ -345,21 +395,21 @@ const SettingsModal: React.FC = () => {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '0.5rem 0',
+                  padding: '0.4rem 0',
                   borderBottom: idx < 5 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
                 }}
               >
-                <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.85rem' }}>
+                <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem' }}>
                   {shortcut.desc}
                 </span>
                 <kbd
                   style={{
-                    padding: '0.25rem 0.5rem',
+                    padding: '0.2rem 0.4rem',
                     background: 'rgba(0, 0, 0, 0.3)',
                     border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '6px',
                     color: '#ffffff',
-                    fontSize: '0.75rem',
+                    fontSize: '0.7rem',
                     fontFamily: 'monospace',
                     boxShadow: 'inset 1px 1px 2px rgba(0, 0, 0, 0.3)',
                   }}
@@ -368,49 +418,52 @@ const SettingsModal: React.FC = () => {
                 </kbd>
               </div>
             ))}
-          </div>
-        </div>
+              </div>
+            </div>
 
-        {/* About Section */}
-        <div style={{ marginBottom: '2rem' }}>
-          <h3
-            style={{
-              color: '#ffffff',
-              fontSize: '1rem',
-              fontWeight: '500',
-              marginBottom: '1rem',
-              fontFamily: "'Merienda', 'Caveat', cursive",
-            }}
-          >
-            About
-          </h3>
-          <div
-            style={{
-              padding: '1rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-            }}
-          >
+            {/* About Section */}
             <div>
-              <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.85rem' }}>Version: </span>
-              <span style={{ color: '#ffffff', fontSize: '0.85rem', fontWeight: '500' }}>1.0.0</span>
+              <h3
+                style={{
+                  color: '#ffffff',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  marginBottom: '0.75rem',
+                  fontFamily: "'Merienda', 'Caveat', cursive",
+                }}
+              >
+                About
+              </h3>
+              <div
+                style={{
+                  padding: '0.75rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+              >
+                <div>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem' }}>Version: </span>
+                  <span style={{ color: '#ffffff', fontSize: '0.8rem', fontWeight: '500' }}>1.0.0</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        </div>
 
         {/* Reset Button */}
-        <div style={{ marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '1rem', flexShrink: 0 }}>
           <button
             onClick={handleReset}
             style={{
               width: '100%',
-              padding: '0.75rem',
+              padding: '0.6rem',
               background: 'rgba(220, 53, 69, 0.2)',
               border: '1px solid rgba(220, 53, 69, 0.3)',
-              borderRadius: '12px',
+              borderRadius: '10px',
               color: '#ff6b7a',
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               fontWeight: '500',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
@@ -429,28 +482,28 @@ const SettingsModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons - Fixed at bottom */}
         <div
           style={{
             display: 'flex',
-            gap: '1rem',
+            gap: '0.75rem',
             justifyContent: 'flex-end',
-            marginTop: '2rem',
-            paddingTop: '1.5rem',
+            paddingTop: '1rem',
             borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+            flexShrink: 0,
           }}
         >
           <button
             onClick={handleCancel}
             style={{
-              padding: '0.75rem 1.5rem',
+              padding: '0.6rem 1.25rem',
               background: 'rgba(255, 255, 255, 0.08)',
               backdropFilter: 'blur(10px)',
               WebkitBackdropFilter: 'blur(10px)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '12px',
+              borderRadius: '10px',
               color: '#ffffff',
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               fontWeight: '500',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
@@ -469,12 +522,12 @@ const SettingsModal: React.FC = () => {
             onClick={handleSave}
             disabled={!hasChanges}
             style={{
-              padding: '0.75rem 1.5rem',
+              padding: '0.6rem 1.25rem',
               background: hasChanges ? '#006644' : 'rgba(0, 102, 68, 0.3)',
               border: '1px solid rgba(0, 102, 68, 0.5)',
-              borderRadius: '12px',
+              borderRadius: '10px',
               color: '#ffffff',
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               fontWeight: '500',
               cursor: hasChanges ? 'pointer' : 'not-allowed',
               transition: 'all 0.2s ease',

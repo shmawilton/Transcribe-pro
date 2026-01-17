@@ -158,8 +158,8 @@ const PlaybackPanel: React.FC = () => {
 
   // Neumorphic button style
   const glassButtonStyle = (isActive: boolean, isDisabled: boolean, color: string = textColor) => ({
-    width: '48px',
-    height: '48px',
+    width: '42px',
+    height: '42px',
     borderRadius: '50%',
     background: isActive 
       ? `linear-gradient(135deg, ${KENYAN_GREEN}40, ${KENYAN_RED}40)`
@@ -179,21 +179,21 @@ const PlaybackPanel: React.FC = () => {
   });
 
   return (
-    <div className="playback-panel" style={{ 
-      width: '100%', 
+    <div className="playback-panel mx-auto w-full max-w-full overflow-x-auto" style={{ 
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'stretch',
       justifyContent: 'flex-start',
-      gap: '0.75rem',
-      padding: '1rem',
+      gap: '0.5rem',
+      padding: '0.75rem',
       background: 'var(--neu-bg-base)',
       borderRadius: 'var(--radius-md)',
       border: 'none',
       boxShadow: 'var(--neu-raised)',
       transition: 'all 0.3s ease',
-      overflow: 'hidden',
+      overflowY: 'visible',
+      overflowX: 'hidden',
       position: 'relative',
       fontFamily: HANDWRITTEN_FONT
     }}>
@@ -224,7 +224,8 @@ const PlaybackPanel: React.FC = () => {
         zIndex: 1,
         overflow: 'hidden',
         maxWidth: '100%',
-        padding: '0.25rem 0.5rem',
+        padding: '0.2rem 0.4rem',
+        minHeight: 'auto',
         borderRadius: '8px',
         backgroundImage: isPlaying 
           ? `linear-gradient(90deg, ${KENYAN_RED}20, ${KENYAN_GREEN}20, ${KENYAN_RED}20)`
@@ -290,13 +291,15 @@ const PlaybackPanel: React.FC = () => {
         }
       `}</style>
 
-      {/* Time Progress Display - Now at top */}
-      <div style={{
+        {/* Time Progress Display - Now at top */}
+      <div className="mx-auto w-full max-w-full px-1" style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.4rem',
+        gap: '0.25rem',
         position: 'relative',
-        zIndex: 1
+        zIndex: 1,
+        flexShrink: 0,
+        marginBottom: '0.2rem',
       }}>
         {/* Progress Bar */}
         <div style={{
@@ -322,7 +325,7 @@ const PlaybackPanel: React.FC = () => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '0.3rem 0.5rem',
+          padding: '0.25rem 0.4rem',
           background: 'var(--neu-bg-base)',
           borderRadius: '8px',
           border: 'none',
@@ -339,7 +342,7 @@ const PlaybackPanel: React.FC = () => {
               <polyline points="12 6 12 12 16 14"/>
             </svg>
             <span style={{
-              fontSize: '1.2rem',
+              fontSize: '1rem',
               fontWeight: '700',
               fontFamily: HANDWRITTEN_FONT,
               color: textColor,
@@ -377,14 +380,13 @@ const PlaybackPanel: React.FC = () => {
       </div>
 
       {/* Main Playback Controls */}
-      <div style={{
-        display: 'flex',
-        gap: '0.5rem',
-        alignItems: 'center',
-        justifyContent: 'center',
+      <div className="mx-auto flex flex-wrap justify-center items-center gap-1.5 px-2" style={{
         flexShrink: 0,
         position: 'relative',
-        zIndex: 1
+        zIndex: 1,
+        maxWidth: '100%',
+        width: '100%',
+        marginTop: '0.25rem',
       }}>
         {/* Skip Backward -5s */}
         <button
@@ -392,8 +394,8 @@ const PlaybackPanel: React.FC = () => {
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: '36px',
-            height: '36px',
+            width: '32px',
+            height: '32px',
           }}
           onMouseEnter={(e) => {
             if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.1)';
@@ -403,7 +405,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Skip -5 seconds"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
           </svg>
         </button>
@@ -425,7 +427,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Play"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill={KENYAN_GREEN}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill={KENYAN_GREEN}>
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
         </button>
@@ -445,7 +447,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Pause"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="4" width="4" height="16"/>
             <rect x="14" y="4" width="4" height="16"/>
           </svg>
@@ -468,7 +470,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Stop"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill={KENYAN_RED}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill={KENYAN_RED}>
             <rect x="6" y="6" width="12" height="12" rx="2"/>
           </svg>
         </button>
@@ -479,8 +481,8 @@ const PlaybackPanel: React.FC = () => {
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: '36px',
-            height: '36px',
+            width: '32px',
+            height: '32px',
           }}
           onMouseEnter={(e) => {
             if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.1)';
@@ -490,7 +492,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Skip +5 seconds"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <path d="M13 6v12l8.5-6L13 6zM4 18l8.5-6L4 6v12z"/>
           </svg>
         </button>
@@ -502,8 +504,8 @@ const PlaybackPanel: React.FC = () => {
             disabled={!isAudioLoaded}
             style={{
               ...glassButtonStyle(playbackSpeed !== 1.0, !isAudioLoaded, playbackSpeed !== 1.0 ? '#f39c12' : textColor),
-              width: '36px',
-              height: '36px',
+              width: '32px',
+              height: '32px',
               border: playbackSpeed !== 1.0 ? `2px solid #f39c12` : undefined,
               boxShadow: playbackSpeed !== 1.0 ? `0 0 15px #f39c1260` : undefined,
             }}
@@ -520,7 +522,7 @@ const PlaybackPanel: React.FC = () => {
             title={`Playback Speed: ${playbackSpeed.toFixed(2)}x`}
           >
             {/* Speed Gauge Icon - More Descriptive */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={playbackSpeed !== 1.0 ? '#f39c12' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={playbackSpeed !== 1.0 ? '#f39c12' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {/* Speedometer/Gauge */}
               <path d="M12 2v4M12 18v4M2 12h4M18 12h4" opacity="0.3"/>
               <circle cx="12" cy="12" r="9" fill="none"/>
@@ -544,6 +546,7 @@ const PlaybackPanel: React.FC = () => {
           {showSpeedPopup && (
             <div 
               ref={speedPopupRef}
+              className="mx-auto"
               style={{
                 position: 'absolute',
                 bottom: '100%',
@@ -552,7 +555,7 @@ const PlaybackPanel: React.FC = () => {
                 marginBottom: '8px',
                 padding: '16px',
                 width: '260px',
-                maxWidth: 'calc(100vw - 40px)',
+                maxWidth: 'min(260px, calc(100vw - 40px))',
                 background: 'rgba(26, 26, 26, 0.85)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',

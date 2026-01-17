@@ -84,6 +84,7 @@ export class HowlerAudioEngine {
   private loopStart: number | null = null;
   private loopEnd: number | null = null;
   private isLooping: boolean = false;
+  private isHandlingLoopJump: boolean = false;
 
   constructor() {
     console.log('[HowlerEngine] Initialized with on-demand pitch conversion');
@@ -862,100 +863,57 @@ export class HowlerAudioEngine {
    * Matches the behavior of AudioEngine (web version)
    */
   private async handleLoopEnd(): Promise<void> {
-    if (!this.isLooping || this.loopStart === null || !this.howl) {
+    if (!this.isLooping || this.loopStart === null || this.loopEnd === null || !this.howl) {
       console.warn('[HowlerEngine] handleLoopEnd called but loop is not active:', {
         isLooping: this.isLooping,
         loopStart: this.loopStart,
+        loopEnd: this.loopEnd,
         hasHowl: !!this.howl
       });
       return;
     }
 
+    // Prevent re-entrancy (timer can trigger multiple times near boundary)
+    if (this.isHandlingLoopJump) return;
+    this.isHandlingLoopJump = true;
+
     console.log('[HowlerEngine] Loop end reached, jumping to loop start:', this.loopStart);
     
-    // Get current playback state BEFORE making any changes
-    const wasPlaying = this.howl.playing();
-    
-    // Update position immediately to prevent multiple triggers
-    useAppStore.getState().setCurrentTime(this.loopStart);
-    
-    // If playing, stop current playback and restart from loop start
-    if (wasPlaying && this.howl) {
-      try {
-        // Stop current playback completely
-        if (this.currentSoundId !== null) {
-          this.howl.stop(this.currentSoundId);
-        } else {
-          this.howl.stop();
-        }
-        this.currentSoundId = null;
-        
-        // Stop time update temporarily to prevent race conditions
-        this.stopTimeUpdate();
-        
-        // Small delay to ensure Howler has stopped
-        await new Promise(resolve => setTimeout(resolve, 10));
-        
-        // Update store with loop start position BEFORE playing
-        useAppStore.getState().setCurrentTime(this.loopStart);
-        
-        // Start a new playback instance
-        this.currentSoundId = this.howl.play() as number;
-        
-        // Immediately seek to loop start position on the new sound instance
-        if (this.currentSoundId !== null) {
-          this.howl.seek(this.loopStart, this.currentSoundId);
-        } else {
-          // Fallback: seek on main instance
-          this.howl.seek(this.loopStart);
-        }
-        
-        // Verify the position is correct
-        const verifyPosition = this.currentSoundId !== null
-          ? this.howl.seek(this.currentSoundId)
-          : this.howl.seek();
-        
-        if (typeof verifyPosition === 'number') {
-          const actualPos = verifyPosition;
-          if (Math.abs(actualPos - this.loopStart) > 0.05) {
-            console.warn('[HowlerEngine] Position correction needed:', {
-              expected: this.loopStart,
-              actual: actualPos
-            });
-            // Try seeking again
-            if (this.currentSoundId !== null) {
-              this.howl.seek(this.loopStart, this.currentSoundId);
-            } else {
-              this.howl.seek(this.loopStart);
-            }
-          }
-          // Update store with actual position
-          useAppStore.getState().setCurrentTime(actualPos);
-        }
-        
-        // Restart time update to continue tracking
-        this.startTimeUpdate();
-        
-        // Ensure playing state is set
-        useAppStore.getState().setIsPlaying(true);
-        
-        console.log('[HowlerEngine] Looped back to start:', this.loopStart, '- playback continued');
-      } catch (error) {
-        console.error('[HowlerEngine] Error looping during playback:', error);
-        // Fallback: use seek method
-        await this.seek(this.loopStart);
-        if (wasPlaying && !this.howl.playing()) {
+    try {
+      const wasPlaying = this.currentSoundId !== null
+        ? this.howl.playing(this.currentSoundId)
+        : this.howl.playing();
+
+      // IMPORTANT: do NOT use Howler's built-in looping here.
+      // Also avoid stop()/play() because HTML5 audio frequently restarts at 0 before seek applies.
+      // Instead, just seek back to loopStart while continuing playback.
+      if (this.currentSoundId !== null) {
+        this.howl.seek(this.loopStart, this.currentSoundId);
+      } else {
+        this.howl.seek(this.loopStart);
+      }
+
+      useAppStore.getState().setCurrentTime(this.loopStart);
+
+      // Ensure playback continues if it was playing
+      if (wasPlaying) {
+        if (this.currentSoundId === null) {
           this.currentSoundId = this.howl.play() as number;
           if (this.currentSoundId !== null) {
             this.howl.seek(this.loopStart, this.currentSoundId);
           }
-          useAppStore.getState().setIsPlaying(true);
-          this.startTimeUpdate();
+        } else if (!this.howl.playing(this.currentSoundId)) {
+          this.howl.play(this.currentSoundId);
         }
+        useAppStore.getState().setIsPlaying(true);
       }
-    } else {
-      // Not playing, just update position
-      await this.seek(this.loopStart);
+
+      console.log('[HowlerEngine] Loop jump complete:', { loopStart: this.loopStart, loopEnd: this.loopEnd });
+    } catch (error) {
+      console.error('[HowlerEngine] Error during loop jump:', error);
+    } finally {
+      // Allow next loop check after a short delay to prevent rapid re-trigger
+      setTimeout(() => { this.isHandlingLoopJump = false; }, 80);
     }
   }
 
@@ -971,7 +929,7 @@ export class HowlerAudioEngine {
         
         // Check for marker loop end - jump back to start if looping
         // Only check if we're actually looping and have valid loop bounds
-        if (this.isLooping && this.loopEnd !== null && this.loopStart !== null) {
+        if (!this.isHandlingLoopJump && this.isLooping && this.loopEnd !== null && this.loopStart !== null) {
           // Check if we've reached or passed the loop end
           // Use a threshold (0.1s) to account for timing precision and ensure we catch it
           const loopEndThreshold = this.loopEnd - 0.1;

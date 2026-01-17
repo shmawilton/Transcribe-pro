@@ -25,6 +25,7 @@ interface AppStore {
   setIsMarkerEditorOpen: (isOpen: boolean) => void;
   setIsSettingsModalOpen: (isOpen: boolean) => void;
   setIsHelpModalOpen: (isOpen: boolean) => void;
+  setIsExportModalOpen: (isOpen: boolean, startTime?: number, endTime?: number) => void;
   setZoomLevel: (zoom: number) => void;
   setViewport: (start: number, end: number) => void;
   setRequestMarkerCreation: (request: boolean) => void;
@@ -39,6 +40,14 @@ interface AppStore {
   // Project Management
   loadProject: (project: ProjectData) => void;
   resetProject: () => void;
+
+  // Web persistence / dirty tracking
+  projectLastChangeAt: number;
+  lastAutoSaveAt: number;
+  lastManualSaveAt: number;
+  markProjectChanged: () => void;
+  setLastAutoSaveAt: (ts: number) => void;
+  setLastManualSaveAt: (ts: number) => void;
 
   // Theme
   theme: 'dark' | 'light';
@@ -69,6 +78,9 @@ const initialUIState: UIState = {
   isMarkerEditorOpen: false,
   isSettingsModalOpen: false,
   isHelpModalOpen: false,
+  isExportModalOpen: false,
+  exportStartTime: undefined,
+  exportEndTime: undefined,
   zoomLevel: 1,
   viewportStart: 0,
   viewportEnd: 0,
@@ -83,7 +95,16 @@ const initialGlobalControls: GlobalControls = {
   previousVolume: 6, // Store volume before mute
 };
 
-export const useAppStore = create<AppStore>((set) => ({
+export const useAppStore = create<AppStore>((set, get) => ({
+  // Web persistence / dirty tracking
+  projectLastChangeAt: 0,
+  lastAutoSaveAt: 0,
+  lastManualSaveAt: 0,
+  markProjectChanged: () =>
+    set(() => ({ projectLastChangeAt: Date.now() })),
+  setLastAutoSaveAt: (ts) => set(() => ({ lastAutoSaveAt: ts })),
+  setLastManualSaveAt: (ts) => set(() => ({ lastManualSaveAt: ts })),
+
   // Audio State
   audio: initialAudioState,
   setAudioFile: (file) => {
@@ -169,39 +190,42 @@ export const useAppStore = create<AppStore>((set) => ({
   // Markers State
   markers: [],
   addMarker: (marker) => {
-    const state = useAppStore.getState();
+    const state = get();
     // Save current state to history before adding
     const currentMarkers = [...state.markers];
     set({
       markers: [...state.markers, marker],
       undoHistory: [...state.undoHistory, currentMarkers],
       redoHistory: [], // Clear redo history when new action is performed
+      projectLastChangeAt: Date.now(),
     });
   },
   updateMarker: (id, updates) => {
-    const state = useAppStore.getState();
+    const state = get();
     // Save current state to history before updating
     const currentMarkers = [...state.markers];
     set({
-      markers: state.markers.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+      markers: state.markers.map((m: Marker) => (m.id === id ? { ...m, ...updates } : m)),
       undoHistory: [...state.undoHistory, currentMarkers],
       redoHistory: [], // Clear redo history when new action is performed
+      projectLastChangeAt: Date.now(),
     });
   },
   deleteMarker: (id) => {
-    const state = useAppStore.getState();
+    const state = get();
     // Save current state to history before deleting
     const currentMarkers = [...state.markers];
     set({
-      markers: state.markers.filter((m) => m.id !== id),
+      markers: state.markers.filter((m: Marker) => m.id !== id),
       undoHistory: [...state.undoHistory, currentMarkers],
       redoHistory: [], // Clear redo history when new action is performed
+      projectLastChangeAt: Date.now(),
     });
   },
   setMarkers: (markers, skipHistory = false) => {
-    const state = useAppStore.getState();
+    const state = get();
     if (skipHistory) {
-      set({ markers });
+      set({ markers, projectLastChangeAt: Date.now() });
     } else {
       // Save current state to history before setting
       const currentMarkers = [...state.markers];
@@ -209,6 +233,7 @@ export const useAppStore = create<AppStore>((set) => ({
         markers,
         undoHistory: [...state.undoHistory, currentMarkers],
         redoHistory: [], // Clear redo history when new action is performed
+        projectLastChangeAt: Date.now(),
       });
     }
   },
@@ -223,6 +248,15 @@ export const useAppStore = create<AppStore>((set) => ({
     set((state) => ({ ui: { ...state.ui, isSettingsModalOpen: isOpen } })),
   setIsHelpModalOpen: (isOpen) =>
     set((state) => ({ ui: { ...state.ui, isHelpModalOpen: isOpen } })),
+  setIsExportModalOpen: (isOpen, startTime, endTime) =>
+    set((state) => ({ 
+      ui: { 
+        ...state.ui, 
+        isExportModalOpen: isOpen,
+        exportStartTime: startTime,
+        exportEndTime: endTime,
+      } 
+    })),
   setZoomLevel: (zoom) =>
     set((state) => ({ ui: { ...state.ui, zoomLevel: zoom } })),
   setViewport: (start, end) =>
@@ -235,14 +269,17 @@ export const useAppStore = create<AppStore>((set) => ({
   setPitch: (pitch) =>
     set((state) => ({
       globalControls: { ...state.globalControls, pitch },
+      projectLastChangeAt: Date.now(),
     })),
   setVolume: (volume) =>
     set((state) => ({
       globalControls: { ...state.globalControls, volume },
+      projectLastChangeAt: Date.now(),
     })),
   setPlaybackRate: (rate) =>
     set((state) => ({
       globalControls: { ...state.globalControls, playbackRate: rate },
+      projectLastChangeAt: Date.now(),
     })),
   toggleMute: () =>
     set((state) => {
@@ -256,6 +293,7 @@ export const useAppStore = create<AppStore>((set) => ({
             isMuted: false,
             volume: restoreVolume,
           },
+          projectLastChangeAt: Date.now(),
         };
       } else {
         // Mute: store current volume and set to -60 dB (effectively silent)
@@ -268,6 +306,7 @@ export const useAppStore = create<AppStore>((set) => ({
             previousVolume: volumeToStore,
             volume: -60, // Mute by setting to minimum
           },
+          projectLastChangeAt: Date.now(),
         };
       }
     }),
@@ -280,6 +319,7 @@ export const useAppStore = create<AppStore>((set) => ({
       audio: { ...initialAudioState },
       undoHistory: [],
       redoHistory: [],
+      projectLastChangeAt: Date.now(),
     }),
   resetProject: () =>
     set({
@@ -289,6 +329,9 @@ export const useAppStore = create<AppStore>((set) => ({
       globalControls: initialGlobalControls,
       undoHistory: [],
       redoHistory: [],
+      projectLastChangeAt: 0,
+      lastAutoSaveAt: 0,
+      lastManualSaveAt: 0,
     }),
 
   // Theme
@@ -312,15 +355,15 @@ export const useAppStore = create<AppStore>((set) => ({
   undoHistory: [],
   redoHistory: [],
   canUndo: () => {
-    const state = useAppStore.getState();
+    const state = get();
     return state.undoHistory.length > 0;
   },
   canRedo: () => {
-    const state = useAppStore.getState();
+    const state = get();
     return state.redoHistory.length > 0;
   },
   pushToHistory: () => {
-    const state = useAppStore.getState();
+    const state = get();
     // Save current markers state to undo history
     const currentMarkers = [...state.markers];
     set({

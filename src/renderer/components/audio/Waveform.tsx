@@ -1111,14 +1111,14 @@ const Waveform: React.FC = () => {
             transition: 'filter 0.1s ease-out',
             flexShrink: 0
           }}
+          onClick={handleClick}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
-          onClick={handleClick}
         />
       </div>
       
       
-      {/* Hover indicator - green vertical line */}
+      {/* Hover indicator and time tooltip */}
       {hoverInfo.visible && duration > 0 && (
         <>
           {/* Thin line - black for classic theme, green for normal */}

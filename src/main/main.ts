@@ -440,6 +440,23 @@ app.whenReady().then(() => {
     }
   });
 
+  // IPC handler for loading project file from path (for recent projects)
+  ipcMain.handle('load-project-from-path', async (_event, filePath: string) => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error('Project file not found');
+      }
+
+      const projectData = fs.readFileSync(filePath, 'utf-8');
+      console.log('[Main] Project loaded from path:', filePath);
+
+      return { success: true, filePath, projectData };
+    } catch (error) {
+      console.error('[Main] Load project from path error:', error);
+      throw error;
+    }
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
