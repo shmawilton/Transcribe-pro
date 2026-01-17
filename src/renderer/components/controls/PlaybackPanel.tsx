@@ -79,6 +79,12 @@ const PlaybackPanel: React.FC = () => {
 
   const handlePlay = async () => {
     try {
+      // Safety check: ensure audio is loaded before attempting to play
+      if (!isAudioLoaded) {
+        console.warn('[PlaybackPanel] Cannot play: audio not loaded');
+        return;
+      }
+      
       await resumeAudioContext();
       
       // If a marker is active, seek to marker start before playing

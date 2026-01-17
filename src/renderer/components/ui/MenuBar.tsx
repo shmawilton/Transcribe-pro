@@ -505,13 +505,28 @@ const MenuBar: React.FC = () => {
         }
       }
       
-      // Reset project state immediately (fresh start) - this will show welcome screen
-      stop();
-      unloadAudio();
+      // Complete reset: stop, unload, reset store, then clear project state
+      console.log('[MenuBar] Starting new project - performing complete reset');
+      
+      // Stop playback first
+      try {
+        await stop();
+      } catch (err) {
+        console.warn('[MenuBar] Error stopping playback:', err);
+      }
+      
+      // Unload audio and reset engine (await to ensure complete cleanup)
+      await unloadAudio();
+      
+      // Reset project state (this will show welcome screen)
       resetProject();
+      
+      // Clear project saver state
       projectSaver.setCurrentProjectPath(null);
       setProjectName('Untitled Project');
       setOpenMenu(null);
+      
+      console.log('[MenuBar] New project started - all state reset');
       
       // Welcome screen will be shown automatically when isAudioLoaded becomes false
       // User can then pick file from welcome screen
@@ -559,15 +574,27 @@ const MenuBar: React.FC = () => {
     }
   };
 
-  const handleCloseAudio = () => {
+  const handleCloseAudio = async () => {
     console.log('[MenuBar] Closing audio and resetting project');
-    // Stop playback
-    stop();
-    // Unload audio from engine
-    unloadAudio();
-    // Reset the store to initial state (this will trigger welcome screen)
-    resetProject();
-    setOpenMenu(null);
+    try {
+      // Stop playback first
+      try {
+        await stop();
+      } catch (err) {
+        console.warn('[MenuBar] Error stopping playback:', err);
+      }
+      
+      // Unload audio from engine (await to ensure complete cleanup)
+      await unloadAudio();
+      
+      // Reset the store to initial state (this will trigger welcome screen)
+      resetProject();
+      setOpenMenu(null);
+      
+      console.log('[MenuBar] Audio closed and project reset');
+    } catch (err) {
+      console.error('[MenuBar] Error closing audio:', err);
+    }
   };
 
   const handleSaveProject = async () => {

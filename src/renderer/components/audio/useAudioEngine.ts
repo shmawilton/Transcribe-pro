@@ -115,9 +115,20 @@ export function useAudioEngine() {
   const loadFile = useCallback(async (file: File): Promise<void> => {
     console.log('[useAudioEngine] loadFile called with file:', { name: file.name, size: file.size, type: file.type });
     
+    // Reinitialize engine if it was cleared (e.g., after unloadAudio)
     if (!engineRef.current) {
-      console.error('[useAudioEngine] AudioEngine not initialized!');
-      throw new Error('AudioEngine not initialized');
+      console.log('[useAudioEngine] Engine not initialized, reinitializing...');
+      if (isElectron) {
+        engineRef.current = getHowlerAudioEngine();
+      } else {
+        engineRef.current = getAudioEngine();
+      }
+      
+      if (!engineRef.current) {
+        console.error('[useAudioEngine] Failed to reinitialize AudioEngine!');
+        throw new Error('AudioEngine not initialized');
+      }
+      console.log('[useAudioEngine] Engine reinitialized successfully');
     }
 
     setError(null);
@@ -145,7 +156,7 @@ export function useAudioEngine() {
       console.error('[useAudioEngine] Error state set:', errorMessage);
       throw err;
     }
-  }, [setIsLoading]);
+  }, [setIsLoading, isElectron]);
 
   /**
    * Check if a file format is supported
@@ -181,9 +192,20 @@ export function useAudioEngine() {
    * Play audio
    */
   const play = useCallback(async () => {
-    if (engineRef.current) {
-      await engineRef.current.play();
+    // Safety check: ensure engine is initialized and audio is loaded
+    if (!engineRef.current) {
+      console.warn('[useAudioEngine] Cannot play: engine not initialized');
+      throw new Error('Audio engine not initialized');
     }
+    
+    // Double-check store state
+    const store = useAppStore.getState();
+    if (!store.audio.isLoaded) {
+      console.warn('[useAudioEngine] Cannot play: audio not loaded in store');
+      throw new Error('Audio not loaded');
+    }
+    
+    await engineRef.current.play();
   }, []);
 
   /**
@@ -372,19 +394,35 @@ export function useAudioEngine() {
     console.log('[useAudioEngine] Unloading audio');
     // Stop playback first (with fade out)
     if (engineRef.current) {
-      await engineRef.current.stop();
+      try {
+        await engineRef.current.stop();
+      } catch (err) {
+        console.warn('[useAudioEngine] Error stopping audio during unload:', err);
+      }
     }
-    // Reset the appropriate singleton
+    // Clear our reference first to prevent any operations
+    engineRef.current = null;
+    
+    // Reset the appropriate singleton (await async reset)
     if (isElectron) {
-      resetHowlerAudioEngine();
+      await resetHowlerAudioEngine();
     } else {
       resetAudioEngine();
     }
-    // Clear our reference
-    engineRef.current = null;
-    // Clear errors
+    
+    // Clear errors and loading state
     setError(null);
     setIsLoading(false);
+    
+    // Ensure store state reflects that audio is unloaded
+    const store = useAppStore.getState();
+    if (store.audio.isLoaded) {
+      store.setIsLoading(false);
+      // The store will be reset by resetProject, but ensure isLoaded is false
+      // This is a safety measure in case resetProject isn't called immediately
+    }
+    
+    console.log('[useAudioEngine] Audio unloaded and engine reset');
   }, []);
 
   return {
