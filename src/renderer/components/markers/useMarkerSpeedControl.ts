@@ -49,7 +49,7 @@ export function useMarkerSpeedControl() {
     }
   }, [useAppStore.getState().audio.duration, useAppStore.getState().globalControls.playbackRate]);
 
-  // When marker is activated/deactivated, reset state tracking
+  // When marker is activated/deactivated, reset state tracking and immediately apply speed if in range
   useEffect(() => {
     if (!selectedMarkerId) {
       // No marker active - reset speed to normal
@@ -82,10 +82,58 @@ export function useMarkerSpeedControl() {
       return;
     }
 
-    // Marker changed - reset state tracking
+    // Marker changed - check if we're currently in range and apply speed immediately
     if (lastMarkerIdRef.current !== selectedMarkerId) {
-      lastInRangeStateRef.current = null;
+      const previousMarkerId = lastMarkerIdRef.current;
       lastMarkerIdRef.current = selectedMarkerId;
+      
+      // Get marker speed - THIS marker's speed, not the previous one
+      const markerSpeed = activeMarker.speed !== undefined ? activeMarker.speed : 1.0;
+      
+      console.log(`[useMarkerSpeedControl] Marker switched from "${previousMarkerId || 'none'}" to "${activeMarker.name}" (speed: ${markerSpeed}x)`);
+      
+      // When marker changes, always apply its speed if we're in range
+      // Use a small delay to allow seek operations to complete first
+      setTimeout(() => {
+        const store = useAppStore.getState();
+        const currentTime = store.audio.currentTime;
+        
+        // Check if current position is within marker range (with small buffer for timing)
+        const buffer = 0.5; // Larger buffer to account for seek timing and ensure we catch it
+        const isInRange = currentTime >= (activeMarker.start - buffer) && currentTime <= (activeMarker.end + buffer);
+        
+        if (isInRange) {
+          // We're in range - FORCE apply marker speed immediately (always apply, even if it was the same)
+          // This ensures nested markers get their own speed applied
+          if (!isUpdatingRef.current) {
+            isUpdatingRef.current = true;
+            // Force application by clearing the last applied speed first
+            const previousSpeed = lastAppliedSpeedRef.current;
+            lastAppliedSpeedRef.current = null; // Clear to force reapplication
+            
+            setSpeed(markerSpeed);
+            lastAppliedSpeedRef.current = markerSpeed;
+            lastInRangeStateRef.current = true;
+            console.log(`[useMarkerSpeedControl] ✅ Marker "${activeMarker.name}" - FORCED speed ${markerSpeed}x (was ${previousSpeed}, position ${currentTime.toFixed(2)}s in range ${activeMarker.start.toFixed(2)}s-${activeMarker.end.toFixed(2)}s)`);
+            setTimeout(() => {
+              isUpdatingRef.current = false;
+            }, 300);
+          }
+        } else {
+          // Not in range - reset state tracking (speed will be applied when entering range)
+          lastInRangeStateRef.current = false;
+          // If we were previously in a different marker's range, reset to normal speed
+          if (lastAppliedSpeedRef.current !== 1.0 && !isUpdatingRef.current) {
+            isUpdatingRef.current = true;
+            setSpeed(1.0);
+            lastAppliedSpeedRef.current = 1.0;
+            console.log(`[useMarkerSpeedControl] Marker "${activeMarker.name}" - reset speed to 1.0x (position ${currentTime.toFixed(2)}s is not in range ${activeMarker.start.toFixed(2)}s-${activeMarker.end.toFixed(2)}s)`);
+            setTimeout(() => {
+              isUpdatingRef.current = false;
+            }, 300);
+          }
+        }
+      }, 200); // Delay to allow seek to complete
     }
   }, [selectedMarkerId, setSpeed]);
 
@@ -168,15 +216,21 @@ export function useMarkerSpeedControl() {
         
         if (isInRange) {
           // Entered marker range - apply marker speed ONCE
+          // IMPORTANT: Always check against the CURRENT selected marker's speed, not the last applied
+          // This ensures nested markers get their correct speed
           if (lastAppliedSpeedRef.current !== markerSpeed) {
             isUpdatingRef.current = true;
             setSpeed(markerSpeed);
             lastAppliedSpeedRef.current = markerSpeed;
             lastSpeedChangeTimeRef.current = Date.now();
-            console.log(`[useMarkerSpeedControl] Entered marker range at originalTime ${originalTime.toFixed(2)}s - applied speed ${markerSpeed}x`);
+            console.log(`[useMarkerSpeedControl] Entered marker "${activeMarker.name}" range at originalTime ${originalTime.toFixed(2)}s - applied speed ${markerSpeed}x`);
             setTimeout(() => {
               isUpdatingRef.current = false;
             }, 500); // Longer timeout to prevent rapid updates
+          } else if (lastAppliedSpeedRef.current === markerSpeed) {
+            // Speed is already correct, but ensure it's actually applied (in case of timing issues)
+            // This is a safety check for nested markers
+            console.log(`[useMarkerSpeedControl] Already at correct speed ${markerSpeed}x for marker "${activeMarker.name}"`);
           }
         } else {
           // Exited marker range - reset to normal speed ONCE
@@ -185,7 +239,7 @@ export function useMarkerSpeedControl() {
             setSpeed(1.0);
             lastAppliedSpeedRef.current = 1.0;
             lastSpeedChangeTimeRef.current = Date.now();
-            console.log(`[useMarkerSpeedControl] Exited marker range at originalTime ${originalTime.toFixed(2)}s - reset speed to 1.0x`);
+            console.log(`[useMarkerSpeedControl] Exited marker "${activeMarker.name}" range at originalTime ${originalTime.toFixed(2)}s - reset speed to 1.0x`);
             setTimeout(() => {
               isUpdatingRef.current = false;
             }, 500); // Longer timeout to prevent rapid updates

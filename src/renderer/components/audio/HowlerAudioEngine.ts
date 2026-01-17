@@ -475,6 +475,14 @@ export class HowlerAudioEngine {
     
     // Start playback
     this.currentSoundId = this.howl.play() as number;
+    
+    // CRITICAL: Apply current speed immediately after starting playback
+    // This ensures marker speeds are applied correctly
+    if (this.currentSpeed !== 1.0 && this.currentSoundId !== null) {
+      this.howl.rate(this.currentSpeed, this.currentSoundId);
+      console.log(`[HowlerEngine] Applied speed ${this.currentSpeed}x to playing sound`);
+    }
+    
     useAppStore.getState().setIsPlaying(true);
     this.startTimeUpdate();
     
@@ -543,9 +551,18 @@ export class HowlerAudioEngine {
       this.howl.seek(originalTime, this.currentSoundId);
       useAppStore.getState().setCurrentTime(originalTime);
       
+      // Ensure speed is applied to this sound instance
+      if (this.currentSpeed !== 1.0) {
+        this.howl.rate(this.currentSpeed, this.currentSoundId);
+      }
+      
       // If it was playing but stopped, restart it
       if (wasPlaying && !this.howl.playing(this.currentSoundId)) {
         this.howl.play(this.currentSoundId);
+        // Reapply speed after restart
+        if (this.currentSpeed !== 1.0) {
+          this.howl.rate(this.currentSpeed, this.currentSoundId);
+        }
       }
     } else {
       // No sound ID - seek on the main instance
@@ -558,6 +575,10 @@ export class HowlerAudioEngine {
         // Seek to the correct position on the new instance
         if (this.currentSoundId !== null) {
           this.howl.seek(originalTime, this.currentSoundId);
+          // Apply current speed to the new sound instance
+          if (this.currentSpeed !== 1.0) {
+            this.howl.rate(this.currentSpeed, this.currentSoundId);
+          }
         }
       }
     }
@@ -608,8 +629,12 @@ export class HowlerAudioEngine {
     useAppStore.getState().setPlaybackRate(targetSpeed);
     this.targetSpeed = targetSpeed;
     
-    // If same speed, nothing to do
+    // If same speed, nothing to do (but still ensure it's applied if howl exists)
     if (Math.abs(targetSpeed - this.currentSpeed) < 0.01) {
+      // Even if speed is the same, ensure it's applied to the current sound if playing
+      if (this.howl && this.currentSoundId !== null && this.howl.playing(this.currentSoundId)) {
+        this.howl.rate(targetSpeed, this.currentSoundId);
+      }
       return;
     }
 
@@ -619,7 +644,16 @@ export class HowlerAudioEngine {
     
     if (this.howl) {
       // Apply rate immediately - no processing delay!
-      this.howl.rate(targetSpeed);
+      // If we have a specific sound ID (playing instance), apply to that
+      // Otherwise apply to the main howl instance
+      if (this.currentSoundId !== null && this.howl.playing(this.currentSoundId)) {
+        this.howl.rate(targetSpeed, this.currentSoundId);
+        console.log(`[HowlerEngine] ⚡ Speed changed IMMEDIATELY to ${targetSpeed}x on sound ID ${this.currentSoundId}`);
+      } else {
+        // Apply to main instance (for when not playing or no sound ID)
+        this.howl.rate(targetSpeed);
+        console.log(`[HowlerEngine] ⚡ Speed changed IMMEDIATELY to ${targetSpeed}x on main instance`);
+      }
       
       // Duration NEVER changes with speed - it always stays as originalDuration
       // Only the playback rate changes, which makes the counter advance faster/slower
@@ -634,6 +668,9 @@ export class HowlerAudioEngine {
         
         console.log(`[HowlerEngine] ⚡ Speed changed IMMEDIATELY to ${targetSpeed}x (duration stays at ${this.duration.toFixed(2)}s)`);
       }
+    } else {
+      // Howl not ready yet - store the speed so it can be applied when audio loads
+      console.log(`[HowlerEngine] Speed set to ${targetSpeed}x but howl not ready - will apply when audio loads`);
     }
   }
 
