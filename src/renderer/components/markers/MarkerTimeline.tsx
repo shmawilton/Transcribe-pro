@@ -22,6 +22,7 @@ export function MarkerTimeline() {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
   const [hoveredMarker, setHoveredMarker] = useState<string | null>(null);
   
   // ===== Marker creation state =====
@@ -194,7 +195,7 @@ export function MarkerTimeline() {
   
   const svgHeight = TIME_GRID_HEIGHT + markerAreaHeight;
   
-  // Generate time grid markers (uses viewport for zoomed view)
+  // Generate time grid markers (uses viewport for zoomed view, accounts for scroll)
   const timeGridMarkers = useMemo(() => {
     if (duration === 0 || usableWidth === 0 || visibleDuration === 0) return [];
     
@@ -212,10 +213,17 @@ export function MarkerTimeline() {
     // Start from first interval point at or after viewportStart
     const firstMarkerTime = Math.ceil(viewportStart / interval) * interval;
     
+    // Calculate visible range accounting for scroll position
+    // When scrolling, markers outside the visible area need to be filtered
+    const visibleStartX = scrollLeft;
+    const visibleEndX = scrollLeft + containerWidth;
+    
     for (let time = firstMarkerTime; time <= viewportEnd; time += interval) {
       const x = timeToPixel(time);
-      // Only include if within visible area
-      if (x >= TIME_LABEL_PADDING && x <= containerWidth - TIME_LABEL_PADDING) {
+      // Include markers that are within the visible area (accounting for scroll)
+      // Add some padding to show markers slightly outside visible area for smooth scrolling
+      const padding = 50;
+      if (x >= visibleStartX - padding && x <= visibleEndX + padding) {
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
         const label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -223,7 +231,7 @@ export function MarkerTimeline() {
       }
     }
     return markers;
-  }, [duration, usableWidth, visibleDuration, viewportStart, viewportEnd, timeToPixel, containerWidth]);
+  }, [duration, usableWidth, visibleDuration, viewportStart, viewportEnd, timeToPixel, containerWidth, scrollLeft]);
   
   // Handle SVG mouse move (for hover tooltip and drag)
   const handleSvgMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -511,26 +519,44 @@ export function MarkerTimeline() {
   }, [isCreatingMarker, markerStartTime, markerEndTime, timeToPixel]);
   
   // ===== RENDER =====
-  // Handle scroll synchronization with waveform
+  // Handle scroll synchronization with waveform and track scroll position
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isScrollingRef = useRef(false);
   
+  // Track scroll position for marker positioning
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
+    if (!scrollContainer) {
+      // Try to find parent scroll container if scrollContainerRef is not attached
+      const parent = containerRef.current?.parentElement;
+      const scrollableParent = parent?.closest('[style*="overflow-x"], [style*="overflow: auto"], [style*="overflow: scroll"]');
+      if (scrollableParent) {
+        const handleParentScroll = () => {
+          setScrollLeft((scrollableParent as HTMLElement).scrollLeft || 0);
+        };
+        scrollableParent.addEventListener('scroll', handleParentScroll);
+        // Initialize scroll position
+        setScrollLeft((scrollableParent as HTMLElement).scrollLeft || 0);
+        return () => scrollableParent.removeEventListener('scroll', handleParentScroll);
+      }
+      return;
+    }
     
     const handleScroll = () => {
       if (isScrollingRef.current) return;
       isScrollingRef.current = true;
       
+      // Update scroll position state
+      const currentScrollLeft = scrollContainer.scrollLeft;
+      setScrollLeft(currentScrollLeft);
+      
       // Calculate scroll ratio (0 to 1) for consistent synchronization
-      const scrollLeft = scrollContainer.scrollLeft;
       const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
-      const scrollRatio = maxScroll > 0 ? scrollLeft / maxScroll : 0;
+      const scrollRatio = maxScroll > 0 ? currentScrollLeft / maxScroll : 0;
       
       // Sync with waveform (triggered via custom event)
       window.dispatchEvent(new CustomEvent('markerTimelineScroll', { 
-        detail: { scrollRatio, scrollLeft } 
+        detail: { scrollRatio, scrollLeft: currentScrollLeft } 
       }));
       
       setTimeout(() => {
@@ -539,6 +565,8 @@ export function MarkerTimeline() {
     };
     
     scrollContainer.addEventListener('scroll', handleScroll);
+    // Initialize scroll position
+    setScrollLeft(scrollContainer.scrollLeft || 0);
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, []);
   
@@ -547,7 +575,30 @@ export function MarkerTimeline() {
     const handleWaveformScroll = (e: CustomEvent) => {
       if (isScrollingRef.current) return;
       const scrollContainer = scrollContainerRef.current;
-      if (!scrollContainer) return;
+      if (!scrollContainer) {
+        // Try to find parent scroll container
+        const parent = containerRef.current?.parentElement;
+        const scrollableParent = parent?.closest('[style*="overflow-x"], [style*="overflow: auto"], [style*="overflow: scroll"]') as HTMLElement;
+        if (scrollableParent) {
+          isScrollingRef.current = true;
+          const { scrollRatio } = e.detail;
+          
+          // Sync scroll position using scroll ratio for consistent movement
+          if (scrollRatio !== undefined) {
+            const maxScroll = scrollableParent.scrollWidth - scrollableParent.clientWidth;
+            if (maxScroll > 0) {
+              const newScrollLeft = scrollRatio * maxScroll;
+              scrollableParent.scrollLeft = newScrollLeft;
+              setScrollLeft(newScrollLeft);
+            }
+          }
+          
+          setTimeout(() => {
+            isScrollingRef.current = false;
+          }, 10);
+        }
+        return;
+      }
       
       isScrollingRef.current = true;
       const { scrollRatio } = e.detail;
@@ -556,7 +607,9 @@ export function MarkerTimeline() {
       if (scrollRatio !== undefined) {
         const maxScroll = scrollContainer.scrollWidth - scrollContainer.clientWidth;
         if (maxScroll > 0) {
-          scrollContainer.scrollLeft = scrollRatio * maxScroll;
+          const newScrollLeft = scrollRatio * maxScroll;
+          scrollContainer.scrollLeft = newScrollLeft;
+          setScrollLeft(newScrollLeft);
         }
       }
       
