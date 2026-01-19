@@ -4,6 +4,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../../store/store';
 import { useAudioEngine } from './useAudioEngine';
+import { useSmoothViewport } from '../../hooks/useSmoothViewport';
 
 /**
  * Peak data structure
@@ -1019,10 +1020,14 @@ const Waveform: React.FC = () => {
     console.log('[Waveform] Seeked to:', formatHoverTime(clampedTime));
   }, [duration, seek, viewportStart, viewportEnd]);
 
+  // Smooth viewport animation hook
+  const { animateScrollToTime } = useSmoothViewport();
+  const lastAutoScrollTimeRef = useRef<number>(0);
+
   /**
    * Auto-scroll viewport during playback to keep playhead visible
+   * Uses smooth animation for a seamless scrolling experience
    * Only scrolls when playhead goes out of view (not when it's still visible)
-   * This allows users to manually scroll while playing, but auto-scrolls when needed
    */
   useEffect(() => {
     if (!isPlaying || zoomLevel <= 1 || duration <= 0) return;
@@ -1038,22 +1043,15 @@ const Waveform: React.FC = () => {
     const isPlayheadAfterViewport = currentTime > (vpEnd - buffer);
     
     if (isPlayheadBeforeViewport || isPlayheadAfterViewport) {
-      // Calculate new viewport to center playhead (or keep it visible)
-      // Use 80% of visible duration as the margin (20% buffer on each side)
-      const margin = visibleDuration * 0.2;
-      let newStart = currentTime - margin;
-      let newEnd = currentTime + visibleDuration - margin;
+      // Prevent triggering animation too frequently (debounce)
+      const now = Date.now();
+      if (now - lastAutoScrollTimeRef.current < 150) return;
+      lastAutoScrollTimeRef.current = now;
       
-      // Clamp to valid range
-      newStart = Math.max(0, Math.min(newStart, duration - visibleDuration));
-      newEnd = Math.max(visibleDuration, Math.min(newEnd, duration));
-      
-      // Only update if viewport actually needs to change (prevent unnecessary updates)
-      if (Math.abs(newStart - vpStart) > 0.1 || Math.abs(newEnd - vpEnd) > 0.1) {
-        setViewport(newStart, newEnd);
-      }
+      // Use smooth animation for auto-scroll
+      animateScrollToTime(currentTime, { duration: 200, easing: 'easeOutQuad' });
     }
-  }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, setViewport]);
+  }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, animateScrollToTime]);
 
   /**
    * Initialize viewport when duration changes (new audio loaded)
@@ -1073,16 +1071,17 @@ const Waveform: React.FC = () => {
       className="waveform-container" 
       style={{ 
         width: '100%', 
-        flex: '0 0 45%',
-        minHeight: '0',
+        flex: '1 1 auto',
+        minHeight: '150px',
+        maxHeight: '250px',
         background: 'var(--neu-bg-base)',
         border: 'none',
-        borderRadius: 'var(--radius-md)',
+        borderRadius: '16px',
         padding: '0',
         display: 'flex',
         flexDirection: 'column',
         boxShadow: 'var(--neu-raised)',
-        transition: 'all var(--transition-normal)',
+        transition: 'all 0.3s ease',
         overflow: 'hidden',
         position: 'relative'
       }}

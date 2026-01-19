@@ -13,6 +13,7 @@ import { showToast } from './Toast';
 import LoadingSpinner from './LoadingSpinner';
 import WorkspaceLayoutModal from './WorkspaceLayoutModal';
 import RecentProjectsModal from './RecentProjectsModal';
+import { useSmoothViewport } from '../../hooks/useSmoothViewport';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -414,10 +415,8 @@ const MenuBar: React.FC = () => {
   
   // Zoom controls state
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
-  const setZoomLevel = useAppStore((state) => state.setZoomLevel);
   const viewportStart = useAppStore((state) => state.ui.viewportStart);
   const viewportEnd = useAppStore((state) => state.ui.viewportEnd);
-  const setViewport = useAppStore((state) => state.setViewport);
   
   // Calculate dropdown position when menu opens
   useEffect(() => {
@@ -655,47 +654,28 @@ const MenuBar: React.FC = () => {
     }
   };
 
-  // Zoom handlers
+  // Smooth viewport animation hook
+  const { animateZoom } = useSmoothViewport();
+
+  // Zoom handlers with smooth animations
   const handleZoomIn = () => {
     if (duration <= 0) return;
     const newZoom = Math.min(zoomLevel * 1.5, 8);
-    setZoomLevel(newZoom);
-    const visibleDuration = duration / newZoom;
-    const center = currentTime;
-    let newStart = Math.max(0, center - visibleDuration / 2);
-    let newEnd = newStart + visibleDuration;
-    if (newEnd > duration) {
-      newEnd = duration;
-      newStart = Math.max(0, newEnd - visibleDuration);
-    }
-    setViewport(newStart, newEnd);
+    animateZoom(newZoom, currentTime, { duration: 250, easing: 'easeOutCubic' });
     setOpenMenu(null);
   };
 
   const handleZoomOut = () => {
     if (duration <= 0) return;
     const newZoom = Math.max(zoomLevel / 1.5, 1);
-    setZoomLevel(newZoom);
-    if (newZoom === 1) {
-      setViewport(0, duration);
-    } else {
-      const visibleDuration = duration / newZoom;
-      const center = (viewportStart + viewportEnd) / 2;
-      let newStart = Math.max(0, center - visibleDuration / 2);
-      let newEnd = newStart + visibleDuration;
-      if (newEnd > duration) {
-        newEnd = duration;
-        newStart = Math.max(0, newEnd - visibleDuration);
-      }
-      setViewport(newStart, newEnd);
-    }
+    const center = newZoom === 1 ? undefined : (viewportStart + viewportEnd) / 2;
+    animateZoom(newZoom, center, { duration: 250, easing: 'easeOutCubic' });
     setOpenMenu(null);
   };
 
   const handleZoomReset = () => {
-    setZoomLevel(1);
     if (duration > 0) {
-      setViewport(0, duration);
+      animateZoom(1, undefined, { duration: 300, easing: 'easeOutCubic' });
     }
     setOpenMenu(null);
   };
@@ -980,48 +960,50 @@ const MenuBar: React.FC = () => {
         alignItems: 'center',
         flexShrink: 0,
         whiteSpace: 'nowrap',
-        padding: '0.25rem',
-        borderRadius: '12px',
+        padding: '4px',
+        borderRadius: '14px',
         background: isLightMode 
-          ? 'rgba(0, 0, 0, 0.02)'
-          : 'rgba(255, 255, 255, 0.03)',
+          ? '#e4ebf5'
+          : '#1a1a1a',
+        boxShadow: isLightMode
+          ? '6px 6px 12px rgba(166, 180, 200, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.9)'
+          : '6px 6px 12px rgba(0, 0, 0, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.05)',
       }}>
-        {menuItems.map((item) => {
+        {menuItems.map((item, index) => {
           const IconComponent = item.icon;
           const isOpen = openMenu === item.id;
           const isHovered = hoveredItem === item.id;
+          const isFirst = index === 0;
+          const isLast = index === menuItems.length - 1;
           return (
             <div key={item.id} style={{ position: 'relative', zIndex: isOpen ? 999999 : 'auto' }}>
               <button
                 ref={(el) => { menuButtonRefs.current[item.id] = el; }}
                 className="menu-bar-button"
                 style={{
-                  padding: '0.45rem 1rem',
-                  height: '2rem',
+                  padding: '0.5rem 0.9rem',
+                  height: '2.2rem',
                   background: isOpen 
-                    ? (isLightMode 
-                        ? `linear-gradient(135deg, ${item.color}15, ${item.color}08)`
-                        : `linear-gradient(135deg, ${item.color}25, ${item.color}15)`)
+                    ? (isLightMode ? '#e4ebf5' : '#1a1a1a')
                     : 'transparent',
-                  border: isOpen 
-                    ? `1.5px solid ${item.color}40`
-                    : '1.5px solid transparent',
-                  borderRadius: '10px',
-                  color: isOpen ? item.color : textColor,
+                  border: 'none',
+                  borderRadius: isFirst ? '10px 4px 4px 10px' : isLast ? '4px 10px 10px 4px' : '4px',
+                  color: isOpen ? item.color : (isHovered ? item.color : textColor),
                   fontFamily: HANDWRITTEN_FONT,
-                  fontSize: '0.95rem',
+                  fontSize: '0.85rem',
                   fontWeight: isOpen ? '600' : '500',
                   cursor: 'pointer',
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  transition: 'all 0.25s ease',
                   position: 'relative',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '0.5rem',
+                  gap: '0.4rem',
                   boxShadow: isOpen 
-                    ? `0 4px 12px ${item.color}30, inset 0 1px 0 ${item.color}20`
+                    ? (isLightMode 
+                        ? 'inset 4px 4px 8px rgba(166, 180, 200, 0.5), inset -3px -3px 6px rgba(255, 255, 255, 0.9)'
+                        : 'inset 4px 4px 8px rgba(0, 0, 0, 0.5), inset -3px -3px 6px rgba(255, 255, 255, 0.05)')
                     : 'none',
-                  transform: isOpen ? 'translateY(-1px)' : 'translateY(0)',
                 }}
                 onMouseEnter={() => {
                   setHoveredItem(item.id);
@@ -1032,52 +1014,22 @@ const MenuBar: React.FC = () => {
                 onMouseLeave={() => setHoveredItem(null)}
                 onClick={() => setOpenMenu(isOpen ? null : item.id)}
               >
-                {/* Animated glow effect */}
-                {isOpen && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: '-2px',
-                      borderRadius: '12px',
-                      background: `linear-gradient(135deg, ${item.color}20, transparent)`,
-                      opacity: 0.6,
-                      animation: 'pulseGlow 2s ease-in-out infinite',
-                      zIndex: 0,
-                    }}
-                  />
-                )}
-                
-                {/* Animated bottom accent */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: isOpen || isHovered ? '80%' : '0%',
-                    height: '3px',
-                    background: `linear-gradient(90deg, transparent, ${item.color}, transparent)`,
-                    borderRadius: '2px',
-                    transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    boxShadow: isOpen ? `0 0 8px ${item.color}60` : 'none',
-                  }}
-                />
-                
                 <span style={{ 
                   position: 'relative', 
                   zIndex: 2,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.5rem',
+                  gap: '0.35rem',
                   transition: 'transform 0.2s ease',
-                  transform: isOpen ? 'scale(1.05)' : 'scale(1)',
+                  transform: isOpen ? 'scale(0.95)' : 'scale(1)',
                 }}>
                   {IconComponent && (
                     <span style={{
                       display: 'flex',
                       alignItems: 'center',
-                      transition: 'transform 0.3s ease',
-                      transform: isOpen ? 'rotate(5deg) scale(1.1)' : 'rotate(0) scale(1)',
+                      transition: 'all 0.25s ease',
+                      transform: isOpen ? 'scale(1.1)' : 'scale(1)',
+                      color: isOpen || isHovered ? item.color : textColor,
                     }}>
                       <IconComponent />
                     </span>

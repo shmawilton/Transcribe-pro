@@ -162,26 +162,29 @@ const PlaybackPanel: React.FC = () => {
     ? (audio.currentTime / audio.duration) * 100 
     : 0;
 
-  // Neumorphic button style
+  // Neumorphic button style - compact and centered
   const glassButtonStyle = (isActive: boolean, isDisabled: boolean, color: string = textColor) => ({
-    width: '42px',
-    height: '42px',
+    width: '36px',
+    height: '36px',
     borderRadius: '50%',
     background: isActive 
-      ? `linear-gradient(135deg, ${KENYAN_GREEN}40, ${KENYAN_RED}40)`
-      : 'var(--neu-bg-base)',
+      ? (isLightMode ? '#e4ebf5' : '#1a1a1a')
+      : (isLightMode ? '#e4ebf5' : '#1a1a1a'),
     border: 'none',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: isActive 
-      ? 'var(--neu-pressed), 0 0 20px rgba(0, 102, 68, 0.3)'
-      : 'var(--neu-raised)',
-    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      ? (isLightMode 
+          ? 'inset 3px 3px 6px rgba(166, 180, 200, 0.5), inset -2px -2px 4px rgba(255, 255, 255, 0.9), 0 0 12px rgba(0, 102, 68, 0.2)'
+          : 'inset 3px 3px 6px rgba(0, 0, 0, 0.5), inset -2px -2px 4px rgba(255, 255, 255, 0.05), 0 0 12px rgba(0, 102, 68, 0.2)')
+      : (isLightMode 
+          ? '4px 4px 8px rgba(166, 180, 200, 0.5), -2px -2px 6px rgba(255, 255, 255, 0.9)'
+          : '4px 4px 8px rgba(0, 0, 0, 0.5), -2px -2px 6px rgba(255, 255, 255, 0.05)'),
+    transition: 'all 0.2s ease',
     cursor: isDisabled ? 'not-allowed' : 'pointer',
     opacity: isDisabled ? 0.4 : 1,
-    transform: 'scale(1)',
-    color: color,
+    color: isActive ? KENYAN_GREEN : color,
   });
 
   return (
@@ -189,14 +192,16 @@ const PlaybackPanel: React.FC = () => {
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'stretch',
-      justifyContent: 'flex-start',
-      gap: '0.5rem',
-      padding: '0.75rem',
-      background: 'var(--neu-bg-base)',
-      borderRadius: 'var(--radius-md)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.4rem',
+      padding: '0.5rem 0.75rem',
+      background: isLightMode ? '#e4ebf5' : '#1a1a1a',
+      borderRadius: '16px',
       border: 'none',
-      boxShadow: 'var(--neu-raised)',
+      boxShadow: isLightMode
+        ? '6px 6px 12px rgba(166, 180, 200, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.9)'
+        : '6px 6px 12px rgba(0, 0, 0, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.05)',
       transition: 'all 0.3s ease',
       overflowY: 'visible',
       overflowX: 'hidden',
@@ -307,35 +312,39 @@ const PlaybackPanel: React.FC = () => {
         flexShrink: 0,
         marginBottom: '0.2rem',
       }}>
-        {/* Progress Bar */}
+        {/* Neumorphic Progress Bar */}
         <div style={{
           width: '100%',
-          height: '8px',
-          background: isLightMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
-          borderRadius: '4px',
+          height: '6px',
+          background: isLightMode ? '#e4ebf5' : '#1a1a1a',
+          borderRadius: '3px',
           overflow: 'hidden',
-          position: 'relative'
+          position: 'relative',
+          boxShadow: isLightMode 
+            ? 'inset 2px 2px 4px rgba(166, 180, 200, 0.5), inset -1px -1px 2px rgba(255, 255, 255, 0.9)'
+            : 'inset 2px 2px 4px rgba(0, 0, 0, 0.5), inset -1px -1px 2px rgba(255, 255, 255, 0.03)'
         }}>
           <div style={{
             width: `${progressPercent}%`,
             height: '100%',
             background: `linear-gradient(90deg, ${KENYAN_GREEN}, ${KENYAN_RED})`,
-            borderRadius: '4px',
+            borderRadius: '3px',
             transition: 'width 0.1s linear',
-            boxShadow: `0 0 10px ${KENYAN_GREEN}60`
           }} />
         </div>
         
-        {/* Time and File Info */}
+        {/* Time and File Info - Neumorphic inset */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '0.25rem 0.4rem',
-          background: 'var(--neu-bg-base)',
+          padding: '0.2rem 0.4rem',
+          background: isLightMode ? '#e4ebf5' : '#1a1a1a',
           borderRadius: '8px',
           border: 'none',
-          boxShadow: 'var(--neu-pressed)'
+          boxShadow: isLightMode 
+            ? 'inset 2px 2px 4px rgba(166, 180, 200, 0.4), inset -1px -1px 2px rgba(255, 255, 255, 0.8)'
+            : 'inset 2px 2px 4px rgba(0, 0, 0, 0.4), inset -1px -1px 2px rgba(255, 255, 255, 0.03)'
         }}>
           <div style={{
             display: 'flex',
@@ -394,17 +403,17 @@ const PlaybackPanel: React.FC = () => {
         width: '100%',
         marginTop: '0.25rem',
       }}>
-        {/* Skip Backward -5s */}
+        {/* Skip Backward -5s - Neumorphic */}
         <button
           onClick={handleSkipBackward}
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: '32px',
-            height: '32px',
+            width: '28px',
+            height: '28px',
           }}
           onMouseEnter={(e) => {
-            if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.1)';
+            if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.05)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
@@ -416,36 +425,34 @@ const PlaybackPanel: React.FC = () => {
           </svg>
         </button>
 
-        {/* Play Button */}
+        {/* Play Button - Neumorphic */}
         <button
           onClick={handlePlay}
           disabled={!isAudioLoaded || isPlaying}
           style={glassButtonStyle(false, !isAudioLoaded || isPlaying, KENYAN_GREEN)}
           onMouseEnter={(e) => {
             if (isAudioLoaded && !isPlaying) {
-              e.currentTarget.style.transform = 'scale(1.1)';
-              e.currentTarget.style.boxShadow = `0 0 25px ${KENYAN_GREEN}80`;
+              e.currentTarget.style.transform = 'scale(1.05)';
             }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
           }}
           title="Play"
         >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill={KENYAN_GREEN}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill={KENYAN_GREEN}>
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
         </button>
         
-        {/* Pause Button */}
+        {/* Pause Button - Neumorphic */}
         <button
           onClick={handlePause}
           disabled={!isAudioLoaded || !isPlaying}
           style={glassButtonStyle(isPlaying, !isAudioLoaded || !isPlaying, textColor)}
           onMouseEnter={(e) => {
             if (isAudioLoaded && isPlaying) {
-              e.currentTarget.style.transform = 'scale(1.1)';
+              e.currentTarget.style.transform = 'scale(1.05)';
             }
           }}
           onMouseLeave={(e) => {
@@ -453,45 +460,43 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Pause"
         >
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="4" width="4" height="16"/>
             <rect x="14" y="4" width="4" height="16"/>
           </svg>
         </button>
         
-        {/* Stop Button */}
+        {/* Stop Button - Neumorphic */}
         <button
           onClick={handleStop}
           disabled={!isAudioLoaded}
           style={glassButtonStyle(false, !isAudioLoaded, KENYAN_RED)}
           onMouseEnter={(e) => {
             if (isAudioLoaded) {
-              e.currentTarget.style.transform = 'scale(1.1)';
-              e.currentTarget.style.boxShadow = 'var(--neu-pressed), 0 0 25px rgba(222, 41, 16, 0.4)';
+              e.currentTarget.style.transform = 'scale(1.05)';
             }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = 'var(--neu-raised)';
           }}
           title="Stop"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill={KENYAN_RED}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill={KENYAN_RED}>
             <rect x="6" y="6" width="12" height="12" rx="2"/>
           </svg>
         </button>
 
-        {/* Skip Forward +5s */}
+        {/* Skip Forward +5s - Neumorphic */}
         <button
           onClick={handleSkipForward}
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: '32px',
-            height: '32px',
+            width: '28px',
+            height: '28px',
           }}
           onMouseEnter={(e) => {
-            if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.1)';
+            if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.05)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';

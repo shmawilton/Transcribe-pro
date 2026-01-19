@@ -511,43 +511,8 @@ export function MarkerTimeline() {
     };
   }, [isCreatingMarker, markerStartTime, markerEndTime, timeToPixel]);
   
-  // ===== AUTO-SCROLL TO KEEP PLAYHEAD VISIBLE =====
-  // Auto-scroll viewport during playback to keep playhead and active markers visible
-  // This matches the waveform's auto-scroll behavior
-  const isPlaying = useAppStore((state) => state.audio.isPlaying);
-  const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
-  const setViewport = useAppStore((state) => state.setViewport);
-  
-  useEffect(() => {
-    if (!isPlaying || zoomLevel <= 1 || duration <= 0) return;
-    
-    const vpStart = viewportStart;
-    const vpEnd = viewportEnd > 0 ? viewportEnd : duration;
-    const visibleDur = vpEnd - vpStart;
-    
-    // Only auto-scroll if playhead is outside the visible viewport
-    // Add a small buffer (5% of visible duration) to prevent constant scrolling
-    const buffer = visibleDur * 0.05;
-    const isPlayheadBeforeViewport = currentTime < (vpStart + buffer);
-    const isPlayheadAfterViewport = currentTime > (vpEnd - buffer);
-    
-    if (isPlayheadBeforeViewport || isPlayheadAfterViewport) {
-      // Calculate new viewport to center playhead (or keep it visible)
-      // Use 80% of visible duration as the margin (20% buffer on each side)
-      const margin = visibleDur * 0.2;
-      let newStart = currentTime - margin;
-      let newEnd = currentTime + visibleDur - margin;
-      
-      // Clamp to valid range
-      newStart = Math.max(0, Math.min(newStart, duration - visibleDur));
-      newEnd = Math.max(visibleDur, Math.min(newEnd, duration));
-      
-      // Only update if viewport actually needs to change (prevent unnecessary updates)
-      if (Math.abs(newStart - vpStart) > 0.1 || Math.abs(newEnd - vpEnd) > 0.1) {
-        setViewport(newStart, newEnd);
-      }
-    }
-  }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, setViewport]);
+  // Note: Auto-scroll is handled by Waveform component - both share the same viewport state
+  // MarkerTimeline just responds to viewport changes from the shared store
 
   return (
     <div 
@@ -556,12 +521,14 @@ export function MarkerTimeline() {
       style={{
         position: 'relative',
         width: '100%',
-        flex: '0 0 55%',
-        minHeight: '0',
+        flex: '1 1 auto',
+        minHeight: '100px',
+        maxHeight: '250px',
+        height: 'auto',
         display: 'flex',
         flexDirection: 'column',
-        background: 'rgba(0, 102, 68, 0.15)',
-        borderRadius: 'var(--radius-md)',
+        background: 'rgba(0, 102, 68, 0.08)',
+        borderRadius: '16px',
         overflow: 'hidden',
         boxShadow: 'var(--neu-raised)',
         flexShrink: 0,

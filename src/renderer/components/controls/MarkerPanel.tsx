@@ -282,28 +282,32 @@ const MarkerPanel: React.FC = () => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'var(--neu-bg-base)',
+        background: isLightMode ? '#e4ebf5' : '#1a1a1a',
         border: 'none',
-        borderRadius: 'var(--radius-md)',
+        borderRadius: '16px',
         overflow: 'hidden',
-        boxShadow: 'var(--neu-raised)',
+        boxShadow: isLightMode
+          ? '6px 6px 12px rgba(166, 180, 200, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.9)'
+          : '6px 6px 12px rgba(0, 0, 0, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.05)',
       }}
     >
-      {/* Header */}
+      {/* Header - Neumorphic */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0.75rem 1rem',
-          borderBottom: `1px solid ${borderColor}`,
-          background: glassBg,
+          padding: '0.5rem 0.75rem',
+          background: isLightMode ? '#e4ebf5' : '#1a1a1a',
+          borderBottom: isLightMode 
+            ? '1px solid rgba(166, 180, 200, 0.3)' 
+            : '1px solid rgba(255, 255, 255, 0.05)',
         }}
       >
         <div
           style={{
             color: textColor,
-            fontSize: '1rem',
+            fontSize: '0.85rem',
             fontWeight: '600',
           }}
         >
@@ -323,27 +327,26 @@ const MarkerPanel: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '36px',
-                height: '36px',
+                width: '28px',
+                height: '28px',
                 padding: 0,
-                background: 'var(--neu-bg-base)',
+                background: isLightMode ? '#e4ebf5' : '#1a1a1a',
                 color: isLightMode ? '#000000' : '#FFFFFF',
                 border: 'none',
                 borderRadius: '50%',
                 cursor: 'pointer',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: 'var(--neu-raised)',
+                transition: 'all 0.2s ease',
+                boxShadow: isLightMode
+                  ? '3px 3px 6px rgba(166, 180, 200, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.9)'
+                  : '3px 3px 6px rgba(0, 0, 0, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.05)',
                 opacity: 1,
-                transform: 'scale(1)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.15)';
-                e.currentTarget.style.boxShadow = 'var(--neu-pressed), 0 0 12px rgba(255, 68, 68, 0.4)';
+                e.currentTarget.style.transform = 'scale(1.05)';
                 e.currentTarget.style.color = '#FF4444';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = 'var(--neu-raised)';
                 e.currentTarget.style.color = isLightMode ? '#000000' : '#FFFFFF';
               }}
               title="Deactivate marker (return to normal speed)"
@@ -365,7 +368,7 @@ const MarkerPanel: React.FC = () => {
             </button>
           )}
 
-          {/* TASK 15: Create Marker Icon Button - White/Black/Grey Bubble Style */}
+          {/* Create Marker Button - Neumorphic */}
           <button
             onClick={handleCreateButtonClick}
             disabled={duration <= 0}
@@ -373,37 +376,41 @@ const MarkerPanel: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '36px',
-            height: '36px',
+            width: '28px',
+            height: '28px',
             padding: 0,
-            background: 'var(--neu-bg-base)',
+            background: isLightMode ? '#e4ebf5' : '#1a1a1a',
             color: duration > 0 
-              ? (isLightMode ? '#000000' : '#FFFFFF')
+              ? '#006644'
               : (isLightMode ? '#999999' : '#666666'),
             border: 'none',
             borderRadius: '50%',
             cursor: duration > 0 ? 'pointer' : 'not-allowed',
             transition: 'all 0.2s ease',
             opacity: duration > 0 ? 1 : 0.6,
-            boxShadow: duration > 0 ? 'var(--neu-raised)' : 'var(--neu-pressed)',
+            boxShadow: duration > 0 
+              ? (isLightMode
+                  ? '3px 3px 6px rgba(166, 180, 200, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.9)'
+                  : '3px 3px 6px rgba(0, 0, 0, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.05)')
+              : (isLightMode
+                  ? 'inset 2px 2px 4px rgba(166, 180, 200, 0.5), inset -1px -1px 2px rgba(255, 255, 255, 0.9)'
+                  : 'inset 2px 2px 4px rgba(0, 0, 0, 0.5), inset -1px -1px 2px rgba(255, 255, 255, 0.03)'),
           }}
           onMouseEnter={(e) => {
             if (duration > 0) {
-              e.currentTarget.style.transform = 'scale(1.15)';
-              e.currentTarget.style.boxShadow = 'var(--neu-pressed)';
+              e.currentTarget.style.transform = 'scale(1.05)';
             }
           }}
           onMouseLeave={(e) => {
             if (duration > 0) {
               e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = 'var(--neu-raised)';
             }
           }}
           title={duration > 0 ? 'Create new marker (M)' : 'Load audio file first'}
         >
           <svg
-            width="20"
-            height="20"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
