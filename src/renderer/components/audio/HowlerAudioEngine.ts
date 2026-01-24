@@ -86,8 +86,12 @@ export class HowlerAudioEngine {
   private isLooping: boolean = false;
   private isHandlingLoopJump: boolean = false;
 
+  // Pitch cache for faster switching
+  private pitchCache: Map<number, { blobUrl: string; filePath: string }> = new Map();
+  private speedCache: Map<number, { blobUrl: string; filePath: string }> = new Map();
+
   constructor() {
-    console.log('[HowlerEngine] Initialized with on-demand pitch conversion');
+    // Engine initialized
   }
 
   public isFormatSupported(file: File): boolean {
@@ -137,8 +141,6 @@ export class HowlerAudioEngine {
   }
 
   public async loadAudioFile(file: File): Promise<void> {
-    console.log('[HowlerEngine] ===== LOADING =====');
-    console.log('[HowlerEngine] File:', file.name, file.size, 'bytes');
 
     this.unloadCurrentAudio();
     await this.cleanup();
@@ -167,11 +169,9 @@ export class HowlerAudioEngine {
           this.originalDataArray,
           file.name
         );
-        console.log('[HowlerEngine] Saved temp file:', this.originalTempPath);
       }
 
       // Load original with Howler
-      console.log('[HowlerEngine] Loading original...');
       await this.loadHowlerFromUrl(this.originalBlobUrl);
 
       // Set volume to +6 dB (maximum volume) when audio loads - CRITICAL
@@ -179,7 +179,6 @@ export class HowlerAudioEngine {
       const isMuted = useAppStore.getState().globalControls.isMuted;
       const targetVolume = isMuted ? -60 : (storeVolume !== undefined ? storeVolume : 6);
       this.setVolume(targetVolume);
-      console.log('[HowlerEngine] Volume set to', targetVolume, 'dB on load');
 
       // Decode waveform
       await ensureFFmpegLoaded();
@@ -190,10 +189,8 @@ export class HowlerAudioEngine {
       }
 
       useAppStore.getState().setIsLoading(false);
-      console.log('[HowlerEngine] ===== LOADED =====');
 
     } catch (error) {
-      console.error('[HowlerEngine] Load failed:', error);
       useAppStore.getState().setIsLoading(false);
       this.unloadCurrentAudio();
       throw error;
@@ -227,15 +224,20 @@ export class HowlerAudioEngine {
           
           // If preserving state, seek and play
           if (preserveState) {
-            // preserveState.time is effective time, convert to file time
-            const effectiveTime = Math.min(preserveState.time, this.duration);
-            const fileTime = this.currentSpeed !== 1.0 && this.currentSpeed > 0
-              ? effectiveTime * this.currentSpeed
-              : effectiveTime;
-            newHowl.seek(fileTime);
+            // preserveState.time is the original timeline time (not affected by speed)
+            // Duration never changes with speed, so we can seek directly
+            const seekTime = Math.min(preserveState.time, this.duration);
+            newHowl.seek(seekTime);
             
             if (preserveState.playing) {
               this.currentSoundId = newHowl.play() as number;
+              
+              // CRITICAL: Apply current speed to the playing sound instance
+              // This preserves marker speeds when pitch changes
+              if (this.currentSpeed !== 1.0 && this.currentSoundId !== null) {
+                newHowl.rate(this.currentSpeed, this.currentSoundId);
+              }
+              
               this.startTimeUpdate();
             }
           }
@@ -258,7 +260,8 @@ export class HowlerAudioEngine {
               this.setSpeed(storedSpeed);
             }
           } else {
-            // Preserve speed when switching pitch
+            // Speed is already applied above to the specific sound ID
+            // Also ensure it's set on the main instance for future plays
             if (this.currentSpeed !== 1.0) {
               newHowl.rate(this.currentSpeed);
             }
@@ -316,7 +319,6 @@ export class HowlerAudioEngine {
     this.isProcessingPitch = true;
     this.pitchProcessingAborted = false;
     
-    console.log(`[HowlerEngine] 🎵 Processing pitch change to ${targetPitch > 0 ? '+' : ''}${targetPitch}...`);
     emitPitchStatus({ isProcessing: true, targetPitch, progress: 0 });
 
     try {
@@ -346,7 +348,6 @@ export class HowlerAudioEngine {
         this.currentPitchedBlobUrl = null;
         
         this.currentPitch = 0;
-        console.log('[HowlerEngine] ✅ Switched to original pitch');
         emitPitchStatus({ isProcessing: false, targetPitch: 0, progress: 100 });
         this.isProcessingPitch = false;
         return;
@@ -361,7 +362,6 @@ export class HowlerAudioEngine {
 
       // Check for abort
       if (this.pitchProcessingAborted) {
-        console.log('[HowlerEngine] Pitch processing aborted');
         this.isProcessingPitch = false;
         return;
       }
@@ -384,7 +384,6 @@ export class HowlerAudioEngine {
 
       // Check for abort again
       if (this.pitchProcessingAborted) {
-        console.log('[HowlerEngine] Pitch processing aborted after FFmpeg');
         // Cleanup the generated file
         if (window.electronAPI?.cleanupTempFile) {
           await window.electronAPI.cleanupTempFile(pitchedPath).catch(() => {});
@@ -419,11 +418,9 @@ export class HowlerAudioEngine {
       this.currentPitchedBlobUrl = newBlobUrl;
 
       this.currentPitch = targetPitch;
-      console.log(`[HowlerEngine] ✅ Pitch changed to ${targetPitch > 0 ? '+' : ''}${targetPitch}`);
       emitPitchStatus({ isProcessing: false, targetPitch, progress: 100 });
 
     } catch (error) {
-      console.error('[HowlerEngine] Pitch change failed:', error);
       emitPitchStatus({ isProcessing: false, targetPitch: this.currentPitch, progress: 0 });
     }
 
@@ -475,6 +472,13 @@ export class HowlerAudioEngine {
     
     // Start playback
     this.currentSoundId = this.howl.play() as number;
+    
+    // CRITICAL: Apply current speed immediately after starting playback
+    // This ensures marker speeds are applied correctly
+    if (this.currentSpeed !== 1.0 && this.currentSoundId !== null) {
+      this.howl.rate(this.currentSpeed, this.currentSoundId);
+    }
+    
     useAppStore.getState().setIsPlaying(true);
     this.startTimeUpdate();
     
@@ -543,9 +547,18 @@ export class HowlerAudioEngine {
       this.howl.seek(originalTime, this.currentSoundId);
       useAppStore.getState().setCurrentTime(originalTime);
       
+      // Ensure speed is applied to this sound instance
+      if (this.currentSpeed !== 1.0) {
+        this.howl.rate(this.currentSpeed, this.currentSoundId);
+      }
+      
       // If it was playing but stopped, restart it
       if (wasPlaying && !this.howl.playing(this.currentSoundId)) {
         this.howl.play(this.currentSoundId);
+        // Reapply speed after restart
+        if (this.currentSpeed !== 1.0) {
+          this.howl.rate(this.currentSpeed, this.currentSoundId);
+        }
       }
     } else {
       // No sound ID - seek on the main instance
@@ -558,6 +571,10 @@ export class HowlerAudioEngine {
         // Seek to the correct position on the new instance
         if (this.currentSoundId !== null) {
           this.howl.seek(originalTime, this.currentSoundId);
+          // Apply current speed to the new sound instance
+          if (this.currentSpeed !== 1.0) {
+            this.howl.rate(this.currentSpeed, this.currentSoundId);
+          }
         }
       }
     }
@@ -608,8 +625,12 @@ export class HowlerAudioEngine {
     useAppStore.getState().setPlaybackRate(targetSpeed);
     this.targetSpeed = targetSpeed;
     
-    // If same speed, nothing to do
+    // If same speed, nothing to do (but still ensure it's applied if howl exists)
     if (Math.abs(targetSpeed - this.currentSpeed) < 0.01) {
+      // Even if speed is the same, ensure it's applied to the current sound if playing
+      if (this.howl && this.currentSoundId !== null && this.howl.playing(this.currentSoundId)) {
+        this.howl.rate(targetSpeed, this.currentSoundId);
+      }
       return;
     }
 
@@ -619,7 +640,14 @@ export class HowlerAudioEngine {
     
     if (this.howl) {
       // Apply rate immediately - no processing delay!
-      this.howl.rate(targetSpeed);
+      // If we have a specific sound ID (playing instance), apply to that
+      // Otherwise apply to the main howl instance
+      if (this.currentSoundId !== null && this.howl.playing(this.currentSoundId)) {
+        this.howl.rate(targetSpeed, this.currentSoundId);
+      } else {
+        // Apply to main instance (for when not playing or no sound ID)
+        this.howl.rate(targetSpeed);
+      }
       
       // Duration NEVER changes with speed - it always stays as originalDuration
       // Only the playback rate changes, which makes the counter advance faster/slower
@@ -632,8 +660,9 @@ export class HowlerAudioEngine {
         const currentTime = this.getCurrentTime();
         useAppStore.getState().setCurrentTime(currentTime);
         
-        console.log(`[HowlerEngine] ⚡ Speed changed IMMEDIATELY to ${targetSpeed}x (duration stays at ${this.duration.toFixed(2)}s)`);
       }
+    } else {
+      // Howl not ready yet - store the speed so it can be applied when audio loads
     }
   }
 
@@ -650,7 +679,6 @@ export class HowlerAudioEngine {
     this.isProcessingSpeed = true;
     this.speedProcessingAborted = false;
     
-    console.log(`[HowlerEngine] 🎵 Processing speed change to ${targetSpeed}x...`);
 
     try {
       // Check if going back to normal speed
@@ -679,7 +707,6 @@ export class HowlerAudioEngine {
         this.currentSpeededBlobUrl = null;
         
         this.currentSpeed = 1.0;
-        console.log('[HowlerEngine] ✅ Switched to normal speed');
         this.isProcessingSpeed = false;
         return;
       }
@@ -697,7 +724,6 @@ export class HowlerAudioEngine {
 
       // Check for abort
       if (this.speedProcessingAborted) {
-        console.log('[HowlerEngine] Speed processing aborted');
         this.isProcessingSpeed = false;
         return;
       }
@@ -712,7 +738,6 @@ export class HowlerAudioEngine {
 
       // Check for abort again
       if (this.speedProcessingAborted) {
-        console.log('[HowlerEngine] Speed processing aborted after FFmpeg');
         if (window.electronAPI?.cleanupTempFile) {
           await window.electronAPI.cleanupTempFile(speededPath).catch(() => {});
         }
@@ -721,27 +746,17 @@ export class HowlerAudioEngine {
       }
 
       // Read the speeded file
-      console.log('[HowlerEngine] Reading speeded file:', speededPath);
       const audioData = await window.electronAPI.readAudioFile(speededPath);
-      console.log('[HowlerEngine] Read', audioData.length, 'bytes');
 
       // Create blob URL
       const blob = new Blob([new Uint8Array(audioData)], { type: 'audio/mpeg' });
       const newBlobUrl = URL.createObjectURL(blob);
-      console.log('[HowlerEngine] Created blob URL:', newBlobUrl.substring(0, 50) + '...');
 
       // Get current playback state BEFORE switching
       const wasPlaying = this.howl?.playing() || false;
       let currentTime = this.getCurrentTime();
       const originalDuration = this.duration;
       
-      console.log('[HowlerEngine] Current state:', {
-        currentTime,
-        currentSpeed: this.currentSpeed,
-        targetSpeed,
-        wasPlaying,
-        originalDuration
-      });
       
       // Adjust time proportionally when switching speeds
       // Formula: originalAudioTime = currentTime * currentSpeed
@@ -759,11 +774,6 @@ export class HowlerAudioEngine {
       // Clamp to valid range
       currentTime = Math.max(0, Math.min(newTime, expectedNewDuration));
       
-      console.log('[HowlerEngine] Switching with:', {
-        originalAudioTime,
-        newTime: currentTime,
-        expectedNewDuration
-      });
 
       // SEAMLESS SWITCH - load new, then stop old
       await this.loadHowlerFromUrl(newBlobUrl, { time: currentTime, playing: wasPlaying });
@@ -773,10 +783,8 @@ export class HowlerAudioEngine {
       this.currentSpeededBlobUrl = newBlobUrl;
 
       this.currentSpeed = targetSpeed;
-      console.log(`[HowlerEngine] ✅ Speed changed to ${targetSpeed}x (pitch maintained)`);
 
     } catch (error) {
-      console.error('[HowlerEngine] Speed change failed:', error);
     }
 
     this.isProcessingSpeed = false;
@@ -797,7 +805,6 @@ export class HowlerAudioEngine {
 
     const speed = speedMap[preset] || 1.0;
     this.setSpeed(speed);
-    console.log('[HowlerEngine] Speed preset applied:', preset, '=', speed, 'x');
   }
 
   /**
@@ -805,6 +812,13 @@ export class HowlerAudioEngine {
    */
   public getSpeed(): number {
     return this.currentSpeed;
+  }
+
+  /**
+   * Get the original temp file path (for effects processing)
+   */
+  public getOriginalFilePath(): string | null {
+    return this.originalTempPath;
   }
 
   /**
@@ -827,22 +841,12 @@ export class HowlerAudioEngine {
     
     // Validate loop bounds
     if (start < 0 || end > duration || start >= end) {
-      console.warn('[HowlerEngine] Invalid loop bounds:', { start, end, duration });
       return;
     }
 
     this.loopStart = start;
     this.loopEnd = end;
     this.isLooping = true;
-
-    console.log('[HowlerEngine] Loop enabled:', { 
-      start, 
-      end, 
-      duration,
-      isLooping: this.isLooping,
-      loopStart: this.loopStart,
-      loopEnd: this.loopEnd
-    });
   }
 
   /**
@@ -854,7 +858,6 @@ export class HowlerAudioEngine {
     this.loopStart = null;
     this.loopEnd = null;
 
-    console.log('[HowlerEngine] Loop disabled');
   }
 
   /**
@@ -864,12 +867,6 @@ export class HowlerAudioEngine {
    */
   private async handleLoopEnd(): Promise<void> {
     if (!this.isLooping || this.loopStart === null || this.loopEnd === null || !this.howl) {
-      console.warn('[HowlerEngine] handleLoopEnd called but loop is not active:', {
-        isLooping: this.isLooping,
-        loopStart: this.loopStart,
-        loopEnd: this.loopEnd,
-        hasHowl: !!this.howl
-      });
       return;
     }
 
@@ -877,7 +874,6 @@ export class HowlerAudioEngine {
     if (this.isHandlingLoopJump) return;
     this.isHandlingLoopJump = true;
 
-    console.log('[HowlerEngine] Loop end reached, jumping to loop start:', this.loopStart);
     
     try {
       const wasPlaying = this.currentSoundId !== null
@@ -908,9 +904,7 @@ export class HowlerAudioEngine {
         useAppStore.getState().setIsPlaying(true);
       }
 
-      console.log('[HowlerEngine] Loop jump complete:', { loopStart: this.loopStart, loopEnd: this.loopEnd });
     } catch (error) {
-      console.error('[HowlerEngine] Error during loop jump:', error);
     } finally {
       // Allow next loop check after a short delay to prevent rapid re-trigger
       setTimeout(() => { this.isHandlingLoopJump = false; }, 80);
@@ -934,18 +928,8 @@ export class HowlerAudioEngine {
           // Use a threshold (0.1s) to account for timing precision and ensure we catch it
           const loopEndThreshold = this.loopEnd - 0.1;
           if (currentTime >= loopEndThreshold) {
-            console.log('[HowlerEngine] Loop end detected:', { 
-              currentTime, 
-              loopEnd: this.loopEnd, 
-              loopStart: this.loopStart,
-              loopEndThreshold,
-              isLooping: this.isLooping
-            });
-            // Call handleLoopEnd - it's async but we don't await it in the callback
-            this.handleLoopEnd().catch(err => {
-              console.error('[HowlerEngine] Error in handleLoopEnd:', err);
-            });
-            return; // Don't check for audio end if we're looping
+            this.handleLoopEnd().catch(() => {});
+            return;
           }
         }
         

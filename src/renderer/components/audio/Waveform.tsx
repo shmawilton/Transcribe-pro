@@ -4,6 +4,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../../store/store';
 import { useAudioEngine } from './useAudioEngine';
+import { useSmoothViewport } from '../../hooks/useSmoothViewport';
 
 /**
  * Peak data structure
@@ -370,6 +371,12 @@ const Waveform: React.FC = () => {
       return null;
     }
 
+    // Safety checks for NaN or invalid viewport values
+    const safeVpStart = (isFinite(vpStart) && !isNaN(vpStart) && vpStart >= 0) ? vpStart : 0;
+    const safeVpEnd = (isFinite(vpEnd) && !isNaN(vpEnd) && vpEnd > safeVpStart && vpEnd <= buffer.duration) 
+      ? vpEnd 
+      : buffer.duration;
+
     const cache = peakCacheRef.current;
     const isStereo = buffer.numberOfChannels > 1;
     
@@ -378,8 +385,8 @@ const Waveform: React.FC = () => {
     
     // Round viewport values to reduce unnecessary regeneration during animation
     // Use 2 decimal places - gives good balance between accuracy and performance
-    const roundedVpStart = Math.round(vpStart * 100) / 100;
-    const roundedVpEnd = Math.round(vpEnd * 100) / 100;
+    const roundedVpStart = Math.round(safeVpStart * 100) / 100;
+    const roundedVpEnd = Math.round(safeVpEnd * 100) / 100;
     const viewportKey = `${roundedVpStart}-${roundedVpEnd}`;
     
     // Check if we need to regenerate peaks (including viewport changes)
@@ -577,12 +584,25 @@ const Waveform: React.FC = () => {
       : null;
     
     // Use animated viewport for smooth zoom transitions
-    const vpStart = animatedViewportRef.current.initialized 
+    // Add NaN safety checks
+    let vpStart = animatedViewportRef.current.initialized 
       ? animatedViewportRef.current.start 
       : storeState.ui.viewportStart;
-    const vpEnd = animatedViewportRef.current.initialized 
+    let vpEnd = animatedViewportRef.current.initialized 
       ? animatedViewportRef.current.end 
       : storeState.ui.viewportEnd;
+    
+    // Safety checks for NaN or invalid values
+    if (!isFinite(vpStart) || isNaN(vpStart) || vpStart < 0) {
+      vpStart = 0;
+    }
+    if (!isFinite(vpEnd) || isNaN(vpEnd) || vpEnd <= vpStart || vpEnd > actualDuration) {
+      vpEnd = actualDuration > 0 ? actualDuration : 1;
+    }
+    if (vpStart >= vpEnd) {
+      vpStart = 0;
+      vpEnd = actualDuration > 0 ? actualDuration : 1;
+    }
     
     // Calculate visible duration (viewport)
     const visibleDuration = vpEnd > vpStart ? vpEnd - vpStart : actualDuration;
@@ -1019,10 +1039,14 @@ const Waveform: React.FC = () => {
     console.log('[Waveform] Seeked to:', formatHoverTime(clampedTime));
   }, [duration, seek, viewportStart, viewportEnd]);
 
+  // Smooth viewport animation hook
+  const { animateScrollToTime } = useSmoothViewport();
+  const lastAutoScrollTimeRef = useRef<number>(0);
+
   /**
    * Auto-scroll viewport during playback to keep playhead visible
+   * Uses smooth animation for a seamless scrolling experience
    * Only scrolls when playhead goes out of view (not when it's still visible)
-   * This allows users to manually scroll while playing, but auto-scrolls when needed
    */
   useEffect(() => {
     if (!isPlaying || zoomLevel <= 1 || duration <= 0) return;
@@ -1038,22 +1062,15 @@ const Waveform: React.FC = () => {
     const isPlayheadAfterViewport = currentTime > (vpEnd - buffer);
     
     if (isPlayheadBeforeViewport || isPlayheadAfterViewport) {
-      // Calculate new viewport to center playhead (or keep it visible)
-      // Use 80% of visible duration as the margin (20% buffer on each side)
-      const margin = visibleDuration * 0.2;
-      let newStart = currentTime - margin;
-      let newEnd = currentTime + visibleDuration - margin;
+      // Prevent triggering animation too frequently (debounce)
+      const now = Date.now();
+      if (now - lastAutoScrollTimeRef.current < 150) return;
+      lastAutoScrollTimeRef.current = now;
       
-      // Clamp to valid range
-      newStart = Math.max(0, Math.min(newStart, duration - visibleDuration));
-      newEnd = Math.max(visibleDuration, Math.min(newEnd, duration));
-      
-      // Only update if viewport actually needs to change (prevent unnecessary updates)
-      if (Math.abs(newStart - vpStart) > 0.1 || Math.abs(newEnd - vpEnd) > 0.1) {
-        setViewport(newStart, newEnd);
-      }
+      // Use smooth animation for auto-scroll
+      animateScrollToTime(currentTime, { duration: 200, easing: 'easeOutQuad' });
     }
-  }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, setViewport]);
+  }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, animateScrollToTime]);
 
   /**
    * Initialize viewport when duration changes (new audio loaded)
@@ -1073,16 +1090,17 @@ const Waveform: React.FC = () => {
       className="waveform-container" 
       style={{ 
         width: '100%', 
-        flex: '0 0 45%',
-        minHeight: '0',
+        flex: '1 1 auto',
+        minHeight: '120px',
+        maxHeight: '180px',
         background: 'var(--neu-bg-base)',
         border: 'none',
-        borderRadius: 'var(--radius-md)',
+        borderRadius: '16px',
         padding: '0',
         display: 'flex',
         flexDirection: 'column',
         boxShadow: 'var(--neu-raised)',
-        transition: 'all var(--transition-normal)',
+        transition: 'all 0.3s ease',
         overflow: 'hidden',
         position: 'relative'
       }}

@@ -46,17 +46,9 @@ const ResetIcon: React.FC<{ color: string; size?: number }> = ({ color, size = 1
   </svg>
 );
 
-// Volume icon
-const VolumeIcon: React.FC<{ color: string; level: number; size?: number }> = ({ color, level, size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill={color} />
-    {level > 0 && <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />}
-    {level > 0.5 && <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />}
-  </svg>
-);
 
 const GlobalControlsPanel: React.FC = () => {
-  const { setPitch, setVolume, getPitch } = useAudioEngine();
+  const { setPitch, getPitch } = useAudioEngine();
   
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
@@ -67,7 +59,6 @@ const GlobalControlsPanel: React.FC = () => {
   const storePitch = useAppStore((state) => state.setPitch);
   
   const [pitch, setPitchState] = useState(storedPitch || 0);
-  const [volume, setVolumeState] = useState(0); // dB, 0 = unity gain
   const [isAnimating, setIsAnimating] = useState(false);
   
   // Debug: Log when component mounts
@@ -128,14 +119,6 @@ const GlobalControlsPanel: React.FC = () => {
   // Reset pitch to 0
   const handleResetPitch = () => {
     handlePitchChange(0);
-  };
-
-  // Handle volume change
-  const handleVolumeChange = (newVolume: number) => {
-    const clampedVolume = Math.max(-60, Math.min(6, newVolume));
-    setVolumeState(clampedVolume);
-    setVolume(clampedVolume);
-    console.log('[GlobalControlsPanel] Volume changed to:', clampedVolume, 'dB');
   };
 
   // Get pitch display text
@@ -456,82 +439,6 @@ const GlobalControlsPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Volume Control Section */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.5rem',
-        position: 'relative',
-        zIndex: 1,
-        background: glassBg,
-        borderRadius: '12px',
-        padding: '0.8rem',
-        border: `1px solid ${borderColor}`
-      }}>
-        {/* Volume Header with Icon */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <VolumeIcon 
-            color={textColor} 
-            level={volume > -30 ? (volume > -10 ? 1 : 0.5) : 0} 
-            size={20} 
-          />
-          <span style={{
-            fontSize: '0.95rem',
-            fontWeight: '600',
-            color: textColor,
-            fontFamily: HANDWRITTEN_FONT
-          }}>
-            Volume
-          </span>
-          <span style={{
-            marginLeft: 'auto',
-            fontSize: '0.9rem',
-            fontWeight: '700',
-            color: volume === 0 ? textColor : (volume > 0 ? KENYAN_GREEN : KENYAN_RED),
-            fontFamily: HANDWRITTEN_FONT
-          }}>
-            {volume > 0 ? '+' : ''}{volume} dB
-          </span>
-        </div>
-
-        {/* Volume Slider */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <span style={{ fontSize: '0.7rem', color: textColor, opacity: 0.6 }}>-60</span>
-          <input
-            type="range"
-            min="-60"
-            max="6"
-            step="1"
-            value={volume}
-            onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-            disabled={!isAudioLoaded}
-            style={{
-              flex: 1,
-              height: '4px',
-              borderRadius: '2px',
-              background: `linear-gradient(to right, 
-                ${KENYAN_GREEN} 0%, 
-                ${KENYAN_GREEN} ${((volume + 60) / 66) * 100}%, 
-                ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'} ${((volume + 60) / 66) * 100}%, 
-                ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'} 100%)`,
-              outline: 'none',
-              cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-              WebkitAppearance: 'none',
-              appearance: 'none',
-              opacity: isAudioLoaded ? 1 : 0.4
-            }}
-          />
-          <span style={{ fontSize: '0.7rem', color: textColor, opacity: 0.6 }}>+6</span>
-        </div>
-      </div>
 
       {/* Not available in Electron notice */}
       {typeof window !== 'undefined' && ((window as any).electronAPI || 
