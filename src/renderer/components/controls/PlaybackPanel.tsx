@@ -313,6 +313,46 @@ const PlaybackPanel: React.FC = () => {
         }
       `}</style>
 
+        {/* Mobile: Music name with clock icon */}
+      {isMobile && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          padding: '2px 8px',
+          marginBottom: '2px',
+        }}>
+          {/* Clock/Music icon */}
+          <svg 
+            width="14" 
+            height="14" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke={isPlaying ? KENYAN_GREEN : textColor}
+            strokeWidth="2" 
+            strokeLinecap="round"
+            style={{ flexShrink: 0, opacity: 0.7 }}
+          >
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          {/* File name - truncated */}
+          <span style={{
+            color: isPlaying ? KENYAN_GREEN : textColor,
+            fontSize: '0.7rem',
+            fontWeight: '600',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: '200px',
+            fontFamily: HANDWRITTEN_FONT,
+          }}>
+            {audio.file?.name?.replace(/\.[^/.]+$/, '') || 'No audio'}
+          </span>
+        </div>
+      )}
+
         {/* Time Progress Display - Compact on mobile */}
       <div className="mx-auto w-full max-w-full px-1" style={{
         display: 'flex',

@@ -1072,17 +1072,173 @@ const Waveform: React.FC = () => {
     }
   }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, animateScrollToTime]);
 
+  // Initial zoom shows 20% (1/5) of audio on both mobile and desktop
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const DEFAULT_ZOOM = 5; // Show 1/5 (20%) of the audio initially
+  const MOBILE_DEFAULT_ZOOM = 5; // Same for mobile
+
   /**
    * Initialize viewport when duration changes (new audio loaded)
+   * Both mobile and desktop: start with 20% view (zoom level 5)
    */
   useEffect(() => {
     if (duration > 0 && (viewportEnd === 0 || viewportEnd > duration)) {
-      setViewport(0, duration);
-      setZoomLevel(1);
+      // Start with 20% (1/5) of audio visible
+      const initialEnd = duration / DEFAULT_ZOOM;
+      setViewport(0, initialEnd);
+      setZoomLevel(DEFAULT_ZOOM);
     }
   }, [duration, viewportEnd, setViewport, setZoomLevel]);
+  
+  // Pinch-to-zoom for mobile/tablet - using refs for native event listeners
+  const lastTouchDistanceRef = useRef<number | null>(null);
+  const pinchCenterTimeRef = useRef<number | null>(null);
+  
+  // Store current values in refs for native event handlers
+  const durationRef = useRef(duration);
+  const viewportStartRef = useRef(viewportStart);
+  const viewportEndRef = useRef(viewportEnd);
+  const zoomLevelRef = useRef(zoomLevel);
+  const currentTimeRef = useRef(currentTime);
+  
+  useEffect(() => {
+    durationRef.current = duration;
+    viewportStartRef.current = viewportStart;
+    viewportEndRef.current = viewportEnd;
+    zoomLevelRef.current = zoomLevel;
+    currentTimeRef.current = currentTime;
+  }, [duration, viewportStart, viewportEnd, zoomLevel, currentTime]);
+  
+  // Use native event listeners for pinch-to-zoom (required for preventDefault)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const handleNativeTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        // Two-finger touch - prepare for pinch
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+        lastTouchDistanceRef.current = distance;
+        
+        // Calculate center time for zoom
+        if (containerRef.current && durationRef.current > 0) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const centerX = (touch1.clientX + touch2.clientX) / 2 - rect.left;
+          const vpStart = viewportStartRef.current;
+          const vpEnd = viewportEndRef.current > 0 ? viewportEndRef.current : durationRef.current;
+          const visibleDuration = vpEnd - vpStart;
+          pinchCenterTimeRef.current = vpStart + (centerX / rect.width) * visibleDuration;
+        }
+      }
+    };
+    
+    const handleNativeTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && lastTouchDistanceRef.current !== null) {
+        e.preventDefault(); // Now works because listener is not passive
+        
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const newDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+        
+        const scale = newDistance / lastTouchDistanceRef.current;
+        
+        if (Math.abs(scale - 1) > 0.02) { // Threshold to avoid jitter
+          const currentZoom = zoomLevelRef.current || MOBILE_DEFAULT_ZOOM;
+          let newZoom = currentZoom * scale;
+          
+          // Clamp zoom: min 4 (1/4 view), max 50
+          newZoom = Math.max(MOBILE_DEFAULT_ZOOM, Math.min(50, newZoom));
+          
+          if (Math.abs(newZoom - currentZoom) > 0.1) {
+            // Calculate new viewport centered on pinch point
+            const centerTime = pinchCenterTimeRef.current ?? currentTimeRef.current;
+            const dur = durationRef.current;
+            const newVisibleDuration = dur / newZoom;
+            let newStart = centerTime - newVisibleDuration / 2;
+            let newEnd = centerTime + newVisibleDuration / 2;
+            
+            // Clamp to valid range
+            if (newStart < 0) {
+              newStart = 0;
+              newEnd = newVisibleDuration;
+            }
+            if (newEnd > dur) {
+              newEnd = dur;
+              newStart = Math.max(0, dur - newVisibleDuration);
+            }
+            
+            setViewport(newStart, newEnd);
+            setZoomLevel(newZoom);
+            lastTouchDistanceRef.current = newDistance;
+          }
+        }
+      }
+    };
+    
+    const handleNativeTouchEnd = () => {
+      lastTouchDistanceRef.current = null;
+      pinchCenterTimeRef.current = null;
+    };
+    
+    // Add event listeners with { passive: false } to allow preventDefault
+    canvas.addEventListener('touchstart', handleNativeTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleNativeTouchEnd, { passive: true });
+    
+    return () => {
+      canvas.removeEventListener('touchstart', handleNativeTouchStart);
+      canvas.removeEventListener('touchmove', handleNativeTouchMove);
+      canvas.removeEventListener('touchend', handleNativeTouchEnd);
+    };
+  }, [setViewport, setZoomLevel]);
 
-  // Manual scrolling removed - only auto-scroll during playback is enabled
+  // Two-finger horizontal scroll support (trackpad on Mac/Windows, mouse wheel horizontal)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const handleWheel = (e: WheelEvent) => {
+      // Handle horizontal scrolling (two-finger swipe on trackpad or shift+scroll)
+      const deltaX = e.deltaX || (e.shiftKey ? e.deltaY : 0);
+      
+      if (Math.abs(deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
+        e.preventDefault();
+        
+        const dur = durationRef.current;
+        const vpStart = viewportStartRef.current;
+        const vpEnd = viewportEndRef.current > 0 ? viewportEndRef.current : dur;
+        const visibleDuration = vpEnd - vpStart;
+        
+        if (dur <= 0 || visibleDuration <= 0) return;
+        
+        // Calculate scroll amount (scaled by visible duration)
+        const scrollAmount = (deltaX / 500) * visibleDuration;
+        
+        let newStart = vpStart + scrollAmount;
+        let newEnd = vpEnd + scrollAmount;
+        
+        // Clamp to valid range
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = visibleDuration;
+        }
+        if (newEnd > dur) {
+          newEnd = dur;
+          newStart = Math.max(0, dur - visibleDuration);
+        }
+        
+        setViewport(newStart, newEnd);
+      }
+    };
+    
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [setViewport]);
 
   return (
     <div 
@@ -1090,16 +1246,15 @@ const Waveform: React.FC = () => {
       className="waveform-container" 
       style={{ 
         width: '100%', 
-        flex: '1 1 auto',
-        minHeight: '120px',
-        maxHeight: '180px',
+        height: '100%', // Fill container height
+        minHeight: isMobile ? '100%' : '100px',
         background: 'var(--neu-bg-base)',
         border: 'none',
-        borderRadius: '16px',
+        borderRadius: isMobile ? '6px' : '16px',
         padding: '0',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: 'var(--neu-raised)',
+        boxShadow: isMobile ? 'none' : 'var(--neu-raised)',
         transition: 'all 0.3s ease',
         overflow: 'hidden',
         position: 'relative'
@@ -1127,11 +1282,13 @@ const Waveform: React.FC = () => {
             cursor: 'crosshair',
             filter: clickFeedback ? 'brightness(1.2)' : 'none',
             transition: 'filter 0.1s ease-out',
-            flexShrink: 0
+            flexShrink: 0,
+            touchAction: 'none' // Allow custom touch handling via native events
           }}
           onClick={handleClick}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
+          // Touch events handled via native listeners in useEffect for pinch-to-zoom
         />
       </div>
       

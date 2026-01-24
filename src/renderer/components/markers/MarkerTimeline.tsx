@@ -54,6 +54,16 @@ export function MarkerTimeline() {
   // Get viewport state for synchronized zoom/scroll with Waveform
   const rawViewportStart = useAppStore((state) => state.ui.viewportStart);
   const rawViewportEnd = useAppStore((state) => state.ui.viewportEnd);
+  const setViewport = useAppStore((state) => state.setViewport);
+  const setZoomLevel = useAppStore((state) => state.setZoomLevel);
+  const zoomLevel = useAppStore((state) => state.ui.zoomLevel) || 1;
+  const currentTime = useAppStore((state) => state.audio.currentTime) || 0;
+  
+  // Pinch-to-zoom refs
+  const lastTouchDistanceRef = useRef<number | null>(null);
+  const pinchCenterTimeRef = useRef<number | null>(null);
+  const DEFAULT_ZOOM = 5; // Show 1/5 (20%) of the audio
+  const MOBILE_DEFAULT_ZOOM = 5; // Same for mobile
   
   // Clamp viewport values to current duration (handles case when new audio is shorter)
   // Also handles stale viewport values from previous audio and NaN values
@@ -160,6 +170,170 @@ export function MarkerTimeline() {
     };
   }, [timeToPixel]);
   
+  // Store current values in refs for native pinch-to-zoom event handlers
+  const durationRefPinch = useRef(duration);
+  const viewportStartRefPinch = useRef(viewportStart);
+  const visibleDurationRefPinch = useRef(visibleDuration);
+  const containerWidthRefPinch = useRef(containerWidth);
+  const zoomLevelRefPinch = useRef(zoomLevel);
+  const currentTimeRefPinch = useRef(currentTime);
+  const isMobileRefPinch = useRef(isMobile);
+  
+  useEffect(() => {
+    durationRefPinch.current = duration;
+    viewportStartRefPinch.current = viewportStart;
+    visibleDurationRefPinch.current = visibleDuration;
+    containerWidthRefPinch.current = containerWidth;
+    zoomLevelRefPinch.current = zoomLevel;
+    currentTimeRefPinch.current = currentTime;
+    isMobileRefPinch.current = isMobile;
+  }, [duration, viewportStart, visibleDuration, containerWidth, zoomLevel, currentTime, isMobile]);
+  
+  // Use native event listeners for pinch-to-zoom (required for preventDefault)
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    
+    const handleNativePinchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        // Two-finger touch - prepare for pinch
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+        lastTouchDistanceRef.current = distance;
+        
+        // Calculate center time for zoom
+        if (containerRef.current && durationRefPinch.current > 0) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const centerX = (touch1.clientX + touch2.clientX) / 2 - rect.left;
+          const timeInViewport = (centerX / containerWidthRefPinch.current) * visibleDurationRefPinch.current;
+          pinchCenterTimeRef.current = viewportStartRefPinch.current + timeInViewport;
+        }
+      }
+    };
+    
+    const handleNativePinchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && lastTouchDistanceRef.current !== null) {
+        e.preventDefault(); // Now works because listener is not passive
+        
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const newDistance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
+        
+        const scale = newDistance / lastTouchDistanceRef.current;
+        
+        if (Math.abs(scale - 1) > 0.02) { // Threshold to avoid jitter
+          const currentZoom = zoomLevelRefPinch.current || (isMobileRefPinch.current ? MOBILE_DEFAULT_ZOOM : 1);
+          let newZoom = currentZoom * scale;
+          
+          // Clamp zoom: min 4 (1/4 view) on mobile, min 1 on desktop, max 50
+          const minZoom = isMobileRefPinch.current ? MOBILE_DEFAULT_ZOOM : 1;
+          newZoom = Math.max(minZoom, Math.min(50, newZoom));
+          
+          if (Math.abs(newZoom - currentZoom) > 0.1) {
+            // Calculate new viewport centered on pinch point
+            const centerTime = pinchCenterTimeRef.current ?? currentTimeRefPinch.current;
+            const dur = durationRefPinch.current;
+            const newVisibleDuration = dur / newZoom;
+            let newStart = centerTime - newVisibleDuration / 2;
+            let newEnd = centerTime + newVisibleDuration / 2;
+            
+            // Clamp to valid range
+            if (newStart < 0) {
+              newStart = 0;
+              newEnd = newVisibleDuration;
+            }
+            if (newEnd > dur) {
+              newEnd = dur;
+              newStart = Math.max(0, dur - newVisibleDuration);
+            }
+            
+            setViewport(newStart, newEnd);
+            setZoomLevel(newZoom);
+            lastTouchDistanceRef.current = newDistance;
+          }
+        }
+      }
+    };
+    
+    const handleNativePinchEnd = () => {
+      lastTouchDistanceRef.current = null;
+      pinchCenterTimeRef.current = null;
+    };
+    
+    // Add event listeners with { passive: false } to allow preventDefault
+    svg.addEventListener('touchstart', handleNativePinchStart, { passive: true });
+    svg.addEventListener('touchmove', handleNativePinchMove, { passive: false });
+    svg.addEventListener('touchend', handleNativePinchEnd, { passive: true });
+    
+    return () => {
+      svg.removeEventListener('touchstart', handleNativePinchStart);
+      svg.removeEventListener('touchmove', handleNativePinchMove);
+      svg.removeEventListener('touchend', handleNativePinchEnd);
+    };
+  }, [setViewport, setZoomLevel]);
+  
+  // Two-finger horizontal scroll support (trackpad on Mac/Windows, mouse wheel horizontal)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    const handleWheel = (e: WheelEvent) => {
+      // Handle horizontal scrolling (two-finger swipe on trackpad or shift+scroll)
+      const deltaX = e.deltaX || (e.shiftKey ? e.deltaY : 0);
+      
+      if (Math.abs(deltaX) > Math.abs(e.deltaY) || e.shiftKey) {
+        e.preventDefault();
+        
+        const dur = durationRefPinch.current;
+        const vpStart = viewportStartRefPinch.current;
+        const vpEnd = visibleDurationRefPinch.current > 0 
+          ? vpStart + visibleDurationRefPinch.current 
+          : dur;
+        const visibleDur = vpEnd - vpStart;
+        
+        if (dur <= 0 || visibleDur <= 0) return;
+        
+        // Calculate scroll amount (scaled by visible duration)
+        const scrollAmount = (deltaX / 500) * visibleDur;
+        
+        let newStart = vpStart + scrollAmount;
+        let newEnd = vpEnd + scrollAmount;
+        
+        // Clamp to valid range
+        if (newStart < 0) {
+          newStart = 0;
+          newEnd = visibleDur;
+        }
+        if (newEnd > dur) {
+          newEnd = dur;
+          newStart = Math.max(0, dur - visibleDur);
+        }
+        
+        setViewport(newStart, newEnd);
+      }
+    };
+    
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [setViewport]);
+  
+  // Dummy handlers for React synthetic events (pinch handled by native listeners above)
+  const handleTimelineTouchStart = useCallback((_e: React.TouchEvent) => {
+    // Pinch-to-zoom is handled by native event listeners
+  }, []);
+  
+  const handleTimelineTouchMove = useCallback((_e: React.TouchEvent) => {
+    // Pinch-to-zoom is handled by native event listeners
+  }, []);
+  
+  const handleTimelineTouchEnd = useCallback(() => {
+    // Pinch-to-zoom is handled by native event listeners
+  }, []);
+
   // Detect overlapping markers
   const markersOverlap = useCallback((m1: Marker, m2: Marker): boolean => {
     return m1.start < m2.end && m2.start < m1.end;
@@ -304,8 +478,15 @@ export function MarkerTimeline() {
     }
   }, [isCreatingMarker, duration, pixelToTime]);
   
-  // Handle SVG touch start (mobile marker creation)
+  // Handle SVG touch start (mobile marker creation OR pinch-to-zoom)
   const handleSvgTouchStart = useCallback((e: React.TouchEvent<SVGSVGElement>) => {
+    // Two-finger touch - prepare for pinch-to-zoom
+    if (e.touches.length === 2) {
+      handleTimelineTouchStart(e);
+      return;
+    }
+    
+    // Single touch - marker creation
     if ((e.target as SVGElement).closest('g[data-marker-id]')) return;
     if (!svgRef.current || e.touches.length !== 1) return;
     
@@ -321,7 +502,7 @@ export function MarkerTimeline() {
       setMarkerEndTime(clampedTime);
       setHasDragged(false);
     }
-  }, [isCreatingMarker, duration, pixelToTime]);
+  }, [isCreatingMarker, duration, pixelToTime, handleTimelineTouchStart]);
   
   // Format time for display - defined early as it's used by multiple callbacks
   const formatTime = useCallback((seconds: number): string => {
@@ -330,8 +511,15 @@ export function MarkerTimeline() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  // Handle SVG touch move
+  // Handle SVG touch move (marker creation OR pinch-to-zoom)
   const handleSvgTouchMove = useCallback((e: React.TouchEvent<SVGSVGElement>) => {
+    // Two-finger touch - pinch-to-zoom
+    if (e.touches.length === 2) {
+      handleTimelineTouchMove(e);
+      return;
+    }
+    
+    // Single touch - marker creation
     if (!svgRef.current || e.touches.length !== 1) return;
     
     const touch = e.touches[0];
@@ -348,10 +536,14 @@ export function MarkerTimeline() {
     }
     setHoverTime(clampedTime);
     setMousePosition({ x: touch.clientX, y: touch.clientY });
-  }, [isCreatingMarker, markerStartTime, duration, pixelToTime]);
+  }, [isCreatingMarker, markerStartTime, duration, pixelToTime, handleTimelineTouchMove]);
   
-  // Handle SVG touch end - Creates marker immediately on mobile
+  // Handle SVG touch end - Creates marker OR ends pinch-to-zoom
   const handleSvgTouchEnd = useCallback(() => {
+    // Reset pinch-to-zoom state
+    handleTimelineTouchEnd();
+    
+    // Handle marker creation if in progress
     if (isCreatingMarker && markerStartTime !== null && markerEndTime !== null && hasDragged) {
       const start = Math.min(markerStartTime, markerEndTime);
       const end = Math.max(markerStartTime, markerEndTime);
@@ -373,7 +565,7 @@ export function MarkerTimeline() {
     setHasDragged(false);
     setHoverTime(null);
     setMousePosition(null);
-  }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged, formatTime]);
+  }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged, formatTime, handleTimelineTouchEnd]);
 
   
   // Handle mouse up (end marker creation) - Creates marker immediately on PC

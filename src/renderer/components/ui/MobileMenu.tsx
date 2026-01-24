@@ -22,13 +22,18 @@ const MobileMenu: React.FC = () => {
   const isLightMode = theme === 'light';
   const toggleTheme = useAppStore((state) => state.toggleTheme);
   const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
-  const zoomLevel = useAppStore((state) => state.zoomLevel) || 1;
+  const zoomLevel = useAppStore((state) => state.zoomLevel) || 5; // Default to 5x zoom (20% view)
   const duration = useAppStore((state) => state.audio.duration) || 0;
   const undo = useAppStore((state) => state.undo);
   const redo = useAppStore((state) => state.redo);
   const canUndo = useAppStore((state) => state.canUndo);
   const canRedo = useAppStore((state) => state.canRedo);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
+  
+  // Pitch and playback rate
+  const pitch = useAppStore((state) => state.globalControls.pitch) || 0;
+  const setPitch = useAppStore((state) => state.setPitch);
+  const playbackRate = useAppStore((state) => state.globalControls.playbackRate) || 1;
   
   const { loadFile, resumeAudioContext } = useAudioEngine();
   const { animateZoom } = useSmoothViewport();
@@ -59,24 +64,46 @@ const MobileMenu: React.FC = () => {
     }
   }, [isExpanded]);
   
-  // Zoom handlers
+  // Zoom handlers - minimum zoom is 5 (1/5 = 20% view)
+  const MIN_ZOOM = 5; // Shows 1/5 (20%) of the audio at minimum
+  const MAX_ZOOM = 50;
+  
   const handleZoomIn = () => {
     if (!isAudioLoaded || !duration) return;
-    const currentZoom = typeof zoomLevel === 'number' && !isNaN(zoomLevel) ? zoomLevel : 1;
-    const newZoom = Math.min(currentZoom * 1.5, 50);
+    const currentZoom = typeof zoomLevel === 'number' && !isNaN(zoomLevel) ? zoomLevel : MIN_ZOOM;
+    const newZoom = Math.min(currentZoom * 1.5, MAX_ZOOM);
     animateZoom(newZoom, { duration: 300, easing: 'easeOutCubic' });
   };
   
   const handleZoomOut = () => {
     if (!isAudioLoaded || !duration) return;
-    const currentZoom = typeof zoomLevel === 'number' && !isNaN(zoomLevel) ? zoomLevel : 1;
-    const newZoom = Math.max(currentZoom / 1.5, 1);
+    const currentZoom = typeof zoomLevel === 'number' && !isNaN(zoomLevel) ? zoomLevel : MIN_ZOOM;
+    const newZoom = Math.max(currentZoom / 1.5, MIN_ZOOM);
     animateZoom(newZoom, { duration: 300, easing: 'easeOutCubic' });
   };
   
   const handleZoomReset = () => {
     if (!isAudioLoaded || !duration) return;
-    animateZoom(1, { duration: 300, easing: 'easeOutCubic' });
+    // Reset to minimum (1/4 view) on mobile
+    animateZoom(MIN_ZOOM, { duration: 300, easing: 'easeOutCubic' });
+  };
+  
+  // Pitch handlers
+  const handlePitchUp = () => {
+    if (!isAudioLoaded) return;
+    const newPitch = Math.min(pitch + 1, 12);
+    setPitch(newPitch);
+  };
+  
+  const handlePitchDown = () => {
+    if (!isAudioLoaded) return;
+    const newPitch = Math.max(pitch - 1, -12);
+    setPitch(newPitch);
+  };
+  
+  const handlePitchReset = () => {
+    if (!isAudioLoaded) return;
+    setPitch(0);
   };
   
   const handleNewProject = async () => {
@@ -87,7 +114,8 @@ const MobileMenu: React.FC = () => {
       store.setVolume(6);
       store.setPlaybackRate(1);
       if (store.globalControls.isMuted) store.toggleMute();
-      store.setZoomLevel(1);
+      // Start with 20% view (zoom 5) on all devices
+      store.setZoomLevel(5);
       
       await resumeAudioContext();
       const file = await pickAudioFile();
@@ -124,11 +152,26 @@ const MobileMenu: React.FC = () => {
   const handleSaveProject = async () => {
     try {
       const saver = getProjectSaver();
-      await saver.saveProject();
-      showToast('Project saved', 'success');
-      setIsExpanded(false);
+      // On mobile, use saveToDevice for better UX (saves to IndexedDB)
+      const result = await saver.saveToDevice();
+      if (result.success) {
+        showToast('Project saved to device!', 'success');
+        setIsExpanded(false);
+      }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to save', 'error');
+    }
+  };
+  
+  const handleExportProject = async () => {
+    try {
+      const saver = getProjectSaver();
+      const success = await saver.exportProject();
+      if (success) {
+        setIsExpanded(false);
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to export', 'error');
     }
   };
   
@@ -299,7 +342,8 @@ const MobileMenu: React.FC = () => {
             
             <MenuItem icon={<NewFileIcon />} label="New Project" onClick={handleNewProject} color={KENYAN_GREEN} />
             <MenuItem icon={<FolderIcon />} label="Load Project" onClick={handleLoadProject} color={KENYAN_RED} />
-            <MenuItem icon={<SaveIcon />} label="Save Project" onClick={handleSaveProject} disabled={!isAudioLoaded} />
+            <MenuItem icon={<SaveIcon />} label="Save to Device" onClick={handleSaveProject} disabled={!isAudioLoaded} color={KENYAN_GREEN} />
+            <MenuItem icon={<ExportIcon />} label="Export/Share" onClick={handleExportProject} disabled={!isAudioLoaded} subtitle="Download .tsproj file" />
           </div>
           
           {/* View Section - Zoom controls */}
@@ -327,8 +371,8 @@ const MobileMenu: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
                   onClick={handleZoomOut}
-                  disabled={!isAudioLoaded || zoomLevel <= 1}
-                  style={btnStyle(false, !isAudioLoaded || zoomLevel <= 1)}
+                  disabled={!isAudioLoaded || zoomLevel <= MIN_ZOOM}
+                  style={btnStyle(false, !isAudioLoaded || zoomLevel <= MIN_ZOOM)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="5" y1="12" x2="19" y2="12" />
@@ -345,8 +389,8 @@ const MobileMenu: React.FC = () => {
                 </span>
                 <button
                   onClick={handleZoomIn}
-                  disabled={!isAudioLoaded || zoomLevel >= 50}
-                  style={btnStyle(false, !isAudioLoaded || zoomLevel >= 50)}
+                  disabled={!isAudioLoaded || zoomLevel >= MAX_ZOOM}
+                  style={btnStyle(false, !isAudioLoaded || zoomLevel >= MAX_ZOOM)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="12" y1="5" x2="12" y2="19" />
@@ -364,9 +408,96 @@ const MobileMenu: React.FC = () => {
                     padding: '0 6px',
                   }}
                 >
+                  1/4
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Audio Controls - Pitch */}
+          <Divider isLightMode={isLightMode} />
+          <div style={{ marginBottom: '6px' }}>
+            <div style={{ 
+              fontSize: '9px', 
+              fontWeight: 700, 
+              color: KENYAN_GREEN, 
+              padding: '2px 10px',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+            }}>
+              Audio
+            </div>
+            
+            {/* Pitch Control */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              padding: '6px 10px',
+              gap: '8px',
+            }}>
+              <span style={{ fontSize: '12px', color: textColor, fontWeight: 500 }}>Pitch</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  onClick={handlePitchDown}
+                  disabled={!isAudioLoaded || pitch <= -12}
+                  style={btnStyle(false, !isAudioLoaded || pitch <= -12)}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+                <span style={{ 
+                  fontSize: '11px', 
+                  fontWeight: 600, 
+                  color: pitch !== 0 ? KENYAN_RED : textColor,
+                  minWidth: '40px',
+                  textAlign: 'center',
+                }}>
+                  {pitch > 0 ? `+${pitch}` : pitch}
+                </span>
+                <button
+                  onClick={handlePitchUp}
+                  disabled={!isAudioLoaded || pitch >= 12}
+                  style={btnStyle(false, !isAudioLoaded || pitch >= 12)}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handlePitchReset}
+                  disabled={!isAudioLoaded || pitch === 0}
+                  style={{ 
+                    ...btnStyle(false, !isAudioLoaded || pitch === 0),
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    width: 'auto',
+                    padding: '0 6px',
+                  }}
+                >
                   Reset
                 </button>
               </div>
+            </div>
+            
+            {/* Speed Display */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              padding: '6px 10px',
+              gap: '8px',
+            }}>
+              <span style={{ fontSize: '12px', color: textColor, fontWeight: 500 }}>Speed</span>
+              <span style={{ 
+                fontSize: '11px', 
+                fontWeight: 600, 
+                color: playbackRate !== 1 ? KENYAN_RED : textColor,
+              }}>
+                {playbackRate.toFixed(1)}x
+              </span>
             </div>
           </div>
           
@@ -400,7 +531,8 @@ const MenuItem: React.FC<{
   onClick: () => void;
   disabled?: boolean;
   color?: string;
-}> = ({ icon, label, onClick, disabled, color }) => (
+  subtitle?: string;
+}> = ({ icon, label, onClick, disabled, color, subtitle }) => (
   <button
     onClick={onClick}
     disabled={disabled}
@@ -423,7 +555,19 @@ const MenuItem: React.FC<{
     }}
   >
     {icon}
-    {label}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+      <span>{label}</span>
+      {subtitle && (
+        <span style={{ 
+          fontSize: '10px', 
+          opacity: 0.6, 
+          fontWeight: 400,
+          marginTop: '1px',
+        }}>
+          {subtitle}
+        </span>
+      )}
+    </div>
   </button>
 );
 
@@ -456,6 +600,14 @@ const SaveIcon = () => (
     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
     <polyline points="17 21 17 13 7 13 7 21"/>
     <polyline points="7 3 7 8 15 8"/>
+  </svg>
+);
+
+const ExportIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="17 8 12 3 7 8"/>
+    <line x1="12" y1="3" x2="12" y2="15"/>
   </svg>
 );
 

@@ -585,7 +585,241 @@ const MarkerPanel: React.FC = () => {
                 }
               }}
             >
-              {/* Compact horizontal layout - responsive */}
+              {/* Mobile Edit Mode - Multi-row vertical layout */}
+              {isMobile && editingMarkerId === marker.id && editFormData ? (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                  width: '100%',
+                }}>
+                  {/* Row 1: Color, Name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const currentIndex = PRESET_COLORS.indexOf(editFormData.color as typeof PRESET_COLORS[number]);
+                        const nextIndex = (currentIndex + 1) % PRESET_COLORS.length;
+                        setEditFormData({ ...editFormData, color: PRESET_COLORS[nextIndex] });
+                      }}
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: editFormData.color,
+                        border: `2px solid ${isLightMode ? '#006644' : '#00AA66'}`,
+                        flexShrink: 0,
+                        cursor: 'pointer',
+                      }}
+                      title="Tap to change color"
+                    />
+                    <input
+                      type="text"
+                      value={editFormData.name}
+                      onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                      placeholder="Marker name"
+                      style={{
+                        flex: 1,
+                        padding: '0.3rem 0.4rem',
+                        background: 'var(--neu-bg-base)',
+                        border: '2px solid var(--text-accent-green)',
+                        borderRadius: '4px',
+                        color: textColor,
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        boxShadow: 'var(--neu-pressed)',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  
+                  {/* Row 2: Time Range */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-start' }}>
+                    <span style={{ color: textSecondary, fontSize: '0.7rem', minWidth: '35px' }}>Time:</span>
+                    <input
+                      type="text"
+                      value={formatTime(editFormData.start)}
+                      onChange={(e) => {
+                        let value = e.target.value.replace(/[^\d:]/g, '');
+                        if (value.length === 2 && !value.includes(':')) value = value + ':';
+                        if (value.length <= 5) {
+                          const val = parseTimeString(value);
+                          if (val >= 0 && val < editFormData.end && val <= duration) {
+                            setEditFormData({ ...editFormData, start: val });
+                          }
+                        }
+                      }}
+                      style={{
+                        width: '55px',
+                        padding: '0.25rem 0.3rem',
+                        background: 'var(--neu-bg-base)',
+                        border: 'none',
+                        borderRadius: '4px',
+                        color: textColor,
+                        fontSize: '0.75rem',
+                        fontFamily: 'monospace',
+                        textAlign: 'center',
+                        boxShadow: 'var(--neu-pressed)',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <span style={{ color: textSecondary, fontSize: '0.75rem' }}>—</span>
+                    <input
+                      type="text"
+                      value={formatTime(editFormData.end)}
+                      onChange={(e) => {
+                        let value = e.target.value.replace(/[^\d:]/g, '');
+                        if (value.length === 2 && !value.includes(':')) value = value + ':';
+                        if (value.length <= 5) {
+                          const val = parseTimeString(value);
+                          if (val > editFormData.start && val <= duration) {
+                            setEditFormData({ ...editFormData, end: val });
+                          }
+                        }
+                      }}
+                      style={{
+                        width: '55px',
+                        padding: '0.25rem 0.3rem',
+                        background: 'var(--neu-bg-base)',
+                        border: 'none',
+                        borderRadius: '4px',
+                        color: textColor,
+                        fontSize: '0.75rem',
+                        fontFamily: 'monospace',
+                        textAlign: 'center',
+                        boxShadow: 'var(--neu-pressed)',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  
+                  {/* Row 3: Speed + Loop */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <span style={{ color: textSecondary, fontSize: '0.7rem' }}>Speed:</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newSpeed = Math.max(0.3, editFormData.speed - 0.1);
+                          setEditFormData({ ...editFormData, speed: Math.round(newSpeed * 10) / 10 });
+                        }}
+                        disabled={editFormData.speed <= 0.3}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: isLightMode ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)',
+                          border: `1px solid ${borderColor}`,
+                          borderRadius: '4px',
+                          color: editFormData.speed <= 0.3 ? textSecondary : textColor,
+                          cursor: editFormData.speed <= 0.3 ? 'not-allowed' : 'pointer',
+                          opacity: editFormData.speed <= 0.3 ? 0.4 : 1,
+                          fontSize: '0.8rem',
+                          fontWeight: '600',
+                        }}
+                      >−</button>
+                      <span style={{ color: textColor, fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: '600', minWidth: '40px', textAlign: 'center' }}>
+                        {editFormData.speed.toFixed(1)}x
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const newSpeed = Math.min(4.0, editFormData.speed + 0.1);
+                          setEditFormData({ ...editFormData, speed: Math.round(newSpeed * 10) / 10 });
+                        }}
+                        disabled={editFormData.speed >= 4.0}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: isLightMode ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)',
+                          border: `1px solid ${borderColor}`,
+                          borderRadius: '4px',
+                          color: editFormData.speed >= 4.0 ? textSecondary : textColor,
+                          cursor: editFormData.speed >= 4.0 ? 'not-allowed' : 'pointer',
+                          opacity: editFormData.speed >= 4.0 ? 0.4 : 1,
+                          fontSize: '0.8rem',
+                          fontWeight: '600',
+                        }}
+                      >+</button>
+                    </div>
+                    
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        color: textColor,
+                        userSelect: 'none',
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editFormData.loop}
+                        onChange={(e) => setEditFormData({ ...editFormData, loop: e.target.checked })}
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          cursor: 'pointer',
+                          accentColor: isLightMode ? '#006644' : '#00AA66',
+                        }}
+                      />
+                      <span style={{ color: editFormData.loop ? '#00AA00' : textSecondary }}>Loop</span>
+                    </label>
+                  </div>
+                  
+                  {/* Row 4: Save/Cancel Buttons */}
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCancelEdit();
+                      }}
+                      style={{
+                        padding: '0.35rem 0.8rem',
+                        background: 'var(--neu-bg-base)',
+                        border: 'none',
+                        borderRadius: '4px',
+                        color: textColor,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        boxShadow: 'var(--neu-pressed)',
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSaveEdit(marker.id);
+                      }}
+                      style={{
+                        padding: '0.35rem 0.8rem',
+                        background: isLightMode ? '#006644' : '#00AA66',
+                        border: 'none',
+                        borderRadius: '4px',
+                        color: '#FFFFFF',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        boxShadow: 'var(--neu-pressed)',
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+              /* Desktop/Non-edit mode - Compact horizontal layout */
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -1039,6 +1273,7 @@ const MarkerPanel: React.FC = () => {
                   </div>
                 )}
               </div>
+              )}
             </div>
           );
         })}

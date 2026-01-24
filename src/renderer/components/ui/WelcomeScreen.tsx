@@ -1,10 +1,12 @@
 // WelcomeScreen.tsx - Neumorphic Welcome Screen
 // Features Kenyan-themed neumorphic design with smooth animations
+// Enhanced for iOS/Android PWA with stored projects section
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
 import { getProjectLoader } from '../project/ProjectLoader';
+import { getProjectSaver, StoredProject, deleteProjectFromIndexedDB } from '../project/ProjectSaver';
 import { useAppStore } from '../../store/store';
 
 // Kenyan flag colors
@@ -69,6 +71,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
   
+  // Mobile/PWA stored projects
+  const [storedProjects, setStoredProjects] = useState<StoredProject[]>([]);
+  const [showStoredProjects, setShowStoredProjects] = useState(false);
+  const [loadingStoredId, setLoadingStoredId] = useState<string | null>(null);
+  const [isMobile] = useState(() => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768);
+  
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
   
@@ -85,6 +93,78 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       if (type === 'error') setError(message);
     }
   ));
+  
+  const [projectSaver] = useState(() => getProjectSaver(
+    (message: string, type: 'success' | 'error') => {
+      if (type === 'error') setError(message);
+    }
+  ));
+  
+  // Load stored projects on mount (for mobile PWA)
+  useEffect(() => {
+    const loadStoredProjects = async () => {
+      try {
+        const projects = await projectSaver.getStoredProjects();
+        setStoredProjects(projects);
+        // Auto-show stored projects section if there are any on mobile
+        if (projects.length > 0 && isMobile) {
+          setShowStoredProjects(true);
+        }
+      } catch (err) {
+        console.error('[WelcomeScreen] Failed to load stored projects:', err);
+      }
+    };
+    loadStoredProjects();
+  }, [projectSaver, isMobile]);
+  
+  // Handle loading a stored project from IndexedDB
+  const handleLoadStoredProject = async (project: StoredProject) => {
+    try {
+      setError(null);
+      setLoadingStoredId(project.id);
+      await resumeAudioContext();
+      
+      // Set the current project ID in the saver
+      projectSaver.setCurrentProjectId(project.id);
+      
+      // Load the project data
+      const success = await projectLoader.loadFromStoredProject(project.projectData, loadFile);
+      
+      if (success) {
+        onProjectLoaded ? onProjectLoaded() : onAudioLoaded();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load project');
+    } finally {
+      setLoadingStoredId(null);
+    }
+  };
+  
+  // Handle deleting a stored project
+  const handleDeleteStoredProject = async (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation();
+    if (confirm('Delete this project? This cannot be undone.')) {
+      try {
+        await deleteProjectFromIndexedDB(projectId);
+        setStoredProjects(prev => prev.filter(p => p.id !== projectId));
+      } catch (err) {
+        setError('Failed to delete project');
+      }
+    }
+  };
+  
+  // Format date for display
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  };
 
   const handleStartNewProject = async () => {
     try {
@@ -95,7 +175,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       store.setVolume(6);
       store.setPlaybackRate(1);
       if (store.globalControls.isMuted) store.toggleMute();
-      store.setZoomLevel(1);
+      // Start with 20% view (zoom 5) on all devices
+      store.setZoomLevel(5);
       
       await resumeAudioContext();
       const file = await pickAudioFile();
@@ -108,12 +189,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       }
 
       await loadFile(file);
-      setTimeout(() => {
-        const audioStore = useAppStore.getState();
-        if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
-          audioStore.setViewport(0, audioStore.audio.duration);
-        }
-      }, 500);
+      // Audio engine will set the 20% (1/5) initial viewport
       
       onAudioLoaded();
     } catch (err) {
@@ -169,17 +245,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       store.setVolume(6);
       store.setPlaybackRate(1);
       if (store.globalControls.isMuted) store.toggleMute();
-      store.setZoomLevel(1);
+      // Start with 20% view (zoom 5) on all devices
+      store.setZoomLevel(5);
       
       await resumeAudioContext();
       await loadFile(file);
-      
-      setTimeout(() => {
-        const audioStore = useAppStore.getState();
-        if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
-          audioStore.setViewport(0, audioStore.audio.duration);
-        }
-      }, 500);
+      // Audio engine will set the 20% (1/5) initial viewport
       
       onAudioLoaded();
     } catch (err) {
@@ -500,7 +571,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
                     color: isLightMode ? '#2d3748' : KENYAN_WHITE,
                     fontSize: 'clamp(0.9rem, 3.5vw, 1.1rem)',
                     fontWeight: '600',
-                    margin: 0,
+                    marginTop: 0,
+                    marginLeft: 0,
+                    marginRight: 0,
                     marginBottom: '2px'
                   }}>
                     Load Project
@@ -520,6 +593,177 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
             )}
           </button>
         </div>
+
+        {/* My Projects Section - For Mobile PWA */}
+        {storedProjects.length > 0 && (
+          <div style={{ width: '100%' }}>
+            {/* Section Header */}
+            <button
+              onClick={() => setShowStoredProjects(!showStoredProjects)}
+              style={{
+                width: '100%',
+                padding: '0.75rem 1rem',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                fontFamily: HANDWRITTEN_FONT,
+              }}
+            >
+              <span style={{
+                color: isLightMode ? '#4a5568' : 'rgba(255, 255, 255, 0.7)',
+                fontSize: 'clamp(0.8rem, 3vw, 0.95rem)',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7"/>
+                  <rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                My Projects ({storedProjects.length})
+              </span>
+              <svg 
+                width="20" 
+                height="20" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke={isLightMode ? '#4a5568' : 'rgba(255, 255, 255, 0.5)'}
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+                style={{
+                  transform: showStoredProjects ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.3s ease',
+                }}
+              >
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            
+            {/* Projects List */}
+            {showStoredProjects && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                padding: '0.5rem',
+                background: isLightMode ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '12px',
+                marginTop: '0.5rem',
+              }}>
+                {storedProjects.map((project) => (
+                  <button
+                    key={project.id}
+                    onClick={() => handleLoadStoredProject(project)}
+                    disabled={loadingStoredId !== null}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: neuBg,
+                      border: 'none',
+                      borderRadius: '10px',
+                      boxShadow: loadingStoredId === project.id ? neuPressed : `3px 3px 6px ${shadowDark}, -2px -2px 4px ${shadowLight}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      cursor: loadingStoredId !== null ? 'wait' : 'pointer',
+                      opacity: loadingStoredId !== null && loadingStoredId !== project.id ? 0.5 : 1,
+                      transition: 'all 0.2s ease',
+                      fontFamily: HANDWRITTEN_FONT,
+                    }}
+                  >
+                    {/* Color indicator */}
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      background: project.thumbnailColor || KENYAN_GREEN,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      {loadingStoredId === project.id ? (
+                        <div style={{
+                          width: '16px',
+                          height: '16px',
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTopColor: '#fff',
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite',
+                        }} />
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 18V5l12-2v13"/>
+                          <circle cx="6" cy="18" r="3"/>
+                          <circle cx="18" cy="16" r="3"/>
+                        </svg>
+                      )}
+                    </div>
+                    
+                    {/* Project info */}
+                    <div style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+                      <p style={{
+                        color: isLightMode ? '#2d3748' : KENYAN_WHITE,
+                        fontSize: 'clamp(0.8rem, 3vw, 0.9rem)',
+                        fontWeight: '600',
+                        margin: 0,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {project.name}
+                      </p>
+                      <p style={{
+                        color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
+                        fontSize: 'clamp(0.65rem, 2.5vw, 0.75rem)',
+                        margin: 0,
+                      }}>
+                        {formatDate(project.updatedAt)}
+                        {project.audioFileName && ` • ${project.audioFileName.substring(0, 20)}${project.audioFileName.length > 20 ? '...' : ''}`}
+                      </p>
+                    </div>
+                    
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => handleDeleteStoredProject(e, project.id)}
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        padding: 0,
+                        background: 'transparent',
+                        border: 'none',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: isLightMode ? '#a0aec0' : 'rgba(255, 255, 255, 0.3)',
+                        transition: 'color 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = KENYAN_RED}
+                      onMouseLeave={(e) => e.currentTarget.style.color = isLightMode ? '#a0aec0' : 'rgba(255, 255, 255, 0.3)'}
+                      title="Delete project"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                    </button>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Supported Formats */}
         <p style={{

@@ -2038,26 +2038,25 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 }
 
 /* ====== MOBILE APP LAYOUT ====== */
-/* Fixed height distribution - NO SCROLLING
+/* Fixed height distribution - NO SCROLLING on main container
  * Total viewport = 100dvh
- * Menu bar = 44px
- * Status bar = 20px
+ * Menu bar = 48px (includes safe area)
+ * Status bar = 24px
  * Padding = 8px (4px top + 4px bottom)
- * Gap between 5 elements = 4 * 4px = 16px
- * Available content = 100dvh - 44px - 20px - 8px - 16px = 100dvh - 88px
+ * Gap between 4 elements = 3 * 4px = 12px
+ * Available content = 100dvh - 48px - 24px - 8px - 12px = 100dvh - 92px
  * 
- * Distribution:
- * - Waveform: 15% of available (min 70px)
- * - Timeline: 25% of available (for stacked markers, min 100px)
- * - Markers: flexible (takes remaining space)
- * - Controls: 40px fixed
+ * Distribution (controls moved to menu dropdown):
+ * - Waveform: 20% (~80px) - scrollable horizontally with pinch-to-zoom
+ * - Timeline: flex-grow (majority) - for stacked markers
+ * - Markers: fixed height for ~2.5 markers visible (~140px)
  * - Playback: 70px fixed
  */
 
 /* Mobile layout container */
 .app-container.mobile-layout {
-  padding-top: 44px; /* Space for mobile menu */
-  padding-bottom: 20px; /* Space for status bar */
+  padding-top: 48px; /* Space for mobile menu */
+  padding-bottom: 24px; /* Space for status bar */
   height: 100vh;
   height: 100dvh; /* Dynamic viewport height for mobile browsers */
   overflow: hidden !important; /* NO SCROLLING */
@@ -2065,59 +2064,74 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   flex-direction: column;
 }
 
-/* Mobile main content - NO SCROLL, flex column */
+/* Mobile main content - NO SCROLL on main, flex column */
 .main-content.mobile-content {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  height: calc(100dvh - 64px); /* 100dvh - menu(44) - statusbar(20) */
+  height: calc(100dvh - 72px); /* 100dvh - menu(48) - statusbar(24) */
   min-height: 0; /* Critical for flexbox to shrink */
-  overflow: hidden !important; /* NO SCROLLING */
-  gap: 4px;
-  padding: 4px;
+  overflow: hidden !important; /* NO SCROLLING on main */
+  gap: 2px;
+  padding: 0 !important; /* No horizontal padding - edge to edge */
 }
 
 /* Mobile panels base */
 .mobile-panel {
   background: var(--neu-bg-base);
-  border-radius: 6px;
-  box-shadow: var(--neu-flat);
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   flex-shrink: 0;
+  margin: 0;
+  padding: 0;
 }
 
-/* Waveform section on mobile - 15% of available, min 70px */
+/* Waveform section on mobile - container for waveform */
 .mobile-panel.waveform-mobile-section {
-  flex: 0 0 70px;
-  height: 70px;
-  min-height: 60px;
-  max-height: 80px;
-  padding: 4px;
+  flex: 0 0 110px; /* Waveform height */
+  height: 110px;
+  min-height: 110px;
+  max-height: 110px;
+  padding: 0 !important; /* No padding - waveform fills container edge to edge */
+  margin: 0 !important;
+  overflow: hidden;
+  background: transparent;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
-/* Ensure waveform canvas fills container properly */
+/* Ensure waveform fills container properly - edge to edge */
+.mobile-panel.waveform-mobile-section .waveform-container {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  max-height: 100% !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Ensure waveform canvas fills its container completely */
 .mobile-panel.waveform-mobile-section canvas {
   width: 100% !important;
   height: 100% !important;
   display: block;
 }
 
-/* Waveform component adjustments for mobile */
-.mobile-panel.waveform-mobile-section > div {
-  height: 100% !important;
-  overflow: hidden;
-}
-
-/* Timeline section on mobile - room for stacked markers */
+/* Timeline section on mobile - takes remaining space for stacked markers */
 .mobile-panel.timeline-mobile-section {
-  flex: 0 0 110px;
-  height: 110px;
-  min-height: 90px;
-  max-height: 130px;
-  padding: 0;
+  flex: 1 1 auto; /* Take remaining space */
+  min-height: 80px;
+  padding: 0 !important; /* No horizontal padding - edge to edge */
+  margin: 0 !important;
   background: rgba(0, 102, 68, 0.08);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 /* Make sure the MarkerTimeline component fills its container */
@@ -2125,38 +2139,53 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   flex: 1 1 auto;
   height: 100%;
   min-height: 0;
+  width: 100% !important;
 }
 
-/* Marker panel section on mobile - takes remaining space */
+/* Marker panel section on mobile - fixed height 180px, shows ~2.5 markers with edit form */
 .mobile-panel.marker-panel-section {
-  flex: 1 1 auto; /* Take remaining space */
-  min-height: 60px;
-  padding: 4px;
-  overflow-y: auto; /* Only this panel scrolls if needed */
+  flex: 0 0 175px; /* Fixed height for ~2.5 markers visible + edit form */
+  height: 175px;
+  min-height: 165px;
+  max-height: 185px;
+  padding: 4px !important;
+  margin: 2px 4px !important; /* Small margins on sides */
+  overflow-y: auto; /* Vertical scrollbar for more markers */
+  overflow-x: hidden;
+  border-radius: 8px !important;
+  box-shadow: var(--neu-flat) !important;
 }
 
-/* Controls panel (zoom/pitch) on mobile - fixed 40px */
-.mobile-panel.controls-panel-section {
-  flex: 0 0 40px;
-  height: 40px;
-  min-height: 36px;
-  max-height: 44px;
-  padding: 4px 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  overflow: visible;
+/* Marker panel scrollbar styling */
+.mobile-panel.marker-panel-section::-webkit-scrollbar {
+  width: 6px;
 }
 
-/* Playback section on mobile - fixed 70px, MUST show buttons */
+.mobile-panel.marker-panel-section::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.mobile-panel.marker-panel-section::-webkit-scrollbar-thumb {
+  background: rgba(0, 102, 68, 0.4);
+  border-radius: 3px;
+}
+
+.mobile-panel.marker-panel-section::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 102, 68, 0.6);
+}
+
+/* Playback section on mobile - fixed 85px, MUST show buttons */
 .mobile-panel.playback-section {
-  flex: 0 0 70px;
-  height: 70px;
-  min-height: 65px;
-  max-height: 75px;
-  padding: 4px 8px;
+  flex: 0 0 90px;
+  height: 90px;
+  min-height: 85px;
+  max-height: 95px;
+  padding: 2px 4px !important;
   overflow: visible !important;
+  margin: 2px 4px 0 4px !important; /* Small margins on sides */
+  border-radius: 8px !important;
+  box-shadow: var(--neu-flat) !important;
 }
 
 /* Ensure playback panel content is visible */
@@ -2184,30 +2213,33 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 
 /* Mobile-specific styles */
 @media (max-width: 768px) {
-  /* Waveform on mobile - ensure full visibility */
+  /* Waveform on mobile - fills container height */
   .waveform-container {
-    min-height: 60px !important;
-    max-height: 70px !important;
     height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
     overflow: hidden;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
   
   .waveform-container canvas {
     width: 100% !important;
     height: 100% !important;
-    max-height: 70px;
   }
   
-  /* Marker timeline styles */
+  /* Marker timeline styles - fills container */
   .marker-timeline {
-    min-height: 80px !important;
-    max-height: none !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
     height: 100% !important;
+    border-radius: 0 !important;
   }
   
   .marker-timeline svg {
-    min-height: 70px;
+    min-height: 100%;
     height: 100%;
+    width: 100%;
   }
   
   /* Touch-friendly marker creation */
