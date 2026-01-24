@@ -300,99 +300,124 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
         className="welcome-card"
         style={{
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: 'clamp(1.25rem, 4vw, 3rem)',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'center' : 'stretch',
+          justifyContent: isMobile ? 'center' : 'center',
+          padding: isMobile ? 'clamp(1.25rem, 4vw, 3rem)' : '2.5rem 3rem',
           background: neuBg,
           borderRadius: 'clamp(16px, 4vw, 30px)',
           boxShadow: neuRaised,
           animation: 'fadeInUp 0.6s ease-out',
           position: 'relative',
           zIndex: 1,
-          maxWidth: '520px',
-          width: '92%',
-          gap: 'clamp(1rem, 3vw, 2rem)',
+          maxWidth: isMobile ? '520px' : '1200px',
+          width: isMobile ? '92%' : '95%',
+          gap: isMobile ? 'clamp(1rem, 3vw, 2rem)' : '3rem',
           margin: '0 auto',
-          maxHeight: '90vh',
-          overflowY: 'auto'
+          maxHeight: isMobile ? '90vh' : '85vh',
+          overflowY: isMobile ? 'auto' : 'hidden',
+          overflowX: 'hidden'
         }}
       >
-        {/* Logo/Title Section */}
-        <div style={{ textAlign: 'center', width: '100%' }}>
-          {/* Neumorphic Logo Circle */}
-          <div style={{
-            width: 'clamp(60px, 15vw, 80px)',
-            height: 'clamp(60px, 15vw, 80px)',
-            borderRadius: '50%',
-            background: neuBg,
-            boxShadow: neuRaised,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto clamp(0.75rem, 2vw, 1.5rem)',
-          }}>
-            <svg width="clamp(28px, 8vw, 40px)" height="clamp(28px, 8vw, 40px)" viewBox="0 0 24 24" fill="none">
-              <path d="M9 18V5l12-2v13" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="6" cy="18" r="3" fill={KENYAN_GREEN}/>
-              <circle cx="18" cy="16" r="3" fill={KENYAN_RED}/>
-            </svg>
-          </div>
-          
-          <h1 style={{
-            fontSize: 'clamp(1.25rem, 5vw, 2rem)',
-            fontWeight: '700',
-            fontFamily: HANDWRITTEN_FONT,
-            color: isLightMode ? '#2d3748' : KENYAN_WHITE,
-            marginBottom: '0.35rem',
-            letterSpacing: '-0.5px'
-          }}>
-            Transcription Pro
-          </h1>
-          <p style={{
-            color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
-            fontSize: 'clamp(0.75rem, 2.5vw, 0.95rem)',
-            fontFamily: HANDWRITTEN_FONT,
-          }}>
-            Professional Audio Transcription
-          </p>
-        </div>
-
-        {/* Features - Neumorphic Chips */}
-        <div style={{
-          display: 'flex',
-          gap: 'clamp(6px, 2vw, 12px)',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          width: '100%'
-        }}>
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'clamp(4px, 1.5vw, 8px)',
-                padding: 'clamp(5px, 1.5vw, 8px) clamp(8px, 2.5vw, 14px)',
-                background: neuBg,
-                borderRadius: '20px',
-                boxShadow: `3px 3px 6px ${shadowDark}, -2px -2px 4px ${shadowLight}`,
-                fontSize: 'clamp(0.65rem, 2vw, 0.8rem)',
-                color: feature.color,
-                fontWeight: '500'
-              }}
-            >
-              <span style={{ display: 'flex', transform: 'scale(clamp(0.75, 2vw, 1))' }}>{feature.icon}</span>
-              <span className="hide-on-small-mobile">{feature.text}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Action Buttons */}
+        {/* Left Side - Logo, Title, Features (Desktop) or Top (Mobile) */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: '1rem',
-          width: '100%'
+          alignItems: isMobile ? 'center' : 'flex-start',
+          justifyContent: isMobile ? 'center' : 'center',
+          flex: isMobile ? '0 0 auto' : '1 1 50%',
+          gap: isMobile ? 'clamp(1rem, 3vw, 2rem)' : '1.5rem',
+          minWidth: 0
+        }}>
+          {/* Logo/Title Section */}
+          <div style={{ 
+            textAlign: isMobile ? 'center' : 'left', 
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: isMobile ? 'center' : 'flex-start'
+          }}>
+            {/* Neumorphic Logo Circle */}
+            <div style={{
+              width: isMobile ? 'clamp(60px, 15vw, 80px)' : '90px',
+              height: isMobile ? 'clamp(60px, 15vw, 80px)' : '90px',
+              borderRadius: '50%',
+              background: neuBg,
+              boxShadow: neuRaised,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: isMobile ? '0 auto clamp(0.75rem, 2vw, 1.5rem)' : '0 0 1.25rem 0',
+            }}>
+              <svg width={isMobile ? 'clamp(28px, 8vw, 40px)' : '44px'} height={isMobile ? 'clamp(28px, 8vw, 40px)' : '44px'} viewBox="0 0 24 24" fill="none">
+                <path d="M9 18V5l12-2v13" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <circle cx="6" cy="18" r="3" fill={KENYAN_GREEN}/>
+                <circle cx="18" cy="16" r="3" fill={KENYAN_RED}/>
+              </svg>
+            </div>
+            
+            <h1 style={{
+              fontSize: isMobile ? 'clamp(1.25rem, 5vw, 2rem)' : '2.5rem',
+              fontWeight: '700',
+              fontFamily: HANDWRITTEN_FONT,
+              color: isLightMode ? '#2d3748' : KENYAN_WHITE,
+              marginBottom: '0.5rem',
+              letterSpacing: '-0.5px',
+              lineHeight: '1.2'
+            }}>
+              Transcription Pro
+            </h1>
+            <p style={{
+              color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
+              fontSize: isMobile ? 'clamp(0.75rem, 2.5vw, 0.95rem)' : '1.1rem',
+              fontFamily: HANDWRITTEN_FONT,
+              margin: 0
+            }}>
+              Professional Audio Transcription
+            </p>
+          </div>
+
+          {/* Features - Neumorphic Chips */}
+          <div style={{
+            display: 'flex',
+            gap: isMobile ? 'clamp(6px, 2vw, 12px)' : '10px',
+            flexWrap: 'wrap',
+            justifyContent: isMobile ? 'center' : 'flex-start',
+            width: '100%'
+          }}>
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: isMobile ? 'clamp(4px, 1.5vw, 8px)' : '8px',
+                  padding: isMobile ? 'clamp(5px, 1.5vw, 8px) clamp(8px, 2.5vw, 14px)' : '8px 16px',
+                  background: neuBg,
+                  borderRadius: '20px',
+                  boxShadow: `3px 3px 6px ${shadowDark}, -2px -2px 4px ${shadowLight}`,
+                  fontSize: isMobile ? 'clamp(0.65rem, 2vw, 0.8rem)' : '0.9rem',
+                  color: feature.color,
+                  fontWeight: '500'
+                }}
+              >
+                <span style={{ display: 'flex', transform: isMobile ? 'scale(clamp(0.75, 2vw, 1))' : 'scale(1)' }}>{feature.icon}</span>
+                <span>{feature.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Side - Action Buttons (Desktop) or Below (Mobile) */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: isMobile ? 'center' : 'stretch',
+          justifyContent: isMobile ? 'center' : 'center',
+          flex: isMobile ? '0 0 auto' : '1 1 50%',
+          gap: isMobile ? '1rem' : '1.25rem',
+          width: isMobile ? '100%' : 'auto',
+          minWidth: isMobile ? 'auto' : '400px'
         }}>
           {/* New Project Button */}
           <button
@@ -405,12 +430,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
             disabled={isLoading || isLoadingProject}
             style={{
               width: '100%',
-              padding: 'clamp(0.75rem, 3vw, 1.25rem) clamp(0.75rem, 3vw, 1.5rem)',
+              padding: isMobile ? 'clamp(0.75rem, 3vw, 1.25rem) clamp(0.75rem, 3vw, 1.5rem)' : '1rem 1.5rem',
               border: 'none',
-              borderRadius: 'clamp(12px, 3vw, 16px)',
+              borderRadius: isMobile ? 'clamp(12px, 3vw, 16px)' : '14px',
               display: 'flex',
               alignItems: 'center',
-              gap: 'clamp(0.5rem, 2vw, 1rem)',
+              gap: isMobile ? 'clamp(0.5rem, 2vw, 1rem)' : '1rem',
               cursor: (isLoading || isLoadingProject) ? 'wait' : 'pointer',
               background: neuBg,
               transition: 'all 0.3s ease',
@@ -418,7 +443,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
               transform: (isDragging || hoveredButton === 'new') ? 'scale(0.98)' : 'scale(1)',
               opacity: (isLoading || isLoadingProject) ? 0.6 : 1,
               fontFamily: HANDWRITTEN_FONT,
-              minHeight: '60px',
+              minHeight: isMobile ? '60px' : '70px',
               touchAction: 'manipulation'
             }}
           >
@@ -456,9 +481,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
             ) : (
               <>
                 <div style={{
-                  width: 'clamp(40px, 12vw, 50px)',
-                  height: 'clamp(40px, 12vw, 50px)',
-                  borderRadius: 'clamp(10px, 3vw, 14px)',
+                  width: isMobile ? 'clamp(40px, 12vw, 50px)' : '56px',
+                  height: isMobile ? 'clamp(40px, 12vw, 50px)' : '56px',
+                  borderRadius: isMobile ? 'clamp(10px, 3vw, 14px)' : '14px',
                   background: neuBg,
                   boxShadow: `4px 4px 8px ${shadowDark}, -3px -3px 6px ${shadowLight}`,
                   display: 'flex',
@@ -471,24 +496,24 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
                 <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
                   <p style={{
                     color: isLightMode ? '#2d3748' : KENYAN_WHITE,
-                    fontSize: 'clamp(0.9rem, 3.5vw, 1.1rem)',
+                    fontSize: isMobile ? 'clamp(0.9rem, 3.5vw, 1.1rem)' : '1.15rem',
                     fontWeight: '600',
                     marginTop: 0,
                     marginLeft: 0,
                     marginRight: 0,
-                    marginBottom: '2px'
+                    marginBottom: '4px'
                   }}>
                     {isDragging ? 'Drop audio file' : 'New Project'}
                   </p>
                   <p style={{
                     color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
-                    fontSize: 'clamp(0.65rem, 2.5vw, 0.8rem)',
+                    fontSize: isMobile ? 'clamp(0.65rem, 2.5vw, 0.8rem)' : '0.9rem',
                     margin: 0
                   }}>
                     Click or drag & drop audio file
                   </p>
                 </div>
-                <svg width="clamp(16px, 5vw, 20px)" height="clamp(16px, 5vw, 20px)" viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={isMobile ? 'clamp(16px, 5vw, 20px)' : '22px'} height={isMobile ? 'clamp(16px, 5vw, 20px)' : '22px'} viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
               </>
@@ -503,12 +528,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
             disabled={isLoading || isLoadingProject}
             style={{
               width: '100%',
-              padding: 'clamp(0.75rem, 3vw, 1.25rem) clamp(0.75rem, 3vw, 1.5rem)',
+              padding: isMobile ? 'clamp(0.75rem, 3vw, 1.25rem) clamp(0.75rem, 3vw, 1.5rem)' : '1rem 1.5rem',
               border: 'none',
-              borderRadius: 'clamp(12px, 3vw, 16px)',
+              borderRadius: isMobile ? 'clamp(12px, 3vw, 16px)' : '14px',
               display: 'flex',
               alignItems: 'center',
-              gap: 'clamp(0.5rem, 2vw, 1rem)',
+              gap: isMobile ? 'clamp(0.5rem, 2vw, 1rem)' : '1rem',
               cursor: (isLoading || isLoadingProject) ? 'wait' : 'pointer',
               background: neuBg,
               transition: 'all 0.3s ease',
@@ -516,7 +541,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
               transform: (isLoadingProject || hoveredButton === 'load') ? 'scale(0.98)' : 'scale(1)',
               opacity: (isLoading || isLoadingProject) ? 0.6 : 1,
               fontFamily: HANDWRITTEN_FONT,
-              minHeight: '60px',
+              minHeight: isMobile ? '60px' : '70px',
               touchAction: 'manipulation'
             }}
           >
@@ -554,9 +579,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
             ) : (
               <>
                 <div style={{
-                  width: 'clamp(40px, 12vw, 50px)',
-                  height: 'clamp(40px, 12vw, 50px)',
-                  borderRadius: 'clamp(10px, 3vw, 14px)',
+                  width: isMobile ? 'clamp(40px, 12vw, 50px)' : '56px',
+                  height: isMobile ? 'clamp(40px, 12vw, 50px)' : '56px',
+                  borderRadius: isMobile ? 'clamp(10px, 3vw, 14px)' : '14px',
                   background: neuBg,
                   boxShadow: `4px 4px 8px ${shadowDark}, -3px -3px 6px ${shadowLight}`,
                   display: 'flex',
@@ -569,34 +594,33 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
                 <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
                   <p style={{
                     color: isLightMode ? '#2d3748' : KENYAN_WHITE,
-                    fontSize: 'clamp(0.9rem, 3.5vw, 1.1rem)',
+                    fontSize: isMobile ? 'clamp(0.9rem, 3.5vw, 1.1rem)' : '1.15rem',
                     fontWeight: '600',
                     marginTop: 0,
                     marginLeft: 0,
                     marginRight: 0,
-                    marginBottom: '2px'
+                    marginBottom: '4px'
                   }}>
                     Load Project
                   </p>
                   <p style={{
                     color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
-                    fontSize: 'clamp(0.65rem, 2.5vw, 0.8rem)',
+                    fontSize: isMobile ? 'clamp(0.65rem, 2.5vw, 0.8rem)' : '0.9rem',
                     margin: 0
                   }}>
                     Open saved .tsproj file
                   </p>
                 </div>
-                <svg width="clamp(16px, 5vw, 20px)" height="clamp(16px, 5vw, 20px)" viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={isMobile ? 'clamp(16px, 5vw, 20px)' : '22px'} height={isMobile ? 'clamp(16px, 5vw, 20px)' : '22px'} viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
               </>
             )}
           </button>
-        </div>
 
-        {/* My Projects Section - For Mobile PWA */}
-        {storedProjects.length > 0 && (
-          <div style={{ width: '100%' }}>
+          {/* My Projects Section - For Mobile PWA */}
+          {storedProjects.length > 0 && (
+            <div style={{ width: '100%' }}>
             {/* Section Header */}
             <button
               onClick={() => setShowStoredProjects(!showStoredProjects)}
@@ -762,35 +786,38 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
                 ))}
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* Supported Formats */}
-        <p style={{
-          color: isLightMode ? '#a0aec0' : 'rgba(255, 255, 255, 0.3)',
-          fontSize: '0.75rem',
-          textAlign: 'center',
-          margin: 0
-        }}>
-          Supports MP3, WAV, OGG, FLAC, M4A, AAC, WEBM
-        </p>
-
-        {/* Error Message */}
-        {error && (
-          <div style={{
-            color: KENYAN_RED,
-            fontSize: '0.85rem',
-            padding: '0.75rem 1rem',
-            background: neuBg,
-            borderRadius: '12px',
-            boxShadow: neuPressed,
-            width: '100%',
-            textAlign: 'center',
-            animation: 'shake 0.4s ease-in-out'
+          {/* Supported Formats */}
+          <p style={{
+            color: isLightMode ? '#a0aec0' : 'rgba(255, 255, 255, 0.3)',
+            fontSize: isMobile ? '0.75rem' : '0.85rem',
+            textAlign: isMobile ? 'center' : 'left',
+            margin: 0,
+            marginTop: isMobile ? '0' : '0.5rem'
           }}>
-            {error}
-          </div>
-        )}
+            Supports MP3, WAV, OGG, FLAC, M4A, AAC, WEBM
+          </p>
+
+          {/* Error Message */}
+          {error && (
+            <div style={{
+              color: KENYAN_RED,
+              fontSize: '0.85rem',
+              padding: '0.75rem 1rem',
+              background: neuBg,
+              borderRadius: '12px',
+              boxShadow: neuPressed,
+              width: '100%',
+              textAlign: 'center',
+              animation: 'shake 0.4s ease-in-out',
+              marginTop: '0.5rem'
+            }}>
+              {error}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Footer */}
