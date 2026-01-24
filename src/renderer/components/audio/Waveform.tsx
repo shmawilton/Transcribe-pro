@@ -567,8 +567,9 @@ const Waveform: React.FC = () => {
     }
 
     // Align with MarkerTimeline: use same padding calculation
-    // MarkerTimeline uses TIME_LABEL_PADDING = 50 and calculates usableWidth
-    const TIME_LABEL_PADDING = 50;
+    // Minimal padding on mobile for edge-to-edge display
+    const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
+    const TIME_LABEL_PADDING = isMobileDevice ? 8 : 50;
     const usableWidth = Math.max(0, width - (TIME_LABEL_PADDING * 2));
     
     // Get fresh values from store for animation frame updates
@@ -974,8 +975,9 @@ const Waveform: React.FC = () => {
     const x = e.clientX - rect.left;
     const width = rect.width;
     
-    // Use same padding as MarkerTimeline
-    const TIME_LABEL_PADDING = 50;
+    // Use same padding as MarkerTimeline - minimal on mobile
+    const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
+    const TIME_LABEL_PADDING = isMobileDevice ? 8 : 50;
     const usableWidth = Math.max(0, width - (TIME_LABEL_PADDING * 2));
     
     // Get current viewport
@@ -1012,8 +1014,9 @@ const Waveform: React.FC = () => {
     const x = e.clientX - rect.left;
     const width = rect.width;
     
-    // Use same padding as MarkerTimeline
-    const TIME_LABEL_PADDING = 50;
+    // Use same padding as MarkerTimeline - minimal on mobile
+    const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
+    const TIME_LABEL_PADDING = isMobileDevice ? 8 : 50;
     const usableWidth = Math.max(0, width - (TIME_LABEL_PADDING * 2));
     
     // Get current viewport
@@ -1090,9 +1093,12 @@ const Waveform: React.FC = () => {
     }
   }, [duration, viewportEnd, setViewport, setZoomLevel]);
   
-  // Pinch-to-zoom for mobile/tablet - using refs for native event listeners
+  // Pinch-to-zoom and single-finger scroll for mobile/tablet - using refs for native event listeners
   const lastTouchDistanceRef = useRef<number | null>(null);
   const pinchCenterTimeRef = useRef<number | null>(null);
+  // Single-finger horizontal scroll tracking
+  const singleTouchStartRef = useRef<{ x: number; vpStart: number; vpEnd: number } | null>(null);
+  const isSingleTouchScrollRef = useRef(false);
   
   // Store current values in refs for native event handlers
   const durationRef = useRef(duration);
@@ -1117,6 +1123,9 @@ const Waveform: React.FC = () => {
     const handleNativeTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         // Two-finger touch - prepare for pinch
+        isSingleTouchScrollRef.current = false;
+        singleTouchStartRef.current = null;
+        
         const touch1 = e.touches[0];
         const touch2 = e.touches[1];
         const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
@@ -1131,6 +1140,15 @@ const Waveform: React.FC = () => {
           const visibleDuration = vpEnd - vpStart;
           pinchCenterTimeRef.current = vpStart + (centerX / rect.width) * visibleDuration;
         }
+      } else if (e.touches.length === 1) {
+        // Single-finger touch - prepare for horizontal scroll
+        const touch = e.touches[0];
+        singleTouchStartRef.current = {
+          x: touch.clientX,
+          vpStart: viewportStartRef.current,
+          vpEnd: viewportEndRef.current > 0 ? viewportEndRef.current : durationRef.current,
+        };
+        isSingleTouchScrollRef.current = false; // Will be set to true if horizontal movement detected
       }
     };
     
@@ -1174,12 +1192,49 @@ const Waveform: React.FC = () => {
             lastTouchDistanceRef.current = newDistance;
           }
         }
+      } else if (e.touches.length === 1 && singleTouchStartRef.current !== null) {
+        // Single-finger horizontal scroll
+        const touch = e.touches[0];
+        const deltaX = singleTouchStartRef.current.x - touch.clientX;
+        
+        // Only scroll if horizontal movement is significant (> 5px)
+        if (Math.abs(deltaX) > 5) {
+          e.preventDefault(); // Prevent page scroll
+          isSingleTouchScrollRef.current = true;
+          
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          
+          const { vpStart: origVpStart, vpEnd: origVpEnd } = singleTouchStartRef.current;
+          const origVisibleDuration = origVpEnd - origVpStart;
+          const dur = durationRef.current;
+          
+          // Calculate time delta based on pixel movement
+          const timeDelta = (deltaX / rect.width) * origVisibleDuration;
+          
+          let newStart = origVpStart + timeDelta;
+          let newEnd = origVpEnd + timeDelta;
+          
+          // Clamp to valid range
+          if (newStart < 0) {
+            newStart = 0;
+            newEnd = origVisibleDuration;
+          }
+          if (newEnd > dur) {
+            newEnd = dur;
+            newStart = Math.max(0, dur - origVisibleDuration);
+          }
+          
+          setViewport(newStart, newEnd);
+        }
       }
     };
     
     const handleNativeTouchEnd = () => {
       lastTouchDistanceRef.current = null;
       pinchCenterTimeRef.current = null;
+      singleTouchStartRef.current = null;
+      isSingleTouchScrollRef.current = false;
     };
     
     // Add event listeners with { passive: false } to allow preventDefault

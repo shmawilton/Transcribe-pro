@@ -2055,7 +2055,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 
 /* Mobile layout container */
 .app-container.mobile-layout {
-  padding-top: 48px; /* Space for mobile menu */
+  padding-top: 52px; /* Space for mobile menu - increased to prevent overlap */
   padding-bottom: 24px; /* Space for status bar */
   height: 100vh;
   height: 100dvh; /* Dynamic viewport height for mobile browsers */
@@ -2069,7 +2069,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  height: calc(100dvh - 72px); /* 100dvh - menu(48) - statusbar(24) */
+  height: calc(100dvh - 76px); /* 100dvh - menu(52) - statusbar(24) */
   min-height: 0; /* Critical for flexbox to shrink */
   overflow: hidden !important; /* NO SCROLLING on main */
   gap: 2px;
@@ -2089,10 +2089,10 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 
 /* Waveform section on mobile - container for waveform */
 .mobile-panel.waveform-mobile-section {
-  flex: 0 0 110px; /* Waveform height */
-  height: 110px;
-  min-height: 110px;
-  max-height: 110px;
+  flex: 0 0 125px; /* Waveform height - increased by 15px */
+  height: 125px;
+  min-height: 125px;
+  max-height: 125px;
   padding: 0 !important; /* No padding - waveform fills container edge to edge */
   margin: 0 !important;
   overflow: hidden;
@@ -2123,7 +2123,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 /* Timeline section on mobile - takes remaining space for stacked markers */
 .mobile-panel.timeline-mobile-section {
   flex: 1 1 auto; /* Take remaining space */
-  min-height: 80px;
+  min-height: 40px; /* Reduced by 40px */
   padding: 0 !important; /* No horizontal padding - edge to edge */
   margin: 0 !important;
   background: rgba(0, 102, 68, 0.08);
@@ -2175,13 +2175,13 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   background: rgba(0, 102, 68, 0.6);
 }
 
-/* Playback section on mobile - fixed 85px, MUST show buttons */
+/* Playback section on mobile - fixed 115px, MUST show buttons */
 .mobile-panel.playback-section {
-  flex: 0 0 90px;
-  height: 90px;
-  min-height: 85px;
-  max-height: 95px;
-  padding: 2px 4px !important;
+  flex: 0 0 115px; /* Increased by 25px */
+  height: 115px;
+  min-height: 110px;
+  max-height: 120px;
+  padding: 4px 8px !important;
   overflow: visible !important;
   margin: 2px 4px 0 4px !important; /* Small margins on sides */
   border-radius: 8px !important;
@@ -2200,14 +2200,14 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 /* Safe area insets for notched devices */
 @supports (padding-top: env(safe-area-inset-top)) {
   .app-container.mobile-layout {
-    padding-top: calc(44px + env(safe-area-inset-top));
+    padding-top: calc(52px + env(safe-area-inset-top));
     padding-bottom: calc(20px + env(safe-area-inset-bottom));
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
   
   .main-content.mobile-content {
-    height: calc(100dvh - 64px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    height: calc(100dvh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 }
 
@@ -2267,14 +2267,20 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
     flex: 1 1 auto;
   }
   
-  /* Button sizes for mobile - ensure visibility */
+  /* Button sizes for mobile - larger for better touch targets */
   .mobile-panel.playback-section button {
-    min-width: 32px !important;
-    min-height: 32px !important;
-    max-width: 40px !important;
-    max-height: 40px !important;
-    padding: 4px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    max-width: 52px !important;
+    max-height: 52px !important;
+    padding: 6px !important;
     flex-shrink: 0 !important;
+  }
+  
+  /* SVG icons in playback buttons - larger */
+  .mobile-panel.playback-section button svg {
+    width: 24px !important;
+    height: 24px !important;
   }
   
   /* Time display compact */

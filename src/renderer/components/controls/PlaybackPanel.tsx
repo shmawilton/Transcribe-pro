@@ -167,11 +167,12 @@ const PlaybackPanel: React.FC = () => {
     : 0;
 
   // Neumorphic button style - responsive size for good UX
+  // Larger buttons on mobile for better touch targets (44-52px)
   const glassButtonStyle = (isActive: boolean, isDisabled: boolean, color: string = textColor) => ({
-    width: 'clamp(36px, 10vw, 48px)',
-    height: 'clamp(36px, 10vw, 48px)',
-    minWidth: '36px',
-    minHeight: '36px',
+    width: isMobile ? '48px' : 'clamp(36px, 10vw, 48px)',
+    height: isMobile ? '48px' : 'clamp(36px, 10vw, 48px)',
+    minWidth: isMobile ? '44px' : '36px',
+    minHeight: isMobile ? '44px' : '36px',
     borderRadius: '50%',
     background: isLightMode ? '#e4ebf5' : '#1e1e1e',
     border: 'none',
@@ -470,10 +471,10 @@ const PlaybackPanel: React.FC = () => {
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: 'clamp(32px, 9vw, 40px)',
-            height: 'clamp(32px, 9vw, 40px)',
-            minWidth: '32px',
-            minHeight: '32px',
+            width: isMobile ? '44px' : 'clamp(32px, 9vw, 40px)',
+            height: isMobile ? '44px' : 'clamp(32px, 9vw, 40px)',
+            minWidth: isMobile ? '40px' : '32px',
+            minHeight: isMobile ? '40px' : '32px',
           }}
           onMouseEnter={(e) => {
             if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.08)';
@@ -567,10 +568,10 @@ const PlaybackPanel: React.FC = () => {
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: 'clamp(32px, 9vw, 40px)',
-            height: 'clamp(32px, 9vw, 40px)',
-            minWidth: '32px',
-            minHeight: '32px',
+            width: isMobile ? '44px' : 'clamp(32px, 9vw, 40px)',
+            height: isMobile ? '44px' : 'clamp(32px, 9vw, 40px)',
+            minWidth: isMobile ? '40px' : '32px',
+            minHeight: isMobile ? '40px' : '32px',
           }}
           onMouseEnter={(e) => {
             if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.08)';
@@ -592,10 +593,10 @@ const PlaybackPanel: React.FC = () => {
             disabled={!isAudioLoaded}
             style={{
               ...glassButtonStyle(playbackSpeed !== 1.0, !isAudioLoaded, playbackSpeed !== 1.0 ? '#f39c12' : textColor),
-              width: 'clamp(28px, 8vw, 32px)',
-              height: 'clamp(28px, 8vw, 32px)',
-              minWidth: '28px',
-              minHeight: '28px',
+              width: isMobile ? '40px' : 'clamp(28px, 8vw, 32px)',
+              height: isMobile ? '40px' : 'clamp(28px, 8vw, 32px)',
+              minWidth: isMobile ? '36px' : '28px',
+              minHeight: isMobile ? '36px' : '28px',
               border: playbackSpeed !== 1.0 ? `2px solid #f39c12` : undefined,
               boxShadow: playbackSpeed !== 1.0 ? `0 0 15px #f39c1260` : undefined,
             }}
