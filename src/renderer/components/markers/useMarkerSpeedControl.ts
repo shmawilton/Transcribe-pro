@@ -43,7 +43,6 @@ export function useMarkerSpeedControl() {
         const calculatedOriginal = duration * playbackRate;
         if (originalDurationRef.current === null || Math.abs(calculatedOriginal - originalDurationRef.current) > 1) {
           originalDurationRef.current = calculatedOriginal;
-          console.log(`[useMarkerSpeedControl] Stored original duration: ${originalDurationRef.current.toFixed(2)}s`);
         }
       }
     }
@@ -62,7 +61,6 @@ export function useMarkerSpeedControl() {
         setTimeout(() => {
           isUpdatingRef.current = false;
         }, 50);
-        console.log('[useMarkerSpeedControl] Marker deactivated - reset speed to 1.0x');
       }
       return;
     }
@@ -90,7 +88,6 @@ export function useMarkerSpeedControl() {
       // Get marker speed - THIS marker's speed, not the previous one
       const markerSpeed = activeMarker.speed !== undefined ? activeMarker.speed : 1.0;
       
-      console.log(`[useMarkerSpeedControl] Marker switched from "${previousMarkerId || 'none'}" to "${activeMarker.name}" (speed: ${markerSpeed}x)`);
       
       // When marker changes, always apply its speed if we're in range
       // Use a small delay to allow seek operations to complete first
@@ -114,7 +111,6 @@ export function useMarkerSpeedControl() {
             setSpeed(markerSpeed);
             lastAppliedSpeedRef.current = markerSpeed;
             lastInRangeStateRef.current = true;
-            console.log(`[useMarkerSpeedControl] ✅ Marker "${activeMarker.name}" - FORCED speed ${markerSpeed}x (was ${previousSpeed}, position ${currentTime.toFixed(2)}s in range ${activeMarker.start.toFixed(2)}s-${activeMarker.end.toFixed(2)}s)`);
             setTimeout(() => {
               isUpdatingRef.current = false;
             }, 300);
@@ -127,7 +123,6 @@ export function useMarkerSpeedControl() {
             isUpdatingRef.current = true;
             setSpeed(1.0);
             lastAppliedSpeedRef.current = 1.0;
-            console.log(`[useMarkerSpeedControl] Marker "${activeMarker.name}" - reset speed to 1.0x (position ${currentTime.toFixed(2)}s is not in range ${activeMarker.start.toFixed(2)}s-${activeMarker.end.toFixed(2)}s)`);
             setTimeout(() => {
               isUpdatingRef.current = false;
             }, 300);
@@ -178,7 +173,6 @@ export function useMarkerSpeedControl() {
         const duration = store.audio.duration;
         if (duration > 0) {
           originalDurationRef.current = duration;
-          console.log(`[useMarkerSpeedControl] Stored original duration: ${originalDurationRef.current.toFixed(2)}s (duration never changes with speed)`);
         } else {
           // Can't calculate yet, skip this check
           return;
@@ -223,14 +217,12 @@ export function useMarkerSpeedControl() {
             setSpeed(markerSpeed);
             lastAppliedSpeedRef.current = markerSpeed;
             lastSpeedChangeTimeRef.current = Date.now();
-            console.log(`[useMarkerSpeedControl] Entered marker "${activeMarker.name}" range at originalTime ${originalTime.toFixed(2)}s - applied speed ${markerSpeed}x`);
             setTimeout(() => {
               isUpdatingRef.current = false;
             }, 500); // Longer timeout to prevent rapid updates
           } else if (lastAppliedSpeedRef.current === markerSpeed) {
             // Speed is already correct, but ensure it's actually applied (in case of timing issues)
             // This is a safety check for nested markers
-            console.log(`[useMarkerSpeedControl] Already at correct speed ${markerSpeed}x for marker "${activeMarker.name}"`);
           }
         } else {
           // Exited marker range - reset to normal speed ONCE
@@ -239,7 +231,6 @@ export function useMarkerSpeedControl() {
             setSpeed(1.0);
             lastAppliedSpeedRef.current = 1.0;
             lastSpeedChangeTimeRef.current = Date.now();
-            console.log(`[useMarkerSpeedControl] Exited marker "${activeMarker.name}" range at originalTime ${originalTime.toFixed(2)}s - reset speed to 1.0x`);
             setTimeout(() => {
               isUpdatingRef.current = false;
             }, 500); // Longer timeout to prevent rapid updates

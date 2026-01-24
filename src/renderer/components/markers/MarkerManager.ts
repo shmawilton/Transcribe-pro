@@ -13,28 +13,68 @@ interface ValidationResult {
 }
 
 /**
- * TASK 9: 8 Preset Colors for Markers
+ * TASK 9: 35 Preset Colors for Markers
  * Pre-defined color options users can choose from when creating markers
  * 
  * Why limit colors:
  * - Unlimited color picker is complex and slow
- * - 8 preset colors is fast and provides enough variety
+ * - 35 preset colors provides excellent variety for multiple markers
  * 
  * Color selection criteria:
- * - Contrast well with dark background
+ * - Contrast well with both dark and light backgrounds
  * - Are distinct from each other
- * - Match African theme where possible (gold, terracotta, green)
- * - Include basics (red, blue, green) for familiarity
+ * - Organized in groups for easy visual identification
+ * - Include warm, cool, and neutral tones
  */
 export const PRESET_COLORS = [
-  '#FF4444', // Red - basic, familiar
-  '#FF8C00', // Orange - warm, distinct
-  '#D4AF37', // Gold - African theme
-  '#00AA00', // Green - basic, familiar
-  '#4A9EFF', // Blue - basic, familiar
-  '#9B59B6', // Purple - distinct
-  '#FF69B4', // Pink - distinct
-  '#20B2AA', // Teal - distinct
+  // Reds & Pinks (5)
+  '#FF4444', // Bright Red
+  '#E91E63', // Pink
+  '#FF69B4', // Hot Pink
+  '#DC143C', // Crimson
+  '#FF6B6B', // Coral Red
+  
+  // Oranges & Yellows (5)
+  '#FF8C00', // Dark Orange
+  '#FFA500', // Orange
+  '#FFD700', // Gold
+  '#FFBF00', // Amber
+  '#F4A460', // Sandy Brown
+  
+  // Greens (6)
+  '#00AA00', // Green
+  '#32CD32', // Lime Green
+  '#2ECC71', // Emerald
+  '#20B2AA', // Light Sea Green
+  '#00CED1', // Dark Turquoise
+  '#228B22', // Forest Green
+  
+  // Blues (6)
+  '#4A9EFF', // Bright Blue
+  '#1E90FF', // Dodger Blue
+  '#00BFFF', // Deep Sky Blue
+  '#4169E1', // Royal Blue
+  '#6495ED', // Cornflower Blue
+  '#5F9EA0', // Cadet Blue
+  
+  // Purples & Violets (5)
+  '#9B59B6', // Amethyst
+  '#8A2BE2', // Blue Violet
+  '#9370DB', // Medium Purple
+  '#BA55D3', // Medium Orchid
+  '#DA70D6', // Orchid
+  
+  // Teals & Cyans (4)
+  '#008B8B', // Dark Cyan
+  '#48D1CC', // Medium Turquoise
+  '#40E0D0', // Turquoise
+  '#7FFFD4', // Aquamarine
+  
+  // Earth Tones (4)
+  '#D4AF37', // Gold (African theme)
+  '#CD853F', // Peru
+  '#8B4513', // Saddle Brown
+  '#A0522D', // Sienna
 ] as const;
 
 /**
@@ -185,6 +225,43 @@ export class MarkerManager {
     
     // Format similar to UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
     return `${timestamp}-${random1}-${random2}-${random3}-${random4}`;
+  }
+
+  /**
+   * Gets the next color from the preset palette based on marker count
+   * Cycles through colors when count exceeds palette size
+   * @returns The next color in the palette
+   */
+  static getNextColor(): string {
+    const store = useAppStore.getState();
+    const markerCount = store.markers.length;
+    // Cycle through colors
+    const colorIndex = markerCount % PRESET_COLORS.length;
+    return PRESET_COLORS[colorIndex];
+  }
+
+  /**
+   * Generates an auto-incrementing marker name
+   * @returns A name like "Marker 1", "Marker 2", etc.
+   */
+  static generateMarkerName(): string {
+    const store = useAppStore.getState();
+    const markerCount = store.markers.length;
+    return `Marker ${markerCount + 1}`;
+  }
+
+  /**
+   * Creates a quick marker with auto-generated name and next color
+   * Used for rapid marker creation without popup
+   * @param start - Start time in seconds
+   * @param end - End time in seconds
+   * @returns The created marker object
+   * @throws Error if validation fails
+   */
+  static createQuickMarker(start: number, end: number): Marker {
+    const name = MarkerManager.generateMarkerName();
+    const color = MarkerManager.getNextColor();
+    return MarkerManager.createMarker(name, start, end, color, 1.0, false);
   }
 
   /**

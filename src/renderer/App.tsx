@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import MenuBar from './components/ui/MenuBar';
+import MobileMenu from './components/ui/MobileMenu';
 import Waveform from './components/audio/Waveform';
 import MarkerTimeline from './components/markers/MarkerTimeline';
 import PlaybackPanel from './components/controls/PlaybackPanel';
 import MarkerPanel from './components/controls/MarkerPanel';
+import MobileControlsPanel from './components/controls/MobileControlsPanel';
 import SettingsModal from './components/ui/SettingsModal';
 import WelcomeScreen from './components/ui/WelcomeScreen';
 import ErrorBoundary from './components/ui/ErrorBoundary';
@@ -26,8 +28,16 @@ const App: React.FC = () => {
   const isLoading = useAppStore((state) => state.audio.isLoading); // Use global store
   const [showWelcome, setShowWelcome] = useState(true);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const restoreAttemptedRef = React.useRef(false);
   const { toasts, closeToast } = useToast();
+  
+  // Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Get export modal state from store
   const isExportModalOpen = useAppStore((state) => state.ui.isExportModalOpen);
@@ -37,10 +47,63 @@ const App: React.FC = () => {
   // This hook should not cause re-renders
   const { play, pause, stop, seek, getCurrentTime, setVolume, loadFile, resumeAudioContext } = useAudioEngine();
   
+  // Track if project has been manually saved (auto-save only starts after first manual save)
+  const lastManualSaveAt = useAppStore((state) => (state as any).lastManualSaveAt || 0);
+  
+  // Start auto-save when audio is loaded AND project has been saved at least once
+  // Works on ALL platforms (web, mobile, electron)
+  useEffect(() => {
+    if (isAudioLoaded && lastManualSaveAt > 0) {
+      // Start auto-save timer when project has been saved at least once
+      const projectSaver = getProjectSaver();
+      projectSaver.startAutoSave();
+      console.log('[App] Auto-save started (project saved at least once)');
+      
+      return () => {
+        projectSaver.stopAutoSave();
+      };
+    }
+  }, [isAudioLoaded, lastManualSaveAt]);
+  
   // Get store values for keyboard shortcuts
   const isPlaying = useAppStore((state) => state.audio.isPlaying);
+  const currentTime = useAppStore((state) => state.audio.currentTime);
+  const duration = useAppStore((state) => state.audio.duration);
   const currentVolume = useAppStore((state) => state.globalControls.volume);
   const setVolumeStore = useAppStore((state) => state.setVolume);
+  
+  // Track if we've already triggered auto-replay to prevent loops
+  const autoReplayTriggeredRef = React.useRef(false);
+  
+  // Reset the auto-replay flag when playback starts
+  useEffect(() => {
+    if (isPlaying) {
+      autoReplayTriggeredRef.current = false;
+    }
+  }, [isPlaying]);
+  
+  // Auto-replay when audio ends
+  useEffect(() => {
+    // Check if audio just ended (not playing, time is at or near end, audio is loaded)
+    // Also ensure we haven't already triggered replay for this end event
+    if (isAudioLoaded && !isPlaying && duration > 0 && currentTime >= duration - 0.1 && !autoReplayTriggeredRef.current) {
+      autoReplayTriggeredRef.current = true; // Prevent multiple triggers
+      
+      // Small delay before replay to ensure clean state
+      const replayTimeout = setTimeout(async () => {
+        try {
+          await seek(0); // Reset to beginning
+          await play();  // Start playing again
+          console.log('[App] Auto-replay: Audio ended and restarted');
+        } catch (error) {
+          console.error('[App] Auto-replay failed:', error);
+          autoReplayTriggeredRef.current = false; // Allow retry on error
+        }
+      }, 300); // Slightly longer delay for stability
+      
+      return () => clearTimeout(replayTimeout);
+    }
+  }, [isPlaying, currentTime, duration, isAudioLoaded, seek, play]);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -83,7 +146,7 @@ const App: React.FC = () => {
     })();
   }, [loadFile, resumeAudioContext]);
 
-  // Web-only: warn before leaving if changes haven't been auto-saved
+  // Web-only: auto-save immediately before unload and warn if needed
   useEffect(() => {
     const isElectron = !!(window as any).electronAPI || 
       (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron);
@@ -93,6 +156,32 @@ const App: React.FC = () => {
       const store = useAppStore.getState() as any;
       const hasProject = !!store.audio?.file && !!store.audio?.isLoaded;
       if (!hasProject) return;
+
+      // Attempt immediate auto-save before unload
+      try {
+        const projectSaver = getProjectSaver();
+        // Trigger immediate auto-save (synchronous localStorage write)
+        const projectData = {
+          version: '1.0.0',
+          markers: store.markers || [],
+          globalControls: store.globalControls || {},
+          uiState: {
+            zoomLevel: store.ui?.zoomLevel || 1,
+            viewportStart: store.ui?.viewportStart || 0,
+            viewportEnd: store.ui?.viewportEnd || 0,
+          },
+          metadata: {
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            version: '1.0.0',
+          },
+        };
+        // Note: We can't save audio file synchronously, but markers/settings are saved
+        localStorage.setItem('transcribe-pro-web-autosave-partial', JSON.stringify(projectData));
+        console.log('[App] Partial auto-save before unload');
+      } catch (err) {
+        console.error('[App] Failed to auto-save before unload:', err);
+      }
 
       // Respect settings (auto-save on/off)
       let autoSaveEnabled = true;
@@ -217,18 +306,46 @@ const App: React.FC = () => {
           stop();
           break;
 
+        case 'm': // M key - Create marker at current position
+        case 'M':
+          e.preventDefault();
+          try {
+            const store = useAppStore.getState();
+            const currentTimeForMarker = store.audio.currentTime || 0;
+            const audioDuration = store.audio.duration || 0;
+            if (audioDuration > 0) {
+              // Import MarkerManager dynamically to avoid circular deps
+              const { MarkerManager } = require('./components/markers/MarkerManager');
+              const start = currentTimeForMarker;
+              const end = Math.min(currentTimeForMarker + 5, audioDuration);
+              if (end - start >= 0.5) {
+                MarkerManager.createQuickMarker(start, end);
+                console.log('[App] Quick marker created via M key:', start, '-', end);
+              } else {
+                const altStart = Math.max(0, currentTimeForMarker - 5);
+                if (currentTimeForMarker - altStart >= 0.5) {
+                  MarkerManager.createQuickMarker(altStart, currentTimeForMarker);
+                  console.log('[App] Quick marker created via M key (alt):', altStart, '-', currentTimeForMarker);
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[App] Failed to create marker via M key:', err);
+          }
+          break;
+
         case 'ArrowLeft': // Left Arrow - Skip backward 5 seconds
           e.preventDefault();
-          const currentTime = getCurrentTime();
-          const newTimeBack = Math.max(0, currentTime - 5);
+          const currentTimeVal = getCurrentTime();
+          const newTimeBack = Math.max(0, currentTimeVal - 5);
           seek(newTimeBack);
           break;
 
         case 'ArrowRight': // Right Arrow - Skip forward 5 seconds
           e.preventDefault();
           const currentTimeForward = getCurrentTime();
-          const duration = useAppStore.getState().audio.duration;
-          const newTimeForward = Math.min(duration, currentTimeForward + 5);
+          const audioDur = useAppStore.getState().audio.duration;
+          const newTimeForward = Math.min(audioDur, currentTimeForward + 5);
           seek(newTimeForward);
           break;
 
@@ -432,6 +549,75 @@ const App: React.FC = () => {
     );
   }
   
+  // Mobile Layout
+  if (isMobile) {
+    return (
+      <ErrorBoundary>
+        <div className="app-container mobile-layout">
+          {/* Mobile Menu */}
+          <MobileMenu />
+
+          {/* Main Content Area - Stacked vertically, order: Waveform → Timeline → Markers → Playback */}
+          <div className="main-content mobile-content">
+            {/* Waveform Section */}
+            <div className="mobile-panel waveform-mobile-section">
+              <ErrorBoundary>
+                <Waveform />
+              </ErrorBoundary>
+            </div>
+
+            {/* Marker Timeline Section */}
+            <div className="mobile-panel timeline-mobile-section">
+              <ErrorBoundary>
+                <MarkerTimeline />
+              </ErrorBoundary>
+            </div>
+
+            {/* Marker Panel / Settings */}
+            <div className="mobile-panel marker-panel-section">
+              <ErrorBoundary>
+                <MarkerPanel />
+              </ErrorBoundary>
+            </div>
+
+            {/* Controls Panel - Zoom & Pitch */}
+            <div className="mobile-panel controls-panel-section">
+              <ErrorBoundary>
+                <MobileControlsPanel />
+              </ErrorBoundary>
+            </div>
+
+            {/* Playback Panel - At bottom */}
+            <div className="mobile-panel playback-section">
+              <ErrorBoundary>
+                <PlaybackPanel />
+              </ErrorBoundary>
+            </div>
+          </div>
+
+          {/* Modals */}
+          <SettingsModal />
+          <CommandPalette 
+            isOpen={showCommandPalette} 
+            onClose={() => setShowCommandPalette(false)}
+            commands={commandPaletteCommands}
+          />
+          <ExportModal
+            isOpen={isExportModalOpen}
+            onClose={() => setIsExportModalOpen(false)}
+          />
+          
+          {/* Status Components */}
+          <StatusBar />
+          
+          {/* Toast Notifications */}
+          <ToastContainer toasts={toasts} onClose={closeToast} />
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
+  // Desktop Layout
   return (
     <ErrorBoundary>
       <div className="app-container">

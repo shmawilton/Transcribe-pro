@@ -1,5 +1,5 @@
-// WelcomeScreen.tsx - Initial screen before audio is loaded
-// Features Kenyan-themed design with glassmorphism and animations
+// WelcomeScreen.tsx - Neumorphic Welcome Screen
+// Features Kenyan-themed neumorphic design with smooth animations
 
 import React, { useState } from 'react';
 import { useAudioEngine } from '../audio/useAudioEngine';
@@ -13,7 +13,7 @@ const KENYAN_GREEN = '#006644';
 const KENYAN_BLACK = '#0F0F0F';
 const KENYAN_WHITE = '#FFFFFF';
 
-// Handwritten font family - Merienda from Google Fonts
+// Handwritten font family
 const HANDWRITTEN_FONT = "'Merienda', 'Caveat', cursive";
 
 interface WelcomeScreenProps {
@@ -21,23 +21,38 @@ interface WelcomeScreenProps {
   onProjectLoaded?: () => void;
 }
 
-// Feature icons as SVG components
-const WaveformIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+// SVG Icons
+const MusicIcon = () => (
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18V5l12-2v13"/>
+    <circle cx="6" cy="18" r="3"/>
+    <circle cx="18" cy="16" r="3"/>
+  </svg>
+);
+
+const FolderIcon = () => (
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+  </svg>
+);
+
+const WaveIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2 12h2l2-5 4 10 4-8 2 3h6"/>
   </svg>
 );
 
 const MarkerIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
     <circle cx="12" cy="10" r="3"/>
   </svg>
 );
 
-const TranscriptionIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={KENYAN_WHITE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+const SpeedIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <polyline points="12 6 12 12 16 14"/>
   </svg>
 );
 
@@ -52,47 +67,47 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoadingProject, setIsLoadingProject] = useState(false);
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
   
-  // Initialize project loader (use useState to ensure it's only created once)
+  const theme = useAppStore((state) => state.theme);
+  const isLightMode = theme === 'light';
+  
+  // Neumorphic colors based on theme
+  const neuBg = isLightMode ? '#e4ebf5' : '#1e1e1e';
+  const shadowDark = isLightMode ? 'rgba(163, 177, 198, 0.6)' : 'rgba(0, 0, 0, 0.5)';
+  const shadowLight = isLightMode ? 'rgba(255, 255, 255, 0.8)' : 'rgba(50, 50, 50, 0.3)';
+  
+  const neuRaised = `8px 8px 16px ${shadowDark}, -6px -6px 14px ${shadowLight}`;
+  const neuPressed = `inset 4px 4px 8px ${shadowDark}, inset -4px -4px 8px ${shadowLight}`;
+  
   const [projectLoader] = useState(() => getProjectLoader(
     (message: string, type: 'success' | 'error') => {
-      if (type === 'error') {
-        setError(message);
-      }
+      if (type === 'error') setError(message);
     }
   ));
 
   const handleStartNewProject = async () => {
     try {
       setError(null);
-      // Reset project state (fresh start)
       const store = useAppStore.getState();
       store.resetProject();
-      
-      // Reset all settings to defaults
       store.setPitch(0);
       store.setVolume(6);
       store.setPlaybackRate(1);
-      if (store.globalControls.isMuted) {
-        store.toggleMute();
-      }
+      if (store.globalControls.isMuted) store.toggleMute();
       store.setZoomLevel(1);
       
       await resumeAudioContext();
       const file = await pickAudioFile();
-      
       if (!file) return;
 
       const validation = validateAudioFile(file);
-      
       if (!validation.valid) {
         setError(validation.error || 'Invalid file');
         return;
       }
 
       await loadFile(file);
-      
-      // Reset viewport to full duration after audio loads
       setTimeout(() => {
         const audioStore = useAppStore.getState();
         if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
@@ -113,11 +128,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       await resumeAudioContext();
       const loaded = await projectLoader.loadProject(loadFile);
       if (loaded) {
-        if (onProjectLoaded) {
-          onProjectLoaded();
-        } else {
-          onAudioLoaded(); // Fallback to audio loaded callback
-        }
+        onProjectLoaded ? onProjectLoaded() : onAudioLoaded();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load project');
@@ -153,20 +164,16 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
 
     try {
       setError(null);
-      // Reset all settings to defaults when loading audio
       const store = useAppStore.getState();
       store.setPitch(0);
       store.setVolume(6);
       store.setPlaybackRate(1);
-      if (store.globalControls.isMuted) {
-        store.toggleMute();
-      }
+      if (store.globalControls.isMuted) store.toggleMute();
       store.setZoomLevel(1);
       
       await resumeAudioContext();
       await loadFile(file);
       
-      // Reset viewport to full duration after audio loads
       setTimeout(() => {
         const audioStore = useAppStore.getState();
         if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
@@ -181,128 +188,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
   };
 
   const features = [
-    { icon: <WaveformIcon />, text: 'Waveform Visualization' },
-    { icon: <MarkerIcon />, text: 'Marker Timeline' },
-    { icon: <TranscriptionIcon />, text: 'Fast Transcription' }
+    { icon: <WaveIcon />, text: 'Waveform Visualization', color: KENYAN_GREEN },
+    { icon: <MarkerIcon />, text: 'Section Markers', color: KENYAN_RED },
+    { icon: <SpeedIcon />, text: 'Speed Control', color: KENYAN_GREEN },
   ];
-
-  // Neumorphic Theme Toggle Component
-  const theme = useAppStore((state) => state.theme);
-  const toggleTheme = useAppStore((state) => state.toggleTheme);
-  const isLight = theme === 'light';
-  const lightThemeColors = {
-    bg: '#FCF2EB',
-    sun: '#EFB099',
-    moon: '#D6C2B5',
-    shadow: '#cac2bc',
-    light: '#fff'
-  };
-  const darkThemeColors = {
-    bg: '#396273',
-    sun: '#8DC4D1',
-    moon: '#fff',
-    shadow: '#2e4e5c',
-    light: '#4d7281'
-  };
-  const colors = isLight ? lightThemeColors : darkThemeColors;
-
-  const ThemeToggle = () => (
-    <button
-      onClick={toggleTheme}
-      style={{
-        position: 'absolute',
-        top: '2rem',
-        right: '2rem',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '7rem',
-        height: '3.5rem',
-        borderRadius: '30px',
-        border: `3px solid ${colors.bg}`,
-        fontSize: '0.5rem',
-        padding: '0.5rem',
-        overflow: 'hidden',
-        cursor: 'pointer',
-        outline: 'none',
-        background: 'none',
-        boxShadow: `-3px -3px 3px ${colors.light},
-          3px 3px 3px ${colors.shadow},
-          inset 2px 2px 3px ${colors.shadow},
-          inset 2px 2px 20px ${colors.shadow}`,
-        transition: 'all 0.3s ease',
-        zIndex: 10,
-      }}
-      title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-    >
-      <div
-        style={{
-          position: 'absolute',
-          height: '2.4rem',
-          width: '2.4rem',
-          borderRadius: '50%',
-          transform: isLight ? 'translateX(0)' : 'translateX(3.2rem)',
-          transition: 'transform 0.3s, background-color 0.1s ease',
-          background: colors.bg,
-          boxShadow: `inset 2px 2px 2px ${colors.light},
-            5px 6px 6px ${colors.shadow}`,
-        }}
-      />
-      <svg
-        style={{
-          position: 'relative',
-          borderRadius: '50%',
-          height: '2.4rem',
-          width: '2.4rem',
-          padding: '7px',
-          zIndex: 9,
-        }}
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d="M12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12C8 14.2091 9.79086 16 12 16ZM12 18C15.3137 18 18 15.3137 18 12C18 8.68629 15.3137 6 12 6C8.68629 6 6 8.68629 6 12C6 15.3137 8.68629 18 12 18Z"
-          fill={colors.sun}
-          opacity={isLight ? 1 : 0.6}
-        />
-        <path
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d="M11 0H13V4.06189C12.6724 4.02104 12.3387 4 12 4C11.6613 4 11.3276 4.02104 11 4.06189V0ZM7.0943 5.68018L4.22173 2.80761L2.80752 4.22183L5.6801 7.09441C6.09071 6.56618 6.56608 6.0908 7.0943 5.68018ZM4.06189 11H0V13H4.06189C4.02104 12.6724 4 12.3387 4 12C4 11.6613 4.02104 11.3276 4.06189 11ZM5.6801 16.9056L2.80751 19.7782L4.22173 21.1924L7.0943 18.3198C6.56608 17.9092 6.09071 17.4338 5.6801 16.9056ZM11 19.9381V24H13V19.9381C12.6724 19.979 12.3387 20 12 20C11.6613 20 11.3276 19.979 11 19.9381ZM16.9056 18.3199L19.7781 21.1924L21.1923 19.7782L18.3198 16.9057C17.9092 17.4339 17.4338 17.9093 16.9056 18.3199ZM19.9381 13H24V11H19.9381C19.979 11.3276 20 11.6613 20 12C20 12.3387 19.979 12.6724 19.9381 13ZM18.3198 7.0943L21.1923 4.22183L19.7781 2.80762L16.9056 5.6801C17.4338 6.09071 17.9092 6.56608 18.3198 7.0943Z"
-          fill={colors.sun}
-          opacity={isLight ? 1 : 0.6}
-        />
-      </svg>
-      <svg
-        style={{
-          position: 'relative',
-          borderRadius: '50%',
-          height: '2.4rem',
-          width: '2.4rem',
-          padding: '7px',
-          zIndex: 9,
-        }}
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          fillRule="evenodd"
-          clipRule="evenodd"
-          d="M12.2256 2.00253C9.59172 1.94346 6.93894 2.9189 4.92893 4.92891C1.02369 8.83415 1.02369 15.1658 4.92893 19.071C8.83418 22.9763 15.1658 22.9763 19.0711 19.071C21.0811 17.061 22.0565 14.4082 21.9975 11.7743C21.9796 10.9772 21.8669 10.1818 21.6595 9.40643C21.0933 9.9488 20.5078 10.4276 19.9163 10.8425C18.5649 11.7906 17.1826 12.4053 15.9301 12.6837C14.0241 13.1072 12.7156 12.7156 12 12C11.2844 11.2844 10.8928 9.97588 11.3163 8.0699C11.5947 6.81738 12.2094 5.43511 13.1575 4.08368C13.5724 3.49221 14.0512 2.90664 14.5935 2.34046C13.8182 2.13305 13.0228 2.02041 12.2256 2.00253ZM17.6569 17.6568C18.9081 16.4056 19.6582 14.8431 19.9072 13.2186C16.3611 15.2643 12.638 15.4664 10.5858 13.4142C8.53361 11.362 8.73568 7.63895 10.7814 4.09281C9.1569 4.34184 7.59434 5.09193 6.34315 6.34313C3.21895 9.46732 3.21895 14.5326 6.34315 17.6568C9.46734 20.781 14.5327 20.781 17.6569 17.6568Z"
-          fill={colors.moon}
-          opacity={isLight ? 0.6 : 1}
-        />
-      </svg>
-    </button>
-  );
 
   return (
     <div
@@ -312,7 +201,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
         left: 0,
         right: 0,
         bottom: 0,
-        background: 'var(--neu-bg-base)',
+        background: neuBg,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -322,392 +211,338 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
         fontFamily: HANDWRITTEN_FONT
       }}
     >
-      {/* Neumorphic Theme Toggle - Hidden for now (dark mode only) */}
-      {/* <ThemeToggle /> */}
-      {/* Animated background elements */}
+      {/* Subtle background pattern */}
       <div style={{
         position: 'absolute',
         width: '100%',
         height: '100%',
-        overflow: 'hidden',
+        opacity: 0.03,
+        background: `
+          radial-gradient(circle at 20% 30%, ${KENYAN_GREEN} 0%, transparent 40%),
+          radial-gradient(circle at 80% 70%, ${KENYAN_RED} 0%, transparent 40%)
+        `,
         pointerEvents: 'none'
-      }}>
-        {/* Floating circles */}
-        <div style={{
-          position: 'absolute',
-          width: '400px',
-          height: '400px',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${KENYAN_GREEN}20 0%, transparent 70%)`,
-          top: '-100px',
-          left: '-100px',
-          animation: 'float 8s ease-in-out infinite'
-        }} />
-        <div style={{
-          position: 'absolute',
-          width: '300px',
-          height: '300px',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${KENYAN_RED}20 0%, transparent 70%)`,
-          bottom: '-50px',
-          right: '-50px',
-          animation: 'float 6s ease-in-out infinite reverse'
-        }} />
-        <div style={{
-          position: 'absolute',
-          width: '200px',
-          height: '200px',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${KENYAN_WHITE}10 0%, transparent 70%)`,
-          top: '50%',
-          left: '70%',
-          animation: 'float 10s ease-in-out infinite'
-        }} />
-      </div>
+      }} />
 
-      {/* Main content - Horizontal layout for desktop */}
+      {/* Main Card */}
       <div
+        className="welcome-card"
         style={{
           display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'stretch',
-          gap: '3rem',
-          padding: '2.5rem 4rem',
-          background: 'var(--neu-bg-base)',
-          borderRadius: '24px',
-          border: 'none',
-          boxShadow: 'var(--neu-raised)',
-          animation: 'fadeInUp 0.8s ease-out',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: 'clamp(1.25rem, 4vw, 3rem)',
+          background: neuBg,
+          borderRadius: 'clamp(16px, 4vw, 30px)',
+          boxShadow: neuRaised,
+          animation: 'fadeInUp 0.6s ease-out',
           position: 'relative',
           zIndex: 1,
-          maxWidth: '1200px',
-          width: '90%'
+          maxWidth: '520px',
+          width: '92%',
+          gap: 'clamp(1rem, 3vw, 2rem)',
+          margin: '0 auto',
+          maxHeight: '90vh',
+          overflowY: 'auto'
         }}
       >
-        {/* Left side - Logo/Title and Features */}
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          justifyContent: 'center',
-          flex: '0 0 320px',
-          gap: '2rem'
-        }}>
-          {/* Logo/Title */}
-          <div>
-            <h1 style={{
-              fontSize: '2.5rem',
-              fontWeight: '700',
-              fontFamily: HANDWRITTEN_FONT,
-              background: `linear-gradient(135deg, ${KENYAN_WHITE} 0%, ${KENYAN_GREEN} 50%, ${KENYAN_RED} 100%)`,
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              marginBottom: '0.5rem',
-              textShadow: `0 0 30px ${KENYAN_GREEN}40`,
-              animation: 'glow 2s ease-in-out infinite alternate',
-              lineHeight: '1.2'
-            }}>
-              Transcription Pro
-            </h1>
-            <p style={{
-              color: 'rgba(255, 255, 255, 0.6)',
-              fontSize: '1rem',
-              letterSpacing: '0.05em',
-              fontFamily: HANDWRITTEN_FONT,
-              marginTop: '0.5rem'
-            }}>
-              Professional Audio Transcription Tool
-            </p>
-          </div>
-
-          {/* Features */}
+        {/* Logo/Title Section */}
+        <div style={{ textAlign: 'center', width: '100%' }}>
+          {/* Neumorphic Logo Circle */}
           <div style={{
+            width: 'clamp(60px, 15vw, 80px)',
+            height: 'clamp(60px, 15vw, 80px)',
+            borderRadius: '50%',
+            background: neuBg,
+            boxShadow: neuRaised,
             display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem'
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto clamp(0.75rem, 2vw, 1.5rem)',
           }}>
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  color: 'rgba(255, 255, 255, 0.6)',
-                  fontSize: '0.95rem',
-                  animation: `fadeIn 0.5s ease-out ${0.3 + index * 0.1}s both`,
-                  fontFamily: HANDWRITTEN_FONT
-                }}
-              >
-                {feature.icon}
-                <span>{feature.text}</span>
-              </div>
-            ))}
+            <svg width="clamp(28px, 8vw, 40px)" height="clamp(28px, 8vw, 40px)" viewBox="0 0 24 24" fill="none">
+              <path d="M9 18V5l12-2v13" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="6" cy="18" r="3" fill={KENYAN_GREEN}/>
+              <circle cx="18" cy="16" r="3" fill={KENYAN_RED}/>
+            </svg>
           </div>
+          
+          <h1 style={{
+            fontSize: 'clamp(1.25rem, 5vw, 2rem)',
+            fontWeight: '700',
+            fontFamily: HANDWRITTEN_FONT,
+            color: isLightMode ? '#2d3748' : KENYAN_WHITE,
+            marginBottom: '0.35rem',
+            letterSpacing: '-0.5px'
+          }}>
+            Transcription Pro
+          </h1>
+          <p style={{
+            color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
+            fontSize: 'clamp(0.75rem, 2.5vw, 0.95rem)',
+            fontFamily: HANDWRITTEN_FONT,
+          }}>
+            Professional Audio Transcription
+          </p>
         </div>
 
-        {/* Vertical divider */}
+        {/* Features - Neumorphic Chips */}
         <div style={{
-          width: '1px',
-          background: 'rgba(255, 255, 255, 0.1)',
-          margin: '1rem 0'
-        }} />
+          display: 'flex',
+          gap: 'clamp(6px, 2vw, 12px)',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          width: '100%'
+        }}>
+          {features.map((feature, index) => (
+            <div
+              key={index}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'clamp(4px, 1.5vw, 8px)',
+                padding: 'clamp(5px, 1.5vw, 8px) clamp(8px, 2.5vw, 14px)',
+                background: neuBg,
+                borderRadius: '20px',
+                boxShadow: `3px 3px 6px ${shadowDark}, -2px -2px 4px ${shadowLight}`,
+                fontSize: 'clamp(0.65rem, 2vw, 0.8rem)',
+                color: feature.color,
+                fontWeight: '500'
+              }}
+            >
+              <span style={{ display: 'flex', transform: 'scale(clamp(0.75, 2vw, 1))' }}>{feature.icon}</span>
+              <span className="hide-on-small-mobile">{feature.text}</span>
+            </div>
+          ))}
+        </div>
 
-        {/* Right side - Action Buttons */}
+        {/* Action Buttons */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: '1.25rem',
-          flex: '1 1 auto',
-          minWidth: '400px'
+          gap: '1rem',
+          width: '100%'
         }}>
-          {/* Start New Project Button */}
-          <div
+          {/* New Project Button */}
+          <button
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={handleStartNewProject}
+            onMouseEnter={() => setHoveredButton('new')}
+            onMouseLeave={() => setHoveredButton(null)}
+            disabled={isLoading || isLoadingProject}
             style={{
               width: '100%',
-              minHeight: '140px',
+              padding: 'clamp(0.75rem, 3vw, 1.25rem) clamp(0.75rem, 3vw, 1.5rem)',
               border: 'none',
-              borderRadius: '12px',
+              borderRadius: 'clamp(12px, 3vw, 16px)',
               display: 'flex',
-              flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'flex-start',
-              gap: '1.5rem',
-              padding: '1.5rem',
+              gap: 'clamp(0.5rem, 2vw, 1rem)',
               cursor: (isLoading || isLoadingProject) ? 'wait' : 'pointer',
-              background: 'var(--neu-bg-base)',
+              background: neuBg,
               transition: 'all 0.3s ease',
-              transform: isDragging ? 'scale(1.01)' : 'scale(1)',
-              boxShadow: isDragging ? 'var(--neu-pressed)' : 'var(--neu-raised)',
-              opacity: (isLoading || isLoadingProject) ? 0.6 : 1
+              boxShadow: (isDragging || hoveredButton === 'new') ? neuPressed : neuRaised,
+              transform: (isDragging || hoveredButton === 'new') ? 'scale(0.98)' : 'scale(1)',
+              opacity: (isLoading || isLoadingProject) ? 0.6 : 1,
+              fontFamily: HANDWRITTEN_FONT,
+              minHeight: '60px',
+              touchAction: 'manipulation'
             }}
           >
             {isLoading ? (
               <>
-                {/* Loading spinner */}
                 <div style={{
-                  width: '50px',
-                  height: '50px',
-                  position: 'relative',
+                  width: 'clamp(32px, 10vw, 40px)',
+                  height: 'clamp(32px, 10vw, 40px)',
+                  borderRadius: '50%',
+                  background: neuBg,
+                  boxShadow: neuPressed,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   flexShrink: 0
                 }}>
                   <div style={{
-                    position: 'absolute',
-                    width: '100%',
-                    height: '100%',
-                    border: `4px solid ${KENYAN_GREEN}30`,
+                    width: 'clamp(18px, 6vw, 24px)',
+                    height: 'clamp(18px, 6vw, 24px)',
+                    border: `3px solid ${KENYAN_GREEN}30`,
                     borderTopColor: KENYAN_GREEN,
                     borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                  <div style={{
-                    position: 'absolute',
-                    width: '70%',
-                    height: '70%',
-                    top: '15%',
-                    left: '15%',
-                    border: `4px solid ${KENYAN_RED}30`,
-                    borderTopColor: KENYAN_RED,
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite reverse'
+                    animation: 'spin 0.8s linear infinite'
                   }} />
                 </div>
-                <div>
+                <div style={{ textAlign: 'left' }}>
                   <p style={{ 
-                    color: KENYAN_WHITE, 
-                    fontSize: '1.1rem',
+                    color: isLightMode ? '#2d3748' : KENYAN_WHITE, 
+                    fontSize: 'clamp(0.85rem, 3vw, 1rem)',
                     fontWeight: '600',
-                    marginBottom: '0.25rem',
-                    fontFamily: HANDWRITTEN_FONT 
+                    margin: 0
                   }}>Loading audio...</p>
-                  <p style={{
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    fontSize: '0.9rem',
-                    fontFamily: HANDWRITTEN_FONT
-                  }}>Please wait</p>
                 </div>
               </>
             ) : (
               <>
-                {/* Upload icon */}
-                <svg
-                  width="56"
-                  height="56"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={isDragging ? KENYAN_GREEN : 'rgba(255, 255, 255, 0.5)'}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    transition: 'all 0.3s ease',
-                    transform: isDragging ? 'translateY(-3px)' : 'translateY(0)',
-                    animation: 'bounce 2s ease-in-out infinite',
-                    flexShrink: 0
-                  }}
-                >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                <div style={{ flex: 1 }}>
+                <div style={{
+                  width: 'clamp(40px, 12vw, 50px)',
+                  height: 'clamp(40px, 12vw, 50px)',
+                  borderRadius: 'clamp(10px, 3vw, 14px)',
+                  background: neuBg,
+                  boxShadow: `4px 4px 8px ${shadowDark}, -3px -3px 6px ${shadowLight}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <MusicIcon />
+                </div>
+                <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
                   <p style={{
-                    color: KENYAN_WHITE,
-                    fontSize: '1.2rem',
+                    color: isLightMode ? '#2d3748' : KENYAN_WHITE,
+                    fontSize: 'clamp(0.9rem, 3.5vw, 1.1rem)',
                     fontWeight: '600',
-                    marginBottom: '0.5rem',
-                    fontFamily: HANDWRITTEN_FONT
+                    marginTop: 0,
+                    marginLeft: 0,
+                    marginRight: 0,
+                    marginBottom: '2px'
                   }}>
-                    {isDragging ? 'Drop your audio file here' : 'Start New Project'}
+                    {isDragging ? 'Drop audio file' : 'New Project'}
                   </p>
                   <p style={{
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    fontSize: '0.9rem',
-                    marginBottom: '0.25rem',
-                    fontFamily: HANDWRITTEN_FONT
+                    color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
+                    fontSize: 'clamp(0.65rem, 2.5vw, 0.8rem)',
+                    margin: 0
                   }}>
-                    Click, drag & drop, or browse to select
-                  </p>
-                  <p style={{
-                    color: 'rgba(255, 255, 255, 0.4)',
-                    fontSize: '0.8rem',
-                    fontFamily: HANDWRITTEN_FONT
-                  }}>
-                    MP3, WAV, OGG, FLAC, M4A, AAC, WEBM
+                    Click or drag & drop audio file
                   </p>
                 </div>
+                <svg width="clamp(16px, 5vw, 20px)" height="clamp(16px, 5vw, 20px)" viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
               </>
             )}
-          </div>
+          </button>
 
           {/* Load Project Button */}
           <button
             onClick={handleLoadProject}
+            onMouseEnter={() => setHoveredButton('load')}
+            onMouseLeave={() => setHoveredButton(null)}
             disabled={isLoading || isLoadingProject}
             style={{
               width: '100%',
-              minHeight: '140px',
+              padding: 'clamp(0.75rem, 3vw, 1.25rem) clamp(0.75rem, 3vw, 1.5rem)',
               border: 'none',
-              borderRadius: '12px',
+              borderRadius: 'clamp(12px, 3vw, 16px)',
               display: 'flex',
-              flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'flex-start',
-              gap: '1.5rem',
-              padding: '1.5rem',
+              gap: 'clamp(0.5rem, 2vw, 1rem)',
               cursor: (isLoading || isLoadingProject) ? 'wait' : 'pointer',
-              background: 'var(--neu-bg-base)',
+              background: neuBg,
               transition: 'all 0.3s ease',
-              boxShadow: isLoadingProject ? 'var(--neu-pressed)' : 'var(--neu-raised)',
+              boxShadow: (isLoadingProject || hoveredButton === 'load') ? neuPressed : neuRaised,
+              transform: (isLoadingProject || hoveredButton === 'load') ? 'scale(0.98)' : 'scale(1)',
               opacity: (isLoading || isLoadingProject) ? 0.6 : 1,
-              fontFamily: HANDWRITTEN_FONT
-            }}
-            onMouseEnter={(e) => {
-              if (!isLoading && !isLoadingProject) {
-                e.currentTarget.style.boxShadow = 'var(--neu-pressed)';
-                e.currentTarget.style.transform = 'scale(1.02)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isLoading && !isLoadingProject) {
-                e.currentTarget.style.boxShadow = 'var(--neu-raised)';
-                e.currentTarget.style.transform = 'scale(1)';
-              }
+              fontFamily: HANDWRITTEN_FONT,
+              minHeight: '60px',
+              touchAction: 'manipulation'
             }}
           >
             {isLoadingProject ? (
               <>
                 <div style={{
-                  width: '50px',
-                  height: '50px',
-                  position: 'relative',
+                  width: 'clamp(32px, 10vw, 40px)',
+                  height: 'clamp(32px, 10vw, 40px)',
+                  borderRadius: '50%',
+                  background: neuBg,
+                  boxShadow: neuPressed,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   flexShrink: 0
                 }}>
                   <div style={{
-                    position: 'absolute',
-                    width: '100%',
-                    height: '100%',
-                    border: `4px solid ${KENYAN_GREEN}30`,
-                    borderTopColor: KENYAN_GREEN,
+                    width: 'clamp(18px, 6vw, 24px)',
+                    height: 'clamp(18px, 6vw, 24px)',
+                    border: `3px solid ${KENYAN_RED}30`,
+                    borderTopColor: KENYAN_RED,
                     borderRadius: '50%',
-                    animation: 'spin 1s linear infinite'
+                    animation: 'spin 0.8s linear infinite'
                   }} />
                 </div>
-                <div>
+                <div style={{ textAlign: 'left' }}>
                   <p style={{ 
-                    color: KENYAN_WHITE, 
-                    fontSize: '1.1rem',
+                    color: isLightMode ? '#2d3748' : KENYAN_WHITE, 
+                    fontSize: 'clamp(0.85rem, 3vw, 1rem)',
                     fontWeight: '600',
-                    marginBottom: '0.25rem',
-                    fontFamily: HANDWRITTEN_FONT 
+                    margin: 0
                   }}>Loading project...</p>
-                  <p style={{
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    fontSize: '0.9rem',
-                    fontFamily: HANDWRITTEN_FONT
-                  }}>Please wait</p>
                 </div>
               </>
             ) : (
               <>
-                {/* Folder icon */}
-                <svg
-                  width="56"
-                  height="56"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(255, 255, 255, 0.6)"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    transition: 'all 0.3s ease',
-                    flexShrink: 0
-                  }}
-                >
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                  <path d="M12 11v6" />
-                  <path d="M9 14l3-3 3 3" />
-                </svg>
-                <div style={{ flex: 1 }}>
+                <div style={{
+                  width: 'clamp(40px, 12vw, 50px)',
+                  height: 'clamp(40px, 12vw, 50px)',
+                  borderRadius: 'clamp(10px, 3vw, 14px)',
+                  background: neuBg,
+                  boxShadow: `4px 4px 8px ${shadowDark}, -3px -3px 6px ${shadowLight}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <FolderIcon />
+                </div>
+                <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
                   <p style={{
-                    color: KENYAN_WHITE,
-                    fontSize: '1.2rem',
+                    color: isLightMode ? '#2d3748' : KENYAN_WHITE,
+                    fontSize: 'clamp(0.9rem, 3.5vw, 1.1rem)',
                     fontWeight: '600',
-                    marginBottom: '0.5rem',
-                    fontFamily: HANDWRITTEN_FONT
+                    margin: 0,
+                    marginBottom: '2px'
                   }}>
                     Load Project
                   </p>
                   <p style={{
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    fontSize: '0.9rem',
-                    fontFamily: HANDWRITTEN_FONT
+                    color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
+                    fontSize: 'clamp(0.65rem, 2.5vw, 0.8rem)',
+                    margin: 0
                   }}>
-                    Open a saved .tsproj project file
+                    Open saved .tsproj file
                   </p>
                 </div>
+                <svg width="clamp(16px, 5vw, 20px)" height="clamp(16px, 5vw, 20px)" viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
               </>
             )}
           </button>
         </div>
 
-        {/* Error message - positioned below buttons */}
+        {/* Supported Formats */}
+        <p style={{
+          color: isLightMode ? '#a0aec0' : 'rgba(255, 255, 255, 0.3)',
+          fontSize: '0.75rem',
+          textAlign: 'center',
+          margin: 0
+        }}>
+          Supports MP3, WAV, OGG, FLAC, M4A, AAC, WEBM
+        </p>
+
+        {/* Error Message */}
         {error && (
           <div style={{
             color: KENYAN_RED,
-            fontSize: '0.9rem',
+            fontSize: '0.85rem',
             padding: '0.75rem 1rem',
-            background: `${KENYAN_RED}20`,
-            borderRadius: '8px',
-            border: `1px solid ${KENYAN_RED}40`,
-            animation: 'shake 0.5s ease-in-out',
-            fontFamily: HANDWRITTEN_FONT,
-            marginTop: '0.5rem'
+            background: neuBg,
+            borderRadius: '12px',
+            boxShadow: neuPressed,
+            width: '100%',
+            textAlign: 'center',
+            animation: 'shake 0.4s ease-in-out'
           }}>
             {error}
           </div>
@@ -717,67 +552,68 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       {/* Footer */}
       <div style={{
         position: 'absolute',
-        bottom: '2rem',
-        color: 'rgba(255, 255, 255, 0.3)',
-        fontSize: '1rem',
+        bottom: 'clamp(0.75rem, 3vw, 1.5rem)',
         display: 'flex',
         alignItems: 'center',
-        gap: '0.5rem',
-        fontFamily: HANDWRITTEN_FONT
+        gap: 'clamp(4px, 1.5vw, 8px)',
+        color: isLightMode ? '#a0aec0' : 'rgba(255, 255, 255, 0.3)',
+        fontSize: 'clamp(0.7rem, 2.5vw, 0.85rem)',
+        fontFamily: HANDWRITTEN_FONT,
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        padding: '0 1rem'
       }}>
         <span>Made with</span>
         <HeartIcon />
         <span>in Kenya</span>
-        <span style={{
+        <div style={{
           display: 'flex',
           gap: '2px',
-          marginLeft: '0.5rem'
+          marginLeft: 'clamp(4px, 1.5vw, 8px)'
         }}>
-          <span style={{ width: '12px', height: '8px', background: KENYAN_BLACK, borderRadius: '2px 0 0 2px', border: '1px solid rgba(255,255,255,0.2)' }} />
-          <span style={{ width: '12px', height: '8px', background: KENYAN_RED }} />
-          <span style={{ width: '12px', height: '8px', background: KENYAN_GREEN }} />
-          <span style={{ width: '12px', height: '8px', background: KENYAN_WHITE, borderRadius: '0 2px 2px 0' }} />
-        </span>
+          <span style={{ width: 'clamp(8px, 2.5vw, 10px)', height: 'clamp(5px, 1.5vw, 6px)', background: KENYAN_BLACK, borderRadius: '2px 0 0 2px' }} />
+          <span style={{ width: 'clamp(8px, 2.5vw, 10px)', height: 'clamp(5px, 1.5vw, 6px)', background: KENYAN_RED }} />
+          <span style={{ width: 'clamp(8px, 2.5vw, 10px)', height: 'clamp(5px, 1.5vw, 6px)', background: KENYAN_GREEN }} />
+          <span style={{ width: 'clamp(8px, 2.5vw, 10px)', height: 'clamp(5px, 1.5vw, 6px)', background: KENYAN_WHITE, borderRadius: '0 2px 2px 0' }} />
+        </div>
       </div>
 
       {/* CSS Animations */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Merienda:wght@300;400;500;600;700&display=swap');
         
-        @keyframes float {
-          0%, 100% { transform: translate(0, 0); }
-          50% { transform: translate(20px, -20px); }
-        }
         @keyframes fadeInUp {
           from {
             opacity: 0;
-            transform: translateY(30px);
+            transform: translateY(20px);
           }
           to {
             opacity: 1;
             transform: translateY(0);
           }
         }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        @keyframes glow {
-          from { filter: drop-shadow(0 0 20px ${KENYAN_GREEN}40); }
-          to { filter: drop-shadow(0 0 30px ${KENYAN_RED}40); }
-        }
-        @keyframes bounce {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-10px); }
-        }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-5px); }
-          75% { transform: translateX(5px); }
+          25% { transform: translateX(-4px); }
+          75% { transform: translateX(4px); }
+        }
+        
+        /* Mobile responsive styles for welcome screen */
+        @media (max-width: 480px) {
+          .hide-on-small-mobile {
+            display: none !important;
+          }
+        }
+        
+        @media (max-width: 360px) {
+          .welcome-card {
+            padding: 1rem !important;
+            gap: 0.75rem !important;
+          }
         }
       `}</style>
     </div>

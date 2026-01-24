@@ -21,7 +21,8 @@ const SettingsModal: React.FC = () => {
   
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [hasChanges, setHasChanges] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : false);
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [availableHeight, setAvailableHeight] = useState(typeof window !== 'undefined' ? window.innerHeight - 64 - 40 : 600); // header (4rem) + margins
   const [mounted, setMounted] = useState(false);
   
@@ -36,8 +37,9 @@ const SettingsModal: React.FC = () => {
     if (typeof window === 'undefined') return;
     
     const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 1024);
-      setAvailableHeight(window.innerHeight - 64 - 40); // header (4rem = 64px) + margins (20px top + 20px bottom)
+      setIsDesktop(window.innerWidth >= 768);
+      setIsMobile(window.innerWidth < 768);
+      setAvailableHeight(window.innerHeight - (window.innerWidth < 768 ? 20 : 64) - 40);
     };
     
     // Set initial values
@@ -110,19 +112,18 @@ const SettingsModal: React.FC = () => {
       className="modal-backdrop"
       style={{
         position: 'fixed',
-        top: '4rem', // Start below menu bar (4rem = 64px)
+        top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 10000,
+        zIndex: 999999,
         padding: '20px',
-        paddingTop: '20px',
       }}
       onClick={handleBackdropClick}
     >
@@ -133,14 +134,15 @@ const SettingsModal: React.FC = () => {
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           border: '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: '20px',
-          padding: '1.5rem',
-          minWidth: '700px',
-          maxWidth: '900px',
-          width: '85vw',
-          height: `${availableHeight}px`,
-          maxHeight: `${availableHeight}px`,
-          overflowY: 'visible',
+          borderRadius: isMobile ? '12px' : '20px',
+          padding: isMobile ? '0.75rem' : '1.5rem',
+          minWidth: isMobile ? 'auto' : '700px',
+          maxWidth: isMobile ? '92%' : '900px',
+          width: isMobile ? '92%' : '85vw',
+          height: isMobile ? 'auto' : `${availableHeight}px`,
+          maxHeight: isMobile ? '75vh' : `${availableHeight}px`,
+          overflowY: 'auto',
+          zIndex: 1000000,
           overflowX: 'hidden',
           boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)',
           position: 'relative',
@@ -360,7 +362,8 @@ const SettingsModal: React.FC = () => {
 
           {/* Right Column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {/* Keyboard Shortcuts */}
+            {/* Keyboard Shortcuts - Hidden on mobile/tablet devices */}
+            {isDesktop && (
             <div>
               <h3
                 style={{
@@ -383,11 +386,13 @@ const SettingsModal: React.FC = () => {
               >
             {[
               { key: 'Space', desc: 'Play/Pause' },
+              { key: 'M', desc: 'Add Marker' },
               { key: 'Ctrl+Z', desc: 'Undo' },
               { key: 'Ctrl+Y', desc: 'Redo' },
               { key: 'Ctrl+S', desc: 'Save Project' },
               { key: 'Ctrl+O', desc: 'Open Project' },
-              { key: 'Ctrl+N', desc: 'New Project' },
+              { key: '←/→', desc: 'Skip 5s' },
+              { key: '↑/↓', desc: 'Volume' },
             ].map((shortcut, idx) => (
               <div
                 key={idx}
@@ -396,7 +401,7 @@ const SettingsModal: React.FC = () => {
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   padding: '0.4rem 0',
-                  borderBottom: idx < 5 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
+                  borderBottom: idx < 7 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
                 }}
               >
                 <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem' }}>
@@ -420,6 +425,7 @@ const SettingsModal: React.FC = () => {
             ))}
               </div>
             </div>
+            )}
 
             {/* About Section */}
             <div>

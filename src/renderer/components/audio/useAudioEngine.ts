@@ -67,7 +67,6 @@ export function useAudioEngine() {
   
   // Only log once on first render
   if (!initializedRef.current) {
-    console.log('[useAudioEngine] Hook called, isElectron:', isElectron);
     initializedRef.current = true;
   }
 
@@ -79,21 +78,15 @@ export function useAudioEngine() {
     }
     
     if (isElectron) {
-      console.log('[useAudioEngine] Initializing HowlerAudioEngine for Electron');
       try {
         engineRef.current = getHowlerAudioEngine();
-        console.log('[useAudioEngine] HowlerAudioEngine initialized:', engineRef.current ? 'success' : 'failed');
       } catch (err) {
-        console.error('[useAudioEngine] Failed to initialize HowlerAudioEngine:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize audio engine');
       }
     } else {
-      console.log('[useAudioEngine] Initializing AudioEngine with Tone.js for browser');
       try {
         engineRef.current = getAudioEngine();
-        console.log('[useAudioEngine] AudioEngine initialized:', engineRef.current ? 'success' : 'failed');
       } catch (err) {
-        console.error('[useAudioEngine] Failed to initialize AudioEngine:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize audio engine');
       }
     }
@@ -113,11 +106,9 @@ export function useAudioEngine() {
    * - setAudioBuffer() sets isLoading: false
    */
   const loadFile = useCallback(async (file: File): Promise<void> => {
-    console.log('[useAudioEngine] loadFile called with file:', { name: file.name, size: file.size, type: file.type });
     
     // Reinitialize engine if it was cleared (e.g., after unloadAudio)
     if (!engineRef.current) {
-      console.log('[useAudioEngine] Engine not initialized, reinitializing...');
       if (isElectron) {
         engineRef.current = getHowlerAudioEngine();
       } else {
@@ -125,35 +116,24 @@ export function useAudioEngine() {
       }
       
       if (!engineRef.current) {
-        console.error('[useAudioEngine] Failed to reinitialize AudioEngine!');
-        throw new Error('AudioEngine not initialized');
+      throw new Error('AudioEngine not initialized');
       }
-      console.log('[useAudioEngine] Engine reinitialized successfully');
     }
 
     setError(null);
 
     try {
-      console.log('[useAudioEngine] Calling engine.loadAudioFile()');
       await engineRef.current.loadAudioFile(file);
-      console.log('[useAudioEngine] engine.loadAudioFile() completed successfully');
       
       // Check store state after load
       const store = useAppStore.getState();
-      console.log('[useAudioEngine] Store state after load:', {
-        isLoaded: store.audio.isLoaded,
-        isLoading: store.audio.isLoading,
-        duration: store.audio.duration,
-        hasBuffer: !!store.audio.buffer
-      });
+      // Store state after load
+      void store; // Suppress unused variable warning
     } catch (err) {
-      console.error('[useAudioEngine] Error in loadFile:', err);
-      console.error('[useAudioEngine] Error stack:', err instanceof Error ? err.stack : 'No stack');
       const errorMessage = err instanceof Error ? err.message : 'Failed to load audio file';
       setError(errorMessage);
       // Reset loading state on error (since setAudioBuffer won't be called)
       setIsLoading(false);
-      console.error('[useAudioEngine] Error state set:', errorMessage);
       throw err;
     }
   }, [setIsLoading, isElectron]);
@@ -194,14 +174,12 @@ export function useAudioEngine() {
   const play = useCallback(async () => {
     // Safety check: ensure engine is initialized and audio is loaded
     if (!engineRef.current) {
-      console.warn('[useAudioEngine] Cannot play: engine not initialized');
       throw new Error('Audio engine not initialized');
     }
     
     // Double-check store state
     const store = useAppStore.getState();
     if (!store.audio.isLoaded) {
-      console.warn('[useAudioEngine] Cannot play: audio not loaded in store');
       throw new Error('Audio not loaded');
     }
     
@@ -254,7 +232,6 @@ export function useAudioEngine() {
       // Howler uses setRate
       (engineRef.current as any).setRate(rate);
     }
-    console.log('[useAudioEngine] setPlaybackRate:', rate, isElectron ? '(Howler)' : '(Tone.js)');
   }, []);
 
   /**
@@ -268,7 +245,6 @@ export function useAudioEngine() {
       // Fallback to setPlaybackRate
       setPlaybackRate(speed);
     }
-    console.log('[useAudioEngine] setSpeed:', speed, isElectron ? '(Howler)' : '(Tone.js)');
   }, [setPlaybackRate]);
 
   /**
@@ -290,7 +266,6 @@ export function useAudioEngine() {
       const speed = speedMap[preset] || 1.0;
       setSpeed(speed);
     }
-    console.log('[useAudioEngine] setSpeedPreset:', preset);
   }, [setSpeed]);
 
   /**
@@ -314,7 +289,6 @@ export function useAudioEngine() {
     if (engineRef.current && engineRef.current.setPitch) {
       engineRef.current.setPitch(semitones);
     } else {
-      console.warn('[useAudioEngine] setPitch not available');
     }
   }, []);
 
@@ -364,6 +338,16 @@ export function useAudioEngine() {
   }, []);
 
   /**
+   * Get the original file path (for audio effects processing in Electron)
+   */
+  const getOriginalFilePath = useCallback(() => {
+    if (engineRef.current && (engineRef.current as any).getOriginalFilePath) {
+      return (engineRef.current as any).getOriginalFilePath();
+    }
+    return null;
+  }, []);
+
+  /**
    * Set loop between start and end times
    * @param start - Loop start time in seconds
    * @param end - Loop end time in seconds
@@ -372,7 +356,6 @@ export function useAudioEngine() {
     if (engineRef.current && (engineRef.current as any).setLoop) {
       (engineRef.current as any).setLoop(start, end);
     } else {
-      console.warn('[useAudioEngine] setLoop not available');
     }
   }, []);
 
@@ -383,7 +366,6 @@ export function useAudioEngine() {
     if (engineRef.current && (engineRef.current as any).disableLoop) {
       (engineRef.current as any).disableLoop();
     } else {
-      console.warn('[useAudioEngine] disableLoop not available');
     }
   }, []);
 
@@ -391,13 +373,11 @@ export function useAudioEngine() {
    * Unload current audio and reset state
    */
   const unloadAudio = useCallback(async () => {
-    console.log('[useAudioEngine] Unloading audio');
     // Stop playback first (with fade out)
     if (engineRef.current) {
       try {
-        await engineRef.current.stop();
+      await engineRef.current.stop();
       } catch (err) {
-        console.warn('[useAudioEngine] Error stopping audio during unload:', err);
       }
     }
     // Clear our reference first to prevent any operations
@@ -422,7 +402,6 @@ export function useAudioEngine() {
       // This is a safety measure in case resetProject isn't called immediately
     }
     
-    console.log('[useAudioEngine] Audio unloaded and engine reset');
   }, []);
 
   return {
@@ -453,6 +432,7 @@ export function useAudioEngine() {
     getPlaybackRate,
     getSpeed,
     getPitch,
+    getOriginalFilePath,
     // Loop control
     setLoop,
     disableLoop,

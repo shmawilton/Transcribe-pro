@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/store';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
 import PitchControl from '../controls/PitchControl';
+import AudioEffectsPanel from '../audio/AudioEffectsPanel';
 import { getProjectSaver } from '../project/ProjectSaver';
 import { getProjectLoader } from '../project/ProjectLoader';
 import { showToast } from './Toast';
@@ -342,7 +343,7 @@ const MenuBar: React.FC = () => {
   const duration = useAppStore((state) => state.audio.duration);
   
   // Audio engine
-  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, resetPitch } = useAudioEngine();
+  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, resetPitch, getOriginalFilePath } = useAudioEngine();
   
   // Project reset
   const resetProject = useAppStore((state) => state.resetProject);
@@ -766,6 +767,12 @@ const MenuBar: React.FC = () => {
         action: undefined,
         customRender: true,
       },
+      {
+        id: 'audio-effects-panel',
+        label: 'Audio Effects',
+        action: undefined,
+        customRender: true,
+      },
     ] as any[];
   }
 
@@ -948,26 +955,22 @@ const MenuBar: React.FC = () => {
           ? '0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
           : '0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         fontFamily: HANDWRITTEN_FONT,
-        overflowX: 'hidden',
-        overflowY: 'visible',
+        overflow: 'visible',
         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Left side - Menu items with enhanced styling */}
+      {/* Left side - Connected Neumorphic Menu Tabs */}
       <div style={{ 
         display: 'flex',
-        gap: '0.5rem',
         alignItems: 'center',
         flexShrink: 0,
         whiteSpace: 'nowrap',
-        padding: '4px',
-        borderRadius: '14px',
-        background: isLightMode 
-          ? '#e4ebf5'
-          : '#1a1a1a',
+        borderRadius: '20px',
+        background: isLightMode ? '#e4ebf5' : '#1e1e1e',
         boxShadow: isLightMode
-          ? '6px 6px 12px rgba(166, 180, 200, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.9)'
-          : '6px 6px 12px rgba(0, 0, 0, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.05)',
+          ? '10px 10px 20px rgba(163, 177, 198, 0.6), -10px -10px 20px rgba(255, 255, 255, 0.9)'
+          : '10px 10px 20px rgba(0, 0, 0, 0.5), -8px -8px 16px rgba(50, 50, 50, 0.25)',
+        overflow: 'hidden',
       }}>
         {menuItems.map((item, index) => {
           const IconComponent = item.icon;
@@ -981,16 +984,18 @@ const MenuBar: React.FC = () => {
                 ref={(el) => { menuButtonRefs.current[item.id] = el; }}
                 className="menu-bar-button"
                 style={{
-                  padding: '0.5rem 0.9rem',
-                  height: '2.2rem',
+                  padding: '14px 20px',
+                  height: '48px',
+                  minWidth: '100px',
                   background: isOpen 
-                    ? (isLightMode ? '#e4ebf5' : '#1a1a1a')
-                    : 'transparent',
+                    ? (isLightMode ? '#dde4f0' : '#161616')
+                    : (isLightMode ? '#e4ebf5' : '#1e1e1e'),
                   border: 'none',
-                  borderRadius: isFirst ? '10px 4px 4px 10px' : isLast ? '4px 10px 10px 4px' : '4px',
+                  borderRadius: isFirst ? '20px 0 0 20px' : isLast ? '0 20px 20px 0' : '0',
+                  borderRight: !isLast ? `1px solid ${isLightMode ? 'rgba(163, 177, 198, 0.3)' : 'rgba(50, 50, 50, 0.5)'}` : 'none',
                   color: isOpen ? item.color : (isHovered ? item.color : textColor),
                   fontFamily: HANDWRITTEN_FONT,
-                  fontSize: '0.85rem',
+                  fontSize: '0.95rem',
                   fontWeight: isOpen ? '600' : '500',
                   cursor: 'pointer',
                   transition: 'all 0.25s ease',
@@ -998,11 +1003,11 @@ const MenuBar: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '0.4rem',
+                  gap: '10px',
                   boxShadow: isOpen 
                     ? (isLightMode 
-                        ? 'inset 4px 4px 8px rgba(166, 180, 200, 0.5), inset -3px -3px 6px rgba(255, 255, 255, 0.9)'
-                        : 'inset 4px 4px 8px rgba(0, 0, 0, 0.5), inset -3px -3px 6px rgba(255, 255, 255, 0.05)')
+                        ? 'inset 5px 5px 10px rgba(163, 177, 198, 0.5), inset -5px -5px 10px rgba(255, 255, 255, 0.8)'
+                        : 'inset 5px 5px 10px rgba(0, 0, 0, 0.5), inset -4px -4px 8px rgba(50, 50, 50, 0.2)')
                     : 'none',
                 }}
                 onMouseEnter={() => {
@@ -1019,7 +1024,7 @@ const MenuBar: React.FC = () => {
                   zIndex: 2,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.35rem',
+                  gap: '8px',
                   transition: 'transform 0.2s ease',
                   transform: isOpen ? 'scale(0.95)' : 'scale(1)',
                 }}>
@@ -1027,6 +1032,8 @@ const MenuBar: React.FC = () => {
                     <span style={{
                       display: 'flex',
                       alignItems: 'center',
+                      width: '20px',
+                      height: '20px',
                       transition: 'all 0.25s ease',
                       transform: isOpen ? 'scale(1.1)' : 'scale(1)',
                       color: isOpen || isHovered ? item.color : textColor,
@@ -1506,6 +1513,25 @@ const MenuBar: React.FC = () => {
                       <PitchControl 
                         onPitchChange={handlePitchChange}
                         isAudioLoaded={isAudioLoaded}
+                      />
+                    </div>
+                  );
+                }
+                
+                if (dropItem.id === 'audio-effects-panel') {
+                  return (
+                    <div 
+                      key={dropItem.id} 
+                      style={{ 
+                        margin: '4px',
+                        maxWidth: '400px',
+                      }}
+                    >
+                      <AudioEffectsPanel 
+                        audioFilePath={getOriginalFilePath()}
+                        onEffectApplied={(newPath) => {
+                          showToast('Effect applied! Audio file updated.', 'success');
+                        }}
                       />
                     </div>
                   );

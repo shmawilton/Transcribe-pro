@@ -45,6 +45,75 @@ const StatusBar: React.FC = () => {
   const fileName = audio.file?.name || 'No file loaded';
   const markersCount = markers.length;
 
+  // Check if mobile
+  const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 768);
+  
+  React.useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Mobile: Show only essential info
+  if (isMobile) {
+    const hasUnsavedChanges = audio.isLoaded && projectLastChangeAt > Math.max(lastAutoSaveAt, lastManualSaveAt);
+    const statusColor = hasUnsavedChanges ? KENYAN_RED : KENYAN_GREEN;
+    
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '24px',
+          background: bgColor,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderTop: `1px solid ${borderColor}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '1rem',
+          padding: '0 0.5rem',
+          fontSize: '0.65rem',
+          fontFamily: HANDWRITTEN_FONT,
+          zIndex: 999998,
+        }}
+      >
+        {/* Save status indicator */}
+        {audio.isLoaded && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: statusColor,
+                boxShadow: `0 0 6px ${statusColor}80`,
+              }}
+            />
+            <span style={{ color: textColor, fontWeight: '500' }}>
+              {hasUnsavedChanges ? 'Unsaved' : 'Saved'}
+            </span>
+          </div>
+        )}
+        
+        {/* Time */}
+        {audio.isLoaded && duration > 0 && (
+          <span style={{ color: textColor }}>
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </span>
+        )}
+        
+        {/* Markers count */}
+        <span style={{ color: KENYAN_GREEN, fontWeight: '600' }}>
+          {markersCount} {markersCount === 1 ? 'marker' : 'markers'}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{

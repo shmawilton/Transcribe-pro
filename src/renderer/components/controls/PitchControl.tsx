@@ -314,7 +314,6 @@ export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAud
             style={{
               padding: '4px 10px',
               borderRadius: '6px',
-              border: 'none',
               background: Math.abs(pitch - preset) < 0.05
                 ? (isLightMode
                     ? `linear-gradient(135deg, ${pitchColor}20, ${pitchColor}15)`

@@ -3,7 +3,7 @@
 
 import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../store/store';
-import { MarkerManager } from '../markers/MarkerManager';
+import { MarkerManager, PRESET_COLORS } from '../markers/MarkerManager';
 import { Marker } from '../../types/types';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { useMarkerSpeedControl } from '../markers/useMarkerSpeedControl';
@@ -52,6 +52,14 @@ const MarkerPanel: React.FC = () => {
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
   const duration = useAppStore((state) => state.audio.duration || 0);
+  
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // TASK 13: Get AudioEngine methods for applying marker settings
   const { setSpeed, seek, setLoop, disableLoop } = useAudioEngine();
@@ -62,14 +70,13 @@ const MarkerPanel: React.FC = () => {
   // State for editing markers
   const [editingMarkerId, setEditingMarkerId] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<{
+    name: string;
+    color: string;
     speed: number;
     loop: boolean;
     start: number;
     end: number;
   } | null>(null);
-
-  // Get marker creation request setter
-  const setRequestMarkerCreation = useAppStore((state) => state.setRequestMarkerCreation);
 
   // TASK 14: Ref for scrolling active marker into view
   const activeMarkerRef = useRef<HTMLDivElement>(null);
@@ -92,29 +99,22 @@ const MarkerPanel: React.FC = () => {
     }
   }, [selectedMarkerId, disableLoop]);
 
-  // TASK 15: Keyboard shortcut for marker creation (M key)
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      // Only trigger if not typing in an input field
-      if (e.key === 'm' || e.key === 'M') {
-        const target = e.target as HTMLElement;
-        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-          if (duration > 0) {
-            setRequestMarkerCreation(true);
-          }
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [duration, setRequestMarkerCreation]);
-
-  // TASK 10: Sort markers - Display in chronological order (by start time)
-  // Helps users find markers in order they appear in audio
+  // TASK 10: Sort markers - Active marker first, then chronological order (by start time)
+  // Active marker at top for easy access, rest sorted by start time
   const sortedMarkers = useMemo(() => {
-    return MarkerManager.getAllMarkers();
-  }, [markers]);
+    const allMarkers = MarkerManager.getAllMarkers();
+    
+    // If there's an active marker, put it first
+    if (selectedMarkerId) {
+      const activeMarker = allMarkers.find(m => m.id === selectedMarkerId);
+      const otherMarkers = allMarkers.filter(m => m.id !== selectedMarkerId);
+      if (activeMarker) {
+        return [activeMarker, ...otherMarkers];
+      }
+    }
+    
+    return allMarkers;
+  }, [markers, selectedMarkerId]);
 
   // Theme-aware colors
   const textColor = isLightMode ? '#1a1a1a' : '#FFFFFF';
@@ -177,19 +177,46 @@ const MarkerPanel: React.FC = () => {
     }, 50);
   }, [setSpeed, disableLoop]);
 
+  // Get current playback time for quick marker creation
+  const currentTime = useAppStore((state) => state.audio.currentTime || 0);
+
   // TASK 15: Handle Create Marker button click
-  // Triggers marker creation form in MarkerTimeline (same as clicking on timeline)
+  // Creates a quick marker at current position with default 5-second duration
   const handleCreateButtonClick = useCallback(() => {
     if (duration > 0) {
-      setRequestMarkerCreation(true);
+      try {
+        // Create marker from current time to current time + 5 seconds (or end of audio)
+        const start = currentTime;
+        const end = Math.min(currentTime + 5, duration);
+        
+        // Ensure minimum duration of 0.5 seconds
+        if (end - start >= 0.5) {
+          MarkerManager.createQuickMarker(start, end);
+          console.log('[MarkerPanel] Quick marker created at:', start, '-', end);
+        } else {
+          // If at end of audio, create marker ending at current position
+          const altStart = Math.max(0, currentTime - 5);
+          if (currentTime - altStart >= 0.5) {
+            MarkerManager.createQuickMarker(altStart, currentTime);
+            console.log('[MarkerPanel] Quick marker created at:', altStart, '-', currentTime);
+          }
+        }
+      } catch (error) {
+        console.error('[MarkerPanel] Failed to create quick marker:', error);
+      }
     }
-  }, [duration, setRequestMarkerCreation]);
+  }, [duration, currentTime]);
+
+  // TASK 15: Keyboard shortcut for marker creation (M key)
+  // NOTE: M key handler is now in App.tsx to centralize keyboard shortcuts
 
   // Handle editing marker
   const handleStartEdit = useCallback((marker: Marker, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent marker activation
     setEditingMarkerId(marker.id);
     setEditFormData({
+      name: marker.name,
+      color: marker.color || '#FF4444',
       speed: marker.speed !== undefined ? marker.speed : 1.0,
       loop: marker.loop === true,
       start: marker.start,
@@ -211,11 +238,28 @@ const MarkerPanel: React.FC = () => {
 
       // Update marker using MarkerManager
       MarkerManager.updateMarker(markerId, {
+        name: editFormData.name,
+        color: editFormData.color,
         speed: editFormData.speed,
         loop: editFormData.loop,
         start: editFormData.start,
         end: editFormData.end,
       });
+
+      // If this is the active marker, reapply the settings to audio engine
+      if (markerId === selectedMarkerId) {
+        // Apply loop setting
+        if (editFormData.loop) {
+          setLoop(editFormData.start, editFormData.end);
+          console.log('[MarkerPanel] Applied loop setting:', editFormData.start, '-', editFormData.end);
+        } else {
+          disableLoop();
+          console.log('[MarkerPanel] Disabled loop');
+        }
+        
+        // Speed is handled by useMarkerSpeedControl hook based on playback position
+        console.log('[MarkerPanel] Marker updated - speed will be applied by hook:', editFormData.speed);
+      }
 
       setEditingMarkerId(null);
       setEditFormData(null);
@@ -224,7 +268,7 @@ const MarkerPanel: React.FC = () => {
         alert(`Cannot update marker: ${error.message}`);
       }
     }
-  }, [editFormData]);
+  }, [editFormData, selectedMarkerId, setLoop, disableLoop]);
 
   // Handle delete marker with confirmation
   const handleDeleteMarker = useCallback((marker: Marker, e: React.MouseEvent) => {
@@ -493,19 +537,20 @@ const MarkerPanel: React.FC = () => {
               key={marker.id}
               ref={isSelected ? activeMarkerRef : null} // TASK 14: Ref for scrolling into view
               style={{
-                // Compact horizontal layout with proper spacing
+                // Compact horizontal layout - more compact on mobile
                 display: 'flex',
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1rem',
-                marginBottom: '0.5rem',
+                flexWrap: isMobile ? 'wrap' : 'nowrap',
+                gap: isMobile ? '0.4rem' : '0.75rem',
+                padding: isMobile ? '0.4rem 0.5rem' : '0.75rem 1rem',
+                marginBottom: isMobile ? '0.25rem' : '0.5rem',
                 // Active marker highlighting - Neumorphic
                 background: 'var(--neu-bg-base)',
                 border: 'none',
-                borderRadius: 'var(--radius-sm)',
+                borderRadius: isMobile ? '6px' : 'var(--radius-sm)',
                 cursor: 'pointer', // TASK 13: Visual feedback - change cursor to pointer on hover
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', // Smooth transition with easing
+                transition: 'all 0.2s ease', // Faster transition for mobile
                 position: 'relative',
                 userSelect: 'none', // TASK 13: Prevent text selection when clicking rapidly
                 WebkitUserSelect: 'none',
@@ -513,12 +558,22 @@ const MarkerPanel: React.FC = () => {
                 msUserSelect: 'none',
                 // Neumorphic shadow for active marker
                 boxShadow: isSelected
-                  ? 'var(--neu-pressed), 0 0 8px rgba(0, 102, 68, 0.3)'
-                  : 'var(--neu-raised)',
+                  ? 'var(--neu-pressed), 0 0 6px rgba(0, 102, 68, 0.3)'
+                  : 'var(--neu-flat)',
                 opacity: isSelected ? 1 : 0.95,
-                transform: isSelected ? 'scale(1)' : 'scale(0.98)',
+                transform: 'none',
               }}
               onClick={() => handleMarkerClick(marker)} // TASK 13: Add click handler to list item - always seeks to start
+              onTouchStart={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.background = itemHoverBg;
+                }
+              }}
+              onTouchEnd={(e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.background = itemBg;
+                }
+              }}
               onMouseEnter={(e) => {
                 if (!isSelected) {
                   e.currentTarget.style.background = itemHoverBg; // TASK 13: Hover effect
@@ -530,36 +585,80 @@ const MarkerPanel: React.FC = () => {
                 }
               }}
             >
-              {/* Compact horizontal layout */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem' }}>
-                {/* Color indicator */}
+              {/* Compact horizontal layout - responsive */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: isMobile ? '0.3rem' : '0.5rem', 
+                fontSize: isMobile ? '0.65rem' : '0.75rem',
+                flex: isMobile ? '1 1 100%' : '0 0 auto',
+                minWidth: 0,
+              }}>
+                {/* Color indicator - clickable when editing to cycle colors */}
                 <div
+                  onClick={(e) => {
+                    if (editingMarkerId === marker.id && editFormData) {
+                      e.stopPropagation();
+                      // Find current color index and cycle to next
+                      const currentIndex = PRESET_COLORS.indexOf(editFormData.color as typeof PRESET_COLORS[number]);
+                      const nextIndex = (currentIndex + 1) % PRESET_COLORS.length;
+                      setEditFormData({ ...editFormData, color: PRESET_COLORS[nextIndex] });
+                    }
+                  }}
                   style={{
-                    width: '10px',
-                    height: '10px',
+                    width: editingMarkerId === marker.id ? (isMobile ? '14px' : '16px') : (isMobile ? '8px' : '10px'),
+                    height: editingMarkerId === marker.id ? (isMobile ? '14px' : '16px') : (isMobile ? '8px' : '10px'),
                     borderRadius: '50%',
-                    background: marker.color || '#FF4444',
-                    border: `1px solid ${isLightMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.3)'}`,
+                    background: editingMarkerId === marker.id && editFormData ? editFormData.color : (marker.color || '#FF4444'),
+                    border: editingMarkerId === marker.id 
+                      ? `2px solid ${isLightMode ? '#006644' : '#00AA66'}` 
+                      : `1px solid ${isLightMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.3)'}`,
                     flexShrink: 0,
                     boxShadow: isSelected ? `0 0 4px ${marker.color || '#FF4444'}60` : 'none',
+                    cursor: editingMarkerId === marker.id ? 'pointer' : 'default',
+                    transition: 'all 0.2s ease',
                   }}
+                  title={editingMarkerId === marker.id ? 'Click to change color' : undefined}
                 />
                 
-                {/* Marker name */}
-                <div
-                  style={{
-                    color: textColor,
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
-                    minWidth: '100px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                  title={marker.name}
-                >
-                  {marker.name}
-                </div>
+                {/* Marker name - editable when in edit mode */}
+                {editingMarkerId === marker.id && editFormData ? (
+                  <input
+                    type="text"
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                    placeholder="Marker name"
+                    style={{
+                      width: isMobile ? '60px' : '80px',
+                      padding: '0.2rem 0.3rem',
+                      background: 'var(--neu-bg-base)',
+                      border: '2px solid var(--text-accent-green)',
+                      borderRadius: '3px',
+                      color: textColor,
+                      fontSize: isMobile ? '0.7rem' : '0.8rem',
+                      fontWeight: '600',
+                      boxShadow: 'var(--neu-pressed)',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                  />
+                ) : (
+                  <div
+                    style={{
+                      color: textColor,
+                      fontSize: isMobile ? '0.7rem' : '0.8rem',
+                      fontWeight: '600',
+                      minWidth: 0,
+                      flex: '1 1 auto',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={marker.name}
+                  >
+                    {marker.name}
+                  </div>
+                )}
 
                 {/* Time range - editable */}
                 {editingMarkerId === marker.id && editFormData ? (
@@ -830,7 +929,13 @@ const MarkerPanel: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', gap: '0.3rem', marginLeft: 'auto', alignItems: 'center' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: isMobile ? '0.2rem' : '0.3rem', 
+                    marginLeft: isMobile ? '0' : 'auto', 
+                    alignItems: 'center',
+                    flexShrink: 0,
+                  }}>
                     {editingMarkerId !== marker.id && (
                       <>
                         {/* Deactivate button - only visible when marker is active */}
@@ -841,8 +946,9 @@ const MarkerPanel: React.FC = () => {
                               handleDeactivateMarker();
                             }}
                             style={{
-                              width: '24px',
-                              height: '24px',
+                              width: isMobile ? '22px' : '24px',
+                              height: isMobile ? '22px' : '24px',
+                              minWidth: isMobile ? '22px' : '24px',
                               padding: 0,
                               display: 'flex',
                               alignItems: 'center',
@@ -852,37 +958,21 @@ const MarkerPanel: React.FC = () => {
                               borderRadius: '4px',
                               color: isLightMode ? '#FF4444' : '#FF6666',
                               cursor: 'pointer',
-                              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                              transition: 'all 0.2s ease',
                               fontSize: '0.7rem',
-                              opacity: 1,
-                              transform: 'scale(1)',
+                              touchAction: 'manipulation',
                             }}
                             title="Deactivate marker"
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = isLightMode ? 'rgba(255, 68, 68, 0.15)' : 'rgba(255, 68, 68, 0.25)';
-                              e.currentTarget.style.borderColor = '#FF4444';
-                              e.currentTarget.style.color = '#FF4444';
-                              e.currentTarget.style.transform = 'scale(1.1)';
-                              e.currentTarget.style.boxShadow = '0 2px 6px rgba(255, 68, 68, 0.3)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = 'transparent';
-                              e.currentTarget.style.borderColor = isLightMode ? '#FF4444' : '#FF6666';
-                              e.currentTarget.style.color = isLightMode ? '#FF4444' : '#FF6666';
-                              e.currentTarget.style.transform = 'scale(1)';
-                              e.currentTarget.style.boxShadow = 'none';
-                            }}
                           >
                             <svg
-                              width="14"
-                              height="14"
+                              width={isMobile ? "12" : "14"}
+                              height={isMobile ? "12" : "14"}
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="2.5"
                               strokeLinecap="round"
                               strokeLinejoin="round"
-                              style={{ transition: 'all 0.3s ease' }}
                             >
                               <circle cx="12" cy="12" r="10" />
                               <line x1="8" y1="12" x2="16" y2="12" />
@@ -892,25 +982,18 @@ const MarkerPanel: React.FC = () => {
                         <button
                           onClick={(e) => handleStartEdit(marker, e)}
                           style={{
-                            padding: '0.2rem 0.5rem',
+                            padding: isMobile ? '0.15rem 0.3rem' : '0.2rem 0.5rem',
                             background: 'var(--neu-bg-base)',
                             border: 'none',
                             borderRadius: '3px',
                             color: textSecondary,
-                            fontSize: '0.65rem',
+                            fontSize: isMobile ? '0.6rem' : '0.65rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             boxShadow: 'var(--neu-pressed)',
+                            touchAction: 'manipulation',
                           }}
                           title="Edit marker"
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.boxShadow = 'var(--neu-raised)';
-                            e.currentTarget.style.color = textColor;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.boxShadow = 'var(--neu-pressed)';
-                            e.currentTarget.style.color = textSecondary;
-                          }}
                         >
                           Edit
                         </button>
@@ -918,8 +1001,9 @@ const MarkerPanel: React.FC = () => {
                         <button
                           onClick={(e) => handleDeleteMarker(marker, e)}
                           style={{
-                            width: '24px',
-                            height: '24px',
+                            width: isMobile ? '22px' : '24px',
+                            height: isMobile ? '22px' : '24px',
+                            minWidth: isMobile ? '22px' : '24px',
                             padding: 0,
                             display: 'flex',
                             alignItems: 'center',
@@ -931,22 +1015,13 @@ const MarkerPanel: React.FC = () => {
                             fontSize: '0.75rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
+                            touchAction: 'manipulation',
                           }}
-                          title={`Delete marker "${marker.name}" (Delete key)`}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.color = '#FF4444';
-                            e.currentTarget.style.borderColor = 'rgba(255, 68, 68, 0.3)';
-                            e.currentTarget.style.background = 'rgba(255, 68, 68, 0.1)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.color = textSecondary;
-                            e.currentTarget.style.borderColor = 'transparent';
-                            e.currentTarget.style.background = 'transparent';
-                          }}
+                          title={`Delete marker "${marker.name}"`}
                         >
                           <svg
-                            width="14"
-                            height="14"
+                            width={isMobile ? "12" : "14"}
+                            height={isMobile ? "12" : "14"}
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"

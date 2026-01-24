@@ -43,6 +43,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return await ipcRenderer.invoke('check-ffmpeg');
   },
   
+  // Audio Normalization - balance volume levels
+  normalizeAudio: async (inputPath: string, targetLoudness?: number): Promise<string> => {
+    return await ipcRenderer.invoke('normalize-audio', inputPath, targetLoudness);
+  },
+  
+  // Apply fade in/out effects
+  applyFade: async (inputPath: string, fadeInDuration: number, fadeOutDuration: number): Promise<string> => {
+    return await ipcRenderer.invoke('apply-fade', inputPath, fadeInDuration, fadeOutDuration);
+  },
+  
+  // Detect musical key
+  detectKey: async (inputPath: string): Promise<{ key: string; mode: string; confidence: number; camelot: string }> => {
+    return await ipcRenderer.invoke('detect-key', inputPath);
+  },
+  
   // File dialogs for project save/load
   saveProjectDialog: async (projectData: string): Promise<{ canceled: boolean; filePath?: string }> => {
     return await ipcRenderer.invoke('save-project-dialog', projectData);

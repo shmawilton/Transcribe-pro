@@ -994,6 +994,13 @@ export class AudioEngine {
   }
 
   /**
+   * Get the original file path (not available in web version)
+   */
+  public getOriginalFilePath(): string | null {
+    return null; // Web version doesn't have file path access
+  }
+
+  /**
    * Get current pitch in semitones
    */
   public getPitch(): number {

@@ -96,14 +96,26 @@ export function useSmoothViewport() {
     const currentState = useAppStore.getState();
     const duration_ = currentState.audio.duration;
     const startZoom = currentState.ui.zoomLevel;
-    const startViewportStart = currentState.ui.viewportStart;
-    const startViewportEnd = currentState.ui.viewportEnd;
+    let startViewportStart = currentState.ui.viewportStart;
+    let startViewportEnd = currentState.ui.viewportEnd;
     const currentTime = currentState.audio.currentTime;
 
     if (duration_ <= 0) return;
 
+    // Safety checks for NaN viewport values
+    if (!isFinite(startViewportStart) || isNaN(startViewportStart) || startViewportStart < 0) {
+      startViewportStart = 0;
+    }
+    if (!isFinite(startViewportEnd) || isNaN(startViewportEnd) || startViewportEnd <= startViewportStart || startViewportEnd > duration_) {
+      startViewportEnd = duration_;
+    }
+    if (startViewportStart >= startViewportEnd) {
+      startViewportStart = 0;
+      startViewportEnd = duration_;
+    }
+
     // Use provided center or current playhead position or viewport center
-    const center = centerTime ?? currentTime ?? (startViewportStart + startViewportEnd) / 2;
+    const center = centerTime ?? (isFinite(currentTime) && !isNaN(currentTime) ? currentTime : undefined) ?? (startViewportStart + startViewportEnd) / 2;
 
     // Calculate target viewport based on target zoom
     const targetVisibleDuration = duration_ / targetZoomLevel;
@@ -134,15 +146,23 @@ export function useSmoothViewport() {
       const newStart = startViewportStart + (targetStart - startViewportStart) * easedProgress;
       const newEnd = startViewportEnd + (targetEnd - startViewportEnd) * easedProgress;
 
-      setZoomLevel(newZoom);
-      setViewport(newStart, newEnd);
+      // Safety checks to prevent NaN
+      const safeZoom = isFinite(newZoom) && !isNaN(newZoom) ? newZoom : targetZoomLevel;
+      const safeStart = isFinite(newStart) && !isNaN(newStart) && newStart >= 0 ? newStart : targetStart;
+      const safeEnd = isFinite(newEnd) && !isNaN(newEnd) && newEnd > safeStart && newEnd <= duration_ ? newEnd : targetEnd;
+
+      setZoomLevel(safeZoom);
+      setViewport(safeStart, safeEnd);
 
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
-        // Ensure final values are exact
-        setZoomLevel(targetZoomLevel);
-        setViewport(targetStart, targetEnd);
+        // Ensure final values are exact and safe
+        const finalZoom = isFinite(targetZoomLevel) && !isNaN(targetZoomLevel) ? targetZoomLevel : 1;
+        const finalStart = isFinite(targetStart) && !isNaN(targetStart) && targetStart >= 0 ? targetStart : 0;
+        const finalEnd = isFinite(targetEnd) && !isNaN(targetEnd) && targetEnd > finalStart && targetEnd <= duration_ ? targetEnd : duration_;
+        setZoomLevel(finalZoom);
+        setViewport(finalStart, finalEnd);
         animationRef.current = null;
       }
     };

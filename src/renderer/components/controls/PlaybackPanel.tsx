@@ -28,6 +28,15 @@ const PlaybackPanel: React.FC = () => {
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
   
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   // Use store state for reactive updates (not hook's ref-based values)
   const audio = useAppStore((state) => state.audio) || {
     file: null,
@@ -81,7 +90,6 @@ const PlaybackPanel: React.FC = () => {
     try {
       // Safety check: ensure audio is loaded before attempting to play
       if (!isAudioLoaded) {
-        console.warn('[PlaybackPanel] Cannot play: audio not loaded');
         return;
       }
       
@@ -95,13 +103,11 @@ const PlaybackPanel: React.FC = () => {
         if (marker) {
           // Seek to marker start before playing
           await seek(marker.start);
-          console.log(`[PlaybackPanel] Seeking to marker start (${marker.start}s) before playing`);
         }
       }
       
       await play();
     } catch (err) {
-      console.error('Play error:', err);
     }
   };
 
@@ -109,7 +115,6 @@ const PlaybackPanel: React.FC = () => {
     try {
       pause();
     } catch (err) {
-      console.error('Pause error:', err);
     }
   };
 
@@ -117,7 +122,6 @@ const PlaybackPanel: React.FC = () => {
     try {
       stop();
     } catch (err) {
-      console.error('Stop error:', err);
     }
   };
 
@@ -162,29 +166,31 @@ const PlaybackPanel: React.FC = () => {
     ? (audio.currentTime / audio.duration) * 100 
     : 0;
 
-  // Neumorphic button style - compact and centered
+  // Neumorphic button style - responsive size for good UX
   const glassButtonStyle = (isActive: boolean, isDisabled: boolean, color: string = textColor) => ({
-    width: '36px',
-    height: '36px',
+    width: 'clamp(36px, 10vw, 48px)',
+    height: 'clamp(36px, 10vw, 48px)',
+    minWidth: '36px',
+    minHeight: '36px',
     borderRadius: '50%',
-    background: isActive 
-      ? (isLightMode ? '#e4ebf5' : '#1a1a1a')
-      : (isLightMode ? '#e4ebf5' : '#1a1a1a'),
+    background: isLightMode ? '#e4ebf5' : '#1e1e1e',
     border: 'none',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: isActive 
       ? (isLightMode 
-          ? 'inset 3px 3px 6px rgba(166, 180, 200, 0.5), inset -2px -2px 4px rgba(255, 255, 255, 0.9), 0 0 12px rgba(0, 102, 68, 0.2)'
-          : 'inset 3px 3px 6px rgba(0, 0, 0, 0.5), inset -2px -2px 4px rgba(255, 255, 255, 0.05), 0 0 12px rgba(0, 102, 68, 0.2)')
+          ? 'inset 4px 4px 8px rgba(163, 177, 198, 0.5), inset -4px -4px 8px rgba(255, 255, 255, 0.8)'
+          : 'inset 4px 4px 8px rgba(0, 0, 0, 0.5), inset -3px -3px 6px rgba(50, 50, 50, 0.2)')
       : (isLightMode 
-          ? '4px 4px 8px rgba(166, 180, 200, 0.5), -2px -2px 6px rgba(255, 255, 255, 0.9)'
-          : '4px 4px 8px rgba(0, 0, 0, 0.5), -2px -2px 6px rgba(255, 255, 255, 0.05)'),
-    transition: 'all 0.2s ease',
+          ? '6px 6px 12px rgba(163, 177, 198, 0.5), -6px -6px 12px rgba(255, 255, 255, 0.8)'
+          : '6px 6px 12px rgba(0, 0, 0, 0.4), -4px -4px 10px rgba(50, 50, 50, 0.2)'),
+    transition: 'all 0.25s ease',
     cursor: isDisabled ? 'not-allowed' : 'pointer',
-    opacity: isDisabled ? 0.4 : 1,
+    opacity: isDisabled ? 0.5 : 1,
     color: isActive ? KENYAN_GREEN : color,
+    touchAction: 'manipulation',
+    WebkitTapHighlightColor: 'transparent',
   });
 
   return (
@@ -193,11 +199,11 @@ const PlaybackPanel: React.FC = () => {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: '0.4rem',
-      padding: '0.5rem 0.75rem',
+      justifyContent: isMobile ? 'space-around' : 'center',
+      gap: isMobile ? '2px' : 'clamp(0.25rem, 1vw, 0.4rem)',
+      padding: isMobile ? '4px 6px' : 'clamp(0.35rem, 1.5vw, 0.5rem) clamp(0.5rem, 2vw, 0.75rem)',
       background: isLightMode ? '#e4ebf5' : '#1a1a1a',
-      borderRadius: '16px',
+      borderRadius: isMobile ? '8px' : 'clamp(12px, 3vw, 16px)',
       border: 'none',
       boxShadow: isLightMode
         ? '6px 6px 12px rgba(166, 180, 200, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.9)'
@@ -206,9 +212,11 @@ const PlaybackPanel: React.FC = () => {
       overflowY: 'visible',
       overflowX: 'hidden',
       position: 'relative',
-      fontFamily: HANDWRITTEN_FONT
+      fontFamily: HANDWRITTEN_FONT,
+      minHeight: isMobile ? 'auto' : 'fit-content'
     }}>
-      {/* Animated background gradient */}
+      {/* Animated background gradient - hidden on mobile */}
+      {!isMobile && (
       <div style={{
         position: 'absolute',
         top: 0,
@@ -223,19 +231,21 @@ const PlaybackPanel: React.FC = () => {
         pointerEvents: 'none',
         animation: 'backgroundPulse 4s ease-in-out infinite alternate'
       }} />
+      )}
 
-      {/* Animated File Name */}
+      {/* Animated File Name - Hidden on mobile to save space */}
+      {!isMobile && (
       <div style={{ 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '0.5rem',
+        gap: 'clamp(0.25rem, 1vw, 0.5rem)',
         flexShrink: 0,
         position: 'relative',
         zIndex: 1,
         overflow: 'hidden',
         maxWidth: '100%',
-        padding: '0.2rem 0.4rem',
+        padding: 'clamp(0.1rem, 0.5vw, 0.2rem) clamp(0.2rem, 1vw, 0.4rem)',
         minHeight: 'auto',
         borderRadius: '8px',
         backgroundImage: isPlaying 
@@ -250,13 +260,13 @@ const PlaybackPanel: React.FC = () => {
           color: isPlaying 
             ? KENYAN_GREEN
             : textColor,
-          fontSize: '0.85rem',
+          fontSize: 'clamp(0.7rem, 2.5vw, 0.85rem)',
           fontWeight: '600',
           textAlign: 'center',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          maxWidth: '200px',
+          maxWidth: 'clamp(120px, 40vw, 200px)',
           fontFamily: HANDWRITTEN_FONT,
           textShadow: isPlaying 
             ? `0 0 10px ${KENYAN_GREEN}80, 0 0 20px ${KENYAN_GREEN}40`
@@ -285,6 +295,7 @@ const PlaybackPanel: React.FC = () => {
           </div>
         )}
       </div>
+      )}
       
       {/* CSS Animations for file name */}
       <style>{`
@@ -302,17 +313,20 @@ const PlaybackPanel: React.FC = () => {
         }
       `}</style>
 
-        {/* Time Progress Display - Now at top */}
+        {/* Time Progress Display - Compact on mobile */}
       <div className="mx-auto w-full max-w-full px-1" style={{
         display: 'flex',
-        flexDirection: 'column',
-        gap: '0.25rem',
+        flexDirection: isMobile ? 'row' : 'column',
+        alignItems: isMobile ? 'center' : 'stretch',
+        justifyContent: isMobile ? 'center' : 'flex-start',
+        gap: isMobile ? '8px' : '0.25rem',
         position: 'relative',
         zIndex: 1,
         flexShrink: 0,
-        marginBottom: '0.2rem',
+        marginBottom: isMobile ? '0' : '0.2rem',
       }}>
-        {/* Neumorphic Progress Bar */}
+        {/* Progress Bar - Hidden on mobile, shown as thin line */}
+        {!isMobile && (
         <div style={{
           width: '100%',
           height: '6px',
@@ -332,32 +346,35 @@ const PlaybackPanel: React.FC = () => {
             transition: 'width 0.1s linear',
           }} />
         </div>
+        )}
         
-        {/* Time and File Info - Neumorphic inset */}
+        {/* Time Display - Compact on mobile */}
         <div style={{
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: isMobile ? 'center' : 'space-between',
           alignItems: 'center',
-          padding: '0.2rem 0.4rem',
-          background: isLightMode ? '#e4ebf5' : '#1a1a1a',
+          padding: isMobile ? '0' : 'clamp(0.15rem, 0.5vw, 0.2rem) clamp(0.25rem, 1vw, 0.4rem)',
+          background: isMobile ? 'transparent' : (isLightMode ? '#e4ebf5' : '#1a1a1a'),
           borderRadius: '8px',
           border: 'none',
-          boxShadow: isLightMode 
+          boxShadow: isMobile ? 'none' : (isLightMode 
             ? 'inset 2px 2px 4px rgba(166, 180, 200, 0.4), inset -1px -1px 2px rgba(255, 255, 255, 0.8)'
-            : 'inset 2px 2px 4px rgba(0, 0, 0, 0.4), inset -1px -1px 2px rgba(255, 255, 255, 0.03)'
+            : 'inset 2px 2px 4px rgba(0, 0, 0, 0.4), inset -1px -1px 2px rgba(255, 255, 255, 0.03)'),
+          flexWrap: 'wrap',
+          gap: '0.25rem'
         }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem'
+            gap: isMobile ? '4px' : 'clamp(0.25rem, 1vw, 0.5rem)'
           }}>
-            {/* Clock icon */}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {/* Clock icon - smaller on mobile */}
+            <svg width={isMobile ? "12" : "clamp(12px, 3vw, 16px)"} height={isMobile ? "12" : "clamp(12px, 3vw, 16px)"} viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <polyline points="12 6 12 12 16 14"/>
             </svg>
             <span style={{
-              fontSize: '1rem',
+              fontSize: isMobile ? '0.7rem' : 'clamp(0.75rem, 2.5vw, 1rem)',
               fontWeight: '700',
               fontFamily: HANDWRITTEN_FONT,
               color: textColor,
@@ -366,25 +383,26 @@ const PlaybackPanel: React.FC = () => {
               {formatTime(audio?.currentTime)} / {formatTime(audio?.duration)}
             </span>
           </div>
-          {audio.file && (
-            <div style={{
+          {/* File type indicator - Hidden on mobile */}
+          {!isMobile && audio.file && (
+            <div className="hide-on-mobile" style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.3rem'
             }}>
               {/* Audio file icon */}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="clamp(10px, 2.5vw, 14px)" height="clamp(10px, 2.5vw, 14px)" viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 18V5l12-2v13"/>
                 <circle cx="6" cy="18" r="3"/>
                 <circle cx="18" cy="16" r="3"/>
               </svg>
               <span style={{
-                fontSize: '0.85rem',
+                fontSize: 'clamp(0.65rem, 2vw, 0.85rem)',
                 fontFamily: HANDWRITTEN_FONT,
                 color: textColor,
                 opacity: 0.7,
                 background: `${KENYAN_RED}30`,
-                padding: '0.15rem 0.4rem',
+                padding: '0.1rem 0.3rem',
                 borderRadius: '4px'
               }}>
                 {getFileType(audio.file.name)}
@@ -394,14 +412,17 @@ const PlaybackPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Playback Controls */}
+      {/* Main Playback Controls - Compact on mobile */}
       <div className="mx-auto flex flex-wrap justify-center items-center gap-1.5 px-2" style={{
         flexShrink: 0,
         position: 'relative',
         zIndex: 1,
         maxWidth: '100%',
         width: '100%',
-        marginTop: '0.25rem',
+        marginTop: isMobile ? '0' : 'clamp(0.15rem, 0.5vw, 0.25rem)',
+        gap: isMobile ? '6px' : 'clamp(4px, 1.5vw, 6px)',
+        padding: isMobile ? '0 4px' : '0 clamp(4px, 1vw, 8px)',
+        flex: isMobile ? '1 1 auto' : '0 0 auto',
       }}>
         {/* Skip Backward -5s - Neumorphic */}
         <button
@@ -409,11 +430,13 @@ const PlaybackPanel: React.FC = () => {
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: '28px',
-            height: '28px',
+            width: 'clamp(32px, 9vw, 40px)',
+            height: 'clamp(32px, 9vw, 40px)',
+            minWidth: '32px',
+            minHeight: '32px',
           }}
           onMouseEnter={(e) => {
-            if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.05)';
+            if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.08)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
@@ -432,15 +455,21 @@ const PlaybackPanel: React.FC = () => {
           style={glassButtonStyle(false, !isAudioLoaded || isPlaying, KENYAN_GREEN)}
           onMouseEnter={(e) => {
             if (isAudioLoaded && !isPlaying) {
-              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.transform = 'scale(1.08)';
+              e.currentTarget.style.boxShadow = isLightMode
+                ? '8px 8px 16px rgba(163, 177, 198, 0.5), -8px -8px 16px rgba(255, 255, 255, 0.8), 0 0 20px rgba(0, 102, 68, 0.3)'
+                : '8px 8px 16px rgba(0, 0, 0, 0.4), -6px -6px 12px rgba(50, 50, 50, 0.3), 0 0 20px rgba(0, 102, 68, 0.3)';
             }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = isLightMode
+              ? '6px 6px 12px rgba(163, 177, 198, 0.5), -6px -6px 12px rgba(255, 255, 255, 0.8)'
+              : '6px 6px 12px rgba(0, 0, 0, 0.4), -4px -4px 10px rgba(50, 50, 50, 0.2)';
           }}
           title="Play"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill={KENYAN_GREEN}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill={KENYAN_GREEN}>
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
         </button>
@@ -452,7 +481,7 @@ const PlaybackPanel: React.FC = () => {
           style={glassButtonStyle(isPlaying, !isAudioLoaded || !isPlaying, textColor)}
           onMouseEnter={(e) => {
             if (isAudioLoaded && isPlaying) {
-              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.transform = 'scale(1.08)';
             }
           }}
           onMouseLeave={(e) => {
@@ -460,7 +489,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Pause"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="4" width="4" height="16"/>
             <rect x="14" y="4" width="4" height="16"/>
           </svg>
@@ -473,15 +502,21 @@ const PlaybackPanel: React.FC = () => {
           style={glassButtonStyle(false, !isAudioLoaded, KENYAN_RED)}
           onMouseEnter={(e) => {
             if (isAudioLoaded) {
-              e.currentTarget.style.transform = 'scale(1.05)';
+              e.currentTarget.style.transform = 'scale(1.08)';
+              e.currentTarget.style.boxShadow = isLightMode
+                ? '8px 8px 16px rgba(163, 177, 198, 0.5), -8px -8px 16px rgba(255, 255, 255, 0.8), 0 0 20px rgba(222, 41, 16, 0.3)'
+                : '8px 8px 16px rgba(0, 0, 0, 0.4), -6px -6px 12px rgba(50, 50, 50, 0.3), 0 0 20px rgba(222, 41, 16, 0.3)';
             }
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = isLightMode
+              ? '6px 6px 12px rgba(163, 177, 198, 0.5), -6px -6px 12px rgba(255, 255, 255, 0.8)'
+              : '6px 6px 12px rgba(0, 0, 0, 0.4), -4px -4px 10px rgba(50, 50, 50, 0.2)';
           }}
           title="Stop"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill={KENYAN_RED}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill={KENYAN_RED}>
             <rect x="6" y="6" width="12" height="12" rx="2"/>
           </svg>
         </button>
@@ -492,11 +527,13 @@ const PlaybackPanel: React.FC = () => {
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: '28px',
-            height: '28px',
+            width: 'clamp(32px, 9vw, 40px)',
+            height: 'clamp(32px, 9vw, 40px)',
+            minWidth: '32px',
+            minHeight: '32px',
           }}
           onMouseEnter={(e) => {
-            if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.05)';
+            if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.08)';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)';
@@ -515,8 +552,10 @@ const PlaybackPanel: React.FC = () => {
             disabled={!isAudioLoaded}
             style={{
               ...glassButtonStyle(playbackSpeed !== 1.0, !isAudioLoaded, playbackSpeed !== 1.0 ? '#f39c12' : textColor),
-              width: '32px',
-              height: '32px',
+              width: 'clamp(28px, 8vw, 32px)',
+              height: 'clamp(28px, 8vw, 32px)',
+              minWidth: '28px',
+              minHeight: '28px',
               border: playbackSpeed !== 1.0 ? `2px solid #f39c12` : undefined,
               boxShadow: playbackSpeed !== 1.0 ? `0 0 15px #f39c1260` : undefined,
             }}
@@ -564,19 +603,19 @@ const PlaybackPanel: React.FC = () => {
                 right: 0,
                 left: 'auto',
                 marginBottom: '8px',
-                padding: '16px',
-                width: '260px',
-                maxWidth: 'min(260px, calc(100vw - 40px))',
-                background: 'rgba(26, 26, 26, 0.85)',
+                padding: 'clamp(10px, 3vw, 16px)',
+                width: 'clamp(200px, 60vw, 260px)',
+                maxWidth: 'min(260px, calc(100vw - 20px))',
+                background: isLightMode ? 'rgba(228, 235, 245, 0.95)' : 'rgba(26, 26, 26, 0.95)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '12px',
+                border: isLightMode ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: 'clamp(8px, 2vw, 12px)',
                 boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
                 zIndex: 1000,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '12px',
+                gap: 'clamp(8px, 2vw, 12px)',
                 animation: 'fadeInScale 0.2s ease-out',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden'

@@ -371,6 +371,12 @@ const Waveform: React.FC = () => {
       return null;
     }
 
+    // Safety checks for NaN or invalid viewport values
+    const safeVpStart = (isFinite(vpStart) && !isNaN(vpStart) && vpStart >= 0) ? vpStart : 0;
+    const safeVpEnd = (isFinite(vpEnd) && !isNaN(vpEnd) && vpEnd > safeVpStart && vpEnd <= buffer.duration) 
+      ? vpEnd 
+      : buffer.duration;
+
     const cache = peakCacheRef.current;
     const isStereo = buffer.numberOfChannels > 1;
     
@@ -379,8 +385,8 @@ const Waveform: React.FC = () => {
     
     // Round viewport values to reduce unnecessary regeneration during animation
     // Use 2 decimal places - gives good balance between accuracy and performance
-    const roundedVpStart = Math.round(vpStart * 100) / 100;
-    const roundedVpEnd = Math.round(vpEnd * 100) / 100;
+    const roundedVpStart = Math.round(safeVpStart * 100) / 100;
+    const roundedVpEnd = Math.round(safeVpEnd * 100) / 100;
     const viewportKey = `${roundedVpStart}-${roundedVpEnd}`;
     
     // Check if we need to regenerate peaks (including viewport changes)
@@ -578,12 +584,25 @@ const Waveform: React.FC = () => {
       : null;
     
     // Use animated viewport for smooth zoom transitions
-    const vpStart = animatedViewportRef.current.initialized 
+    // Add NaN safety checks
+    let vpStart = animatedViewportRef.current.initialized 
       ? animatedViewportRef.current.start 
       : storeState.ui.viewportStart;
-    const vpEnd = animatedViewportRef.current.initialized 
+    let vpEnd = animatedViewportRef.current.initialized 
       ? animatedViewportRef.current.end 
       : storeState.ui.viewportEnd;
+    
+    // Safety checks for NaN or invalid values
+    if (!isFinite(vpStart) || isNaN(vpStart) || vpStart < 0) {
+      vpStart = 0;
+    }
+    if (!isFinite(vpEnd) || isNaN(vpEnd) || vpEnd <= vpStart || vpEnd > actualDuration) {
+      vpEnd = actualDuration > 0 ? actualDuration : 1;
+    }
+    if (vpStart >= vpEnd) {
+      vpStart = 0;
+      vpEnd = actualDuration > 0 ? actualDuration : 1;
+    }
     
     // Calculate visible duration (viewport)
     const visibleDuration = vpEnd > vpStart ? vpEnd - vpStart : actualDuration;
@@ -1072,8 +1091,8 @@ const Waveform: React.FC = () => {
       style={{ 
         width: '100%', 
         flex: '1 1 auto',
-        minHeight: '150px',
-        maxHeight: '250px',
+        minHeight: '120px',
+        maxHeight: '180px',
         background: 'var(--neu-bg-base)',
         border: 'none',
         borderRadius: '16px',
