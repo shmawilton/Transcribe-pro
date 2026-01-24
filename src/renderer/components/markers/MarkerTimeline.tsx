@@ -14,7 +14,8 @@ const TIME_GRID_HEIGHT = 35; // Increased height for time grid
 const MIN_MARKER_AREA_HEIGHT = 100; // Minimum height with good padding
 const MAX_OVERLAPPING_MARKERS = 5; // Support up to 5 overlapping markers
 const MAX_MARKER_AREA_HEIGHT = TIME_GRID_HEIGHT + (MAX_OVERLAPPING_MARKERS * (MARKER_HEIGHT + MARKER_GAP)) + 20; // Height for 5 markers + padding
-const TIME_LABEL_PADDING = 50; // Padding on left and right to prevent label cutoff
+// Padding varies by device - minimal on mobile for edge-to-edge display
+const getTimeLabelPadding = (isMobile: boolean) => isMobile ? 8 : 50;
 
 export function MarkerTimeline() {
   // ===== Setup state and refs =====
@@ -59,9 +60,12 @@ export function MarkerTimeline() {
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel) || 1;
   const currentTime = useAppStore((state) => state.audio.currentTime) || 0;
   
-  // Pinch-to-zoom refs
+  // Pinch-to-zoom and single-finger scroll refs
   const lastTouchDistanceRef = useRef<number | null>(null);
   const pinchCenterTimeRef = useRef<number | null>(null);
+  // Single-finger horizontal scroll tracking
+  const singleTouchStartRef = useRef<{ x: number; vpStart: number; vpEnd: number } | null>(null);
+  const isSingleTouchScrollRef = useRef(false);
   const DEFAULT_ZOOM = 5; // Show 1/5 (20%) of the audio
   const MOBILE_DEFAULT_ZOOM = 5; // Same for mobile
   
@@ -100,10 +104,13 @@ export function MarkerTimeline() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
+  // Calculate padding based on device - minimal on mobile for edge-to-edge display
+  const TIME_LABEL_PADDING = useMemo(() => getTimeLabelPadding(isMobile), [isMobile]);
+  
   // Calculate usable width (accounting for padding)
   const usableWidth = useMemo(() => {
     return Math.max(0, containerWidth - (TIME_LABEL_PADDING * 2));
-  }, [containerWidth]);
+  }, [containerWidth, TIME_LABEL_PADDING]);
   
   // Calculate SVG width to match waveform width when zoomed
   // When zoomed, the waveform shows a smaller time range (viewport) stretched to fill canvas
@@ -178,6 +185,7 @@ export function MarkerTimeline() {
   const zoomLevelRefPinch = useRef(zoomLevel);
   const currentTimeRefPinch = useRef(currentTime);
   const isMobileRefPinch = useRef(isMobile);
+  const isCreatingMarkerRef = useRef(isCreatingMarker);
   
   useEffect(() => {
     durationRefPinch.current = duration;
@@ -187,7 +195,8 @@ export function MarkerTimeline() {
     zoomLevelRefPinch.current = zoomLevel;
     currentTimeRefPinch.current = currentTime;
     isMobileRefPinch.current = isMobile;
-  }, [duration, viewportStart, visibleDuration, containerWidth, zoomLevel, currentTime, isMobile]);
+    isCreatingMarkerRef.current = isCreatingMarker;
+  }, [duration, viewportStart, visibleDuration, containerWidth, zoomLevel, currentTime, isMobile, isCreatingMarker]);
   
   // Use native event listeners for pinch-to-zoom (required for preventDefault)
   useEffect(() => {
@@ -197,6 +206,9 @@ export function MarkerTimeline() {
     const handleNativePinchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         // Two-finger touch - prepare for pinch
+        isSingleTouchScrollRef.current = false;
+        singleTouchStartRef.current = null;
+        
         const touch1 = e.touches[0];
         const touch2 = e.touches[1];
         const distance = Math.hypot(touch2.clientX - touch1.clientX, touch2.clientY - touch1.clientY);
@@ -208,6 +220,17 @@ export function MarkerTimeline() {
           const centerX = (touch1.clientX + touch2.clientX) / 2 - rect.left;
           const timeInViewport = (centerX / containerWidthRefPinch.current) * visibleDurationRefPinch.current;
           pinchCenterTimeRef.current = viewportStartRefPinch.current + timeInViewport;
+        }
+      } else if (e.touches.length === 1) {
+        // Single-finger touch - prepare for horizontal scroll (unless marker creation is active)
+        if (!isCreatingMarkerRef.current) {
+          const touch = e.touches[0];
+          singleTouchStartRef.current = {
+            x: touch.clientX,
+            vpStart: viewportStartRefPinch.current,
+            vpEnd: viewportStartRefPinch.current + visibleDurationRefPinch.current,
+          };
+          isSingleTouchScrollRef.current = false; // Will be set to true if horizontal movement detected
         }
       }
     };
@@ -253,12 +276,49 @@ export function MarkerTimeline() {
             lastTouchDistanceRef.current = newDistance;
           }
         }
+      } else if (e.touches.length === 1 && singleTouchStartRef.current !== null && !isCreatingMarkerRef.current) {
+        // Single-finger horizontal scroll
+        const touch = e.touches[0];
+        const deltaX = singleTouchStartRef.current.x - touch.clientX;
+        
+        // Only scroll if horizontal movement is significant (> 5px)
+        if (Math.abs(deltaX) > 5) {
+          e.preventDefault(); // Prevent page scroll
+          isSingleTouchScrollRef.current = true;
+          
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          
+          const { vpStart: origVpStart, vpEnd: origVpEnd } = singleTouchStartRef.current;
+          const origVisibleDuration = origVpEnd - origVpStart;
+          const dur = durationRefPinch.current;
+          
+          // Calculate time delta based on pixel movement
+          const timeDelta = (deltaX / rect.width) * origVisibleDuration;
+          
+          let newStart = origVpStart + timeDelta;
+          let newEnd = origVpEnd + timeDelta;
+          
+          // Clamp to valid range
+          if (newStart < 0) {
+            newStart = 0;
+            newEnd = origVisibleDuration;
+          }
+          if (newEnd > dur) {
+            newEnd = dur;
+            newStart = Math.max(0, dur - origVisibleDuration);
+          }
+          
+          setViewport(newStart, newEnd);
+        }
       }
     };
     
     const handleNativePinchEnd = () => {
       lastTouchDistanceRef.current = null;
       pinchCenterTimeRef.current = null;
+      singleTouchStartRef.current = null;
+      isSingleTouchScrollRef.current = false;
     };
     
     // Add event listeners with { passive: false } to allow preventDefault

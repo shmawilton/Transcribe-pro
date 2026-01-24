@@ -14,9 +14,20 @@ import { useSmoothViewport } from '../../hooks/useSmoothViewport';
 const KENYAN_RED = '#DE2910';
 const KENYAN_GREEN = '#006644';
 
+// PWA install prompt interface
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 const MobileMenu: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  
+  // PWA Install state
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
   
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
@@ -64,6 +75,76 @@ const MobileMenu: React.FC = () => {
     }
   }, [isExpanded]);
   
+  // PWA Install prompt handler
+  useEffect(() => {
+    // Check if app is already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsAppInstalled(true);
+      return;
+    }
+    
+    // Check localStorage for dismissed banner
+    const dismissed = localStorage.getItem('pwa-install-dismissed');
+    const dismissedTime = dismissed ? parseInt(dismissed, 10) : 0;
+    const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
+    
+    // Only show banner again after 7 days if dismissed
+    if (dismissedTime && daysSinceDismissed < 7) {
+      return;
+    }
+    
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      // Show install banner after 3 seconds
+      setTimeout(() => {
+        setShowInstallBanner(true);
+      }, 3000);
+    };
+    
+    const handleAppInstalled = () => {
+      setIsAppInstalled(true);
+      setShowInstallBanner(false);
+      setDeferredPrompt(null);
+      showToast('App installed successfully!', 'success');
+    };
+    
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    window.addEventListener('appinstalled', handleAppInstalled);
+    
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+  
+  // Handle PWA install
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) {
+      showToast('Install not available - try from browser menu', 'info');
+      return;
+    }
+    
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        showToast('Installing app...', 'success');
+      }
+      
+      setDeferredPrompt(null);
+      setShowInstallBanner(false);
+    } catch (err) {
+      showToast('Install failed', 'error');
+    }
+  };
+  
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+  };
+  
   // Zoom handlers - minimum zoom is 5 (1/5 = 20% view)
   const MIN_ZOOM = 5; // Shows 1/5 (20%) of the audio at minimum
   const MAX_ZOOM = 50;
@@ -88,22 +169,29 @@ const MobileMenu: React.FC = () => {
     animateZoom(MIN_ZOOM, { duration: 300, easing: 'easeOutCubic' });
   };
   
-  // Pitch handlers
+  // Pitch handlers - matching desktop behavior (±2 semitones range, 0.1 step)
   const handlePitchUp = () => {
     if (!isAudioLoaded) return;
-    const newPitch = Math.min(pitch + 1, 12);
+    const newPitch = Math.min(Math.round((pitch + 0.1) * 10) / 10, 2);
     setPitch(newPitch);
   };
   
   const handlePitchDown = () => {
     if (!isAudioLoaded) return;
-    const newPitch = Math.max(pitch - 1, -12);
+    const newPitch = Math.max(Math.round((pitch - 0.1) * 10) / 10, -2);
     setPitch(newPitch);
   };
   
   const handlePitchReset = () => {
     if (!isAudioLoaded) return;
     setPitch(0);
+  };
+  
+  // Format pitch display like desktop
+  const formatPitchDisplay = (value: number): string => {
+    if (value === 0) return '0%';
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${value.toFixed(1)}%`;
   };
   
   const handleNewProject = async () => {
@@ -440,8 +528,8 @@ const MobileMenu: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
                   onClick={handlePitchDown}
-                  disabled={!isAudioLoaded || pitch <= -12}
-                  style={btnStyle(false, !isAudioLoaded || pitch <= -12)}
+                  disabled={!isAudioLoaded || pitch <= -2}
+                  style={btnStyle(false, !isAudioLoaded || pitch <= -2)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="5" y1="12" x2="19" y2="12" />
@@ -450,16 +538,16 @@ const MobileMenu: React.FC = () => {
                 <span style={{ 
                   fontSize: '11px', 
                   fontWeight: 600, 
-                  color: pitch !== 0 ? KENYAN_RED : textColor,
-                  minWidth: '40px',
+                  color: pitch !== 0 ? (pitch > 0 ? KENYAN_GREEN : KENYAN_RED) : textColor,
+                  minWidth: '48px',
                   textAlign: 'center',
                 }}>
-                  {pitch > 0 ? `+${pitch}` : pitch}
+                  {formatPitchDisplay(pitch)}
                 </span>
                 <button
                   onClick={handlePitchUp}
-                  disabled={!isAudioLoaded || pitch >= 12}
-                  style={btnStyle(false, !isAudioLoaded || pitch >= 12)}
+                  disabled={!isAudioLoaded || pitch >= 2}
+                  style={btnStyle(false, !isAudioLoaded || pitch >= 2)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="12" y1="5" x2="12" y2="19" />
@@ -501,6 +589,20 @@ const MobileMenu: React.FC = () => {
             </div>
           </div>
           
+          {/* Install App - Only show if installable and not already installed */}
+          {!isAppInstalled && deferredPrompt && (
+            <>
+              <Divider isLightMode={isLightMode} />
+              <MenuItem 
+                icon={<InstallIcon />} 
+                label="Install App" 
+                onClick={handleInstallApp}
+                color={KENYAN_GREEN}
+                subtitle="Add to home screen"
+              />
+            </>
+          )}
+          
           {/* About */}
           <Divider isLightMode={isLightMode} />
           <MenuItem 
@@ -514,9 +616,104 @@ const MobileMenu: React.FC = () => {
         </div>
       )}
       
+      {/* PWA Install Banner - Floating notification */}
+      {showInstallBanner && !isAppInstalled && (
+        <div style={{
+          position: 'fixed',
+          bottom: '80px',
+          left: '16px',
+          right: '16px',
+          background: neuBg,
+          borderRadius: '16px',
+          boxShadow: `0 8px 32px rgba(0, 0, 0, 0.3), ${neuRaised}`,
+          padding: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          zIndex: 10001,
+          animation: 'slideUp 0.3s ease-out',
+        }}>
+          {/* App icon */}
+          <div style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '12px',
+            background: `linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_RED})`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          
+          {/* Text content */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ 
+              color: textColor, 
+              fontSize: '14px', 
+              fontWeight: 600, 
+              margin: 0 
+            }}>
+              Install Transcribe Pro
+            </p>
+            <p style={{ 
+              color: isLightMode ? '#718096' : 'rgba(255,255,255,0.6)', 
+              fontSize: '12px', 
+              margin: '4px 0 0 0' 
+            }}>
+              Add to home screen for quick access
+            </p>
+          </div>
+          
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+            <button
+              onClick={dismissInstallBanner}
+              style={{
+                padding: '8px 12px',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '8px',
+                color: isLightMode ? '#718096' : 'rgba(255,255,255,0.5)',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Later
+            </button>
+            <button
+              onClick={handleInstallApp}
+              style={{
+                padding: '8px 16px',
+                background: KENYAN_GREEN,
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: `0 2px 8px rgba(0, 102, 68, 0.4)`,
+              }}
+            >
+              Install
+            </button>
+          </div>
+        </div>
+      )}
+      
       <style>{`
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(20px); }
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
@@ -616,6 +813,14 @@ const InfoIcon = () => (
     <circle cx="12" cy="12" r="10"/>
     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
     <line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+);
+
+const InstallIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
   </svg>
 );
 
