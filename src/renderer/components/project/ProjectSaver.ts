@@ -1,5 +1,6 @@
 // ProjectSaver.ts - Wilton - Week 3
 // Project saving logic with .tsproj format
+// Enhanced for iOS/Android PWA with IndexedDB storage
 
 import { useAppStore } from '../../store/store';
 import { ProjectData, RecentProject } from '../../types/types';
@@ -11,9 +12,163 @@ const WEB_AUTOSAVE_KEY = 'transcribe-pro-web-autosave';
 const MAX_RECENT_PROJECTS = 10;
 const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
 
+// IndexedDB constants for mobile PWA storage
+const IDB_DATABASE_NAME = 'TranscribeProDB';
+const IDB_STORE_NAME = 'projects';
+const IDB_VERSION = 1;
+
 // Detect Electron environment
 const isElectron = !!(window as any).electronAPI || 
                    (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron);
+
+// Detect mobile device
+const isMobileDevice = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+         (window.innerWidth <= 768);
+};
+
+// ============ IndexedDB Helper Functions ============
+
+/**
+ * Open IndexedDB database
+ */
+const openDatabase = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(IDB_DATABASE_NAME, IDB_VERSION);
+    
+    request.onerror = () => {
+      console.error('[IndexedDB] Failed to open database:', request.error);
+      reject(request.error);
+    };
+    
+    request.onsuccess = () => {
+      resolve(request.result);
+    };
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      
+      // Create projects store if it doesn't exist
+      if (!db.objectStoreNames.contains(IDB_STORE_NAME)) {
+        const store = db.createObjectStore(IDB_STORE_NAME, { keyPath: 'id' });
+        store.createIndex('name', 'name', { unique: false });
+        store.createIndex('updatedAt', 'updatedAt', { unique: false });
+        console.log('[IndexedDB] Created projects store');
+      }
+    };
+  });
+};
+
+export interface StoredProject {
+  id: string;
+  name: string;
+  projectData: ProjectData;
+  createdAt: string;
+  updatedAt: string;
+  audioFileName?: string;
+  thumbnailColor?: string; // For visual identification
+}
+
+/**
+ * Save project to IndexedDB
+ */
+export const saveProjectToIndexedDB = async (project: StoredProject): Promise<void> => {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(IDB_STORE_NAME);
+    const request = store.put(project);
+    
+    request.onerror = () => {
+      console.error('[IndexedDB] Failed to save project:', request.error);
+      reject(request.error);
+    };
+    
+    request.onsuccess = () => {
+      console.log('[IndexedDB] Project saved:', project.name);
+      resolve();
+    };
+  });
+};
+
+/**
+ * Get all projects from IndexedDB
+ */
+export const getAllProjectsFromIndexedDB = async (): Promise<StoredProject[]> => {
+  try {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([IDB_STORE_NAME], 'readonly');
+      const store = transaction.objectStore(IDB_STORE_NAME);
+      const request = store.getAll();
+      
+      request.onerror = () => {
+        console.error('[IndexedDB] Failed to get projects:', request.error);
+        reject(request.error);
+      };
+      
+      request.onsuccess = () => {
+        // Sort by updatedAt descending
+        const projects = request.result as StoredProject[];
+        projects.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        resolve(projects);
+      };
+    });
+  } catch (error) {
+    console.error('[IndexedDB] Error getting projects:', error);
+    return [];
+  }
+};
+
+/**
+ * Get a single project from IndexedDB by ID
+ */
+export const getProjectFromIndexedDB = async (id: string): Promise<StoredProject | null> => {
+  try {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([IDB_STORE_NAME], 'readonly');
+      const store = transaction.objectStore(IDB_STORE_NAME);
+      const request = store.get(id);
+      
+      request.onerror = () => {
+        console.error('[IndexedDB] Failed to get project:', request.error);
+        reject(request.error);
+      };
+      
+      request.onsuccess = () => {
+        resolve(request.result || null);
+      };
+    });
+  } catch (error) {
+    console.error('[IndexedDB] Error getting project:', error);
+    return null;
+  }
+};
+
+/**
+ * Delete project from IndexedDB
+ */
+export const deleteProjectFromIndexedDB = async (id: string): Promise<void> => {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(IDB_STORE_NAME);
+    const request = store.delete(id);
+    
+    request.onerror = () => {
+      console.error('[IndexedDB] Failed to delete project:', request.error);
+      reject(request.error);
+    };
+    
+    request.onsuccess = () => {
+      console.log('[IndexedDB] Project deleted:', id);
+      resolve();
+    };
+  });
+};
+
+// ============ End IndexedDB Helper Functions ============
 
 export class ProjectSaver {
   private autoSaveTimer: NodeJS.Timeout | null = null;
@@ -520,6 +675,199 @@ export class ProjectSaver {
       console.error('[ProjectSaver] Failed to clear recent projects:', error);
     }
   }
+
+  // ============ Mobile PWA Save Methods ============
+
+  /**
+   * Current project ID for IndexedDB storage
+   */
+  private currentProjectId: string | null = null;
+
+  /**
+   * Save project to device storage (IndexedDB) - Mobile friendly
+   * This saves the project locally without triggering a file download
+   */
+  async saveToDevice(projectName?: string): Promise<{ success: boolean; projectId?: string }> {
+    try {
+      const store = useAppStore.getState();
+      
+      // Check if audio is loaded
+      if (!store.audio.file || !store.audio.isLoaded) {
+        this.notify('Please load an audio file before saving.', 'error');
+        return { success: false };
+      }
+
+      const projectData = await this.getProjectData();
+      
+      // Verify that audio was embedded
+      if (!projectData.audioFileData) {
+        this.notify('Failed to prepare project for saving.', 'error');
+        return { success: false };
+      }
+
+      // Generate or use existing project ID
+      const projectId = this.currentProjectId || `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const name = projectName || this.getCurrentProjectName() || 'Untitled Project';
+      const now = new Date().toISOString();
+
+      // Determine a color for the project thumbnail based on first marker or random
+      const markers = store.markers;
+      const thumbnailColor = markers.length > 0 ? markers[0].color : '#006644';
+
+      const storedProject: StoredProject = {
+        id: projectId,
+        name,
+        projectData,
+        createdAt: this.currentProjectId ? (await getProjectFromIndexedDB(projectId))?.createdAt || now : now,
+        updatedAt: now,
+        audioFileName: projectData.audioFileName,
+        thumbnailColor,
+      };
+
+      await saveProjectToIndexedDB(storedProject);
+      
+      // Update current project ID
+      this.currentProjectId = projectId;
+      
+      // Mark as saved
+      try {
+        (useAppStore.getState() as any).setLastManualSaveAt?.(Date.now());
+      } catch (_) {}
+
+      // Also save to localStorage as backup
+      this.saveToLocalStorage(projectData);
+
+      // Update project name
+      if (this.onProjectNameChange) {
+        this.onProjectNameChange(name);
+      }
+
+      this.notify('Project saved to device!', 'success');
+      return { success: true, projectId };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save project';
+      console.error('[ProjectSaver] Save to device failed:', error);
+      this.notify(`Save failed: ${errorMessage}`, 'error');
+      return { success: false };
+    }
+  }
+
+  /**
+   * Export project as a downloadable file
+   * For when users want to backup or share via other apps
+   */
+  async exportProject(suggestedName?: string): Promise<boolean> {
+    try {
+      const store = useAppStore.getState();
+      
+      if (!store.audio.file || !store.audio.isLoaded) {
+        this.notify('Please load an audio file before exporting.', 'error');
+        return false;
+      }
+
+      const projectData = await this.getProjectData();
+      
+      if (!projectData.audioFileData) {
+        this.notify('Failed to prepare project for export.', 'error');
+        return false;
+      }
+
+      const jsonData = JSON.stringify(projectData, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      
+      // Use Web Share API if available (better on mobile)
+      if (navigator.share && isMobileDevice()) {
+        try {
+          const fileName = suggestedName || `${this.getCurrentProjectName()}.tsproj`;
+          const file = new File([blob], fileName, { type: 'application/json' });
+          
+          await navigator.share({
+            title: 'Transcribe Pro Project',
+            text: `Project: ${this.getCurrentProjectName()}`,
+            files: [file],
+          });
+          
+          this.notify('Project shared successfully!', 'success');
+          return true;
+        } catch (shareError) {
+          // If share fails (user cancelled or not supported), fall back to download
+          console.log('[ProjectSaver] Share failed, falling back to download:', shareError);
+        }
+      }
+      
+      // Fallback: Download file
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = suggestedName || `${this.getCurrentProjectName()}.tsproj`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      this.notify('Project exported! Check your Downloads folder.', 'success');
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to export project';
+      this.notify(`Export failed: ${errorMessage}`, 'error');
+      return false;
+    }
+  }
+
+  /**
+   * Get all projects stored in IndexedDB
+   */
+  async getStoredProjects(): Promise<StoredProject[]> {
+    return getAllProjectsFromIndexedDB();
+  }
+
+  /**
+   * Load a project from IndexedDB by ID
+   */
+  async loadStoredProject(projectId: string): Promise<StoredProject | null> {
+    const project = await getProjectFromIndexedDB(projectId);
+    if (project) {
+      this.currentProjectId = projectId;
+    }
+    return project;
+  }
+
+  /**
+   * Delete a project from IndexedDB
+   */
+  async deleteStoredProject(projectId: string): Promise<boolean> {
+    try {
+      await deleteProjectFromIndexedDB(projectId);
+      this.notify('Project deleted', 'success');
+      return true;
+    } catch (error) {
+      this.notify('Failed to delete project', 'error');
+      return false;
+    }
+  }
+
+  /**
+   * Set current project ID (for tracking which project is open)
+   */
+  setCurrentProjectId(id: string | null) {
+    this.currentProjectId = id;
+  }
+
+  /**
+   * Get current project ID
+   */
+  getCurrentProjectId(): string | null {
+    return this.currentProjectId;
+  }
+
+  /**
+   * Check if running on mobile device
+   */
+  isMobile(): boolean {
+    return isMobileDevice();
+  }
+
+  // ============ End Mobile PWA Save Methods ============
 
   /**
    * Cleanup - stop auto-save

@@ -262,10 +262,11 @@ export class ProjectLoader {
       store.toggleMute(); // Unmute if muted
     }
 
-    // Reset UI state to defaults
-    store.setZoomLevel(1); // Default zoom level
+    // Reset UI state to defaults - show 20% (1/5) of audio initially
+    const DEFAULT_ZOOM = 5;
+    store.setZoomLevel(DEFAULT_ZOOM);
 
-    // Poll for audio load completion then reset viewport to full duration
+    // Poll for audio load completion then reset viewport to 20% view
     let attempts = 0;
     const maxAttempts = 100;
     const checkAudioLoaded = setInterval(() => {
@@ -273,9 +274,9 @@ export class ProjectLoader {
       const audioStore = useAppStore.getState();
       if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
         clearInterval(checkAudioLoaded);
-        // Reset viewport to show full duration (default view)
+        // Reset viewport to show first 20% of audio (zoom level 5)
         const duration = audioStore.audio.duration;
-        audioStore.setViewport(0, duration);
+        audioStore.setViewport(0, duration / DEFAULT_ZOOM);
       } else if (attempts >= maxAttempts) {
         clearInterval(checkAudioLoaded);
       }
@@ -701,10 +702,11 @@ export class ProjectLoader {
         store.toggleMute(); // Unmute if muted
       }
 
-      // Reset UI state to defaults
-      store.setZoomLevel(1); // Default zoom level
+      // Reset UI state to defaults - show 20% (1/5) of audio initially
+      const DEFAULT_ZOOM_2 = 5;
+      store.setZoomLevel(DEFAULT_ZOOM_2);
       
-      // Poll for audio load completion then reset viewport to full duration
+      // Poll for audio load completion then reset viewport to 20% view
       let attempts = 0;
       const maxAttempts = 100;
       const checkAudioLoaded = setInterval(() => {
@@ -712,9 +714,9 @@ export class ProjectLoader {
         const audioStore = useAppStore.getState();
         if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
           clearInterval(checkAudioLoaded);
-          // Reset viewport to show full duration (default view)
+          // Reset viewport to show first 20% of audio (zoom level 5)
           const duration = audioStore.audio.duration;
-          audioStore.setViewport(0, duration);
+          audioStore.setViewport(0, duration / DEFAULT_ZOOM_2);
         } else if (attempts >= maxAttempts) {
           clearInterval(checkAudioLoaded);
           console.warn('[ProjectLoader] Audio did not load within timeout, viewport may not be restored');
@@ -776,6 +778,43 @@ export class ProjectLoader {
     } catch (error) {
       console.error('[ProjectLoader] Failed to get recent projects:', error);
       return [];
+    }
+  }
+
+  /**
+   * Load a project from IndexedDB storage (for mobile PWA)
+   * @param projectData - The project data from IndexedDB
+   * @param loadFileCallback - Function to load audio file
+   */
+  async loadFromStoredProject(
+    projectData: ProjectData,
+    loadFileCallback?: (file: File) => Promise<void>
+  ): Promise<boolean> {
+    try {
+      // Validate the project data
+      const validation = this.validateProjectData(projectData);
+      if (!validation.valid || !validation.projectData) {
+        this.notify(validation.error || 'Invalid project data', 'error');
+        return false;
+      }
+
+      // Apply the project data
+      const success = await this.applyProjectData(
+        validation.projectData,
+        loadFileCallback,
+        { silent: false, filePath: 'indexeddb-storage' }
+      );
+
+      if (success) {
+        this.notify('Project loaded from device storage!', 'success');
+      }
+
+      return success;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load project';
+      console.error('[ProjectLoader] Load from stored project failed:', error);
+      this.notify(`Load failed: ${errorMessage}`, 'error');
+      return false;
     }
   }
 }

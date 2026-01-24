@@ -294,9 +294,10 @@ export class AudioEngine {
       useAppStore.getState().setAudioBuffer(decodedBuffer);
       useAppStore.getState().setDuration(finalDuration);
       
-      // Reset viewport to show full audio
-      useAppStore.getState().setViewport(0, finalDuration);
-      useAppStore.getState().setZoomLevel(1);
+      // Reset viewport to show first 20% of audio (zoom level 5)
+      const DEFAULT_ZOOM = 5;
+      useAppStore.getState().setViewport(0, finalDuration / DEFAULT_ZOOM);
+      useAppStore.getState().setZoomLevel(DEFAULT_ZOOM);
 
       // Step 8: Reset playback state
       console.log('[AudioEngine] Step 8: Resetting playback state');
@@ -598,11 +599,12 @@ export class AudioEngine {
       useAppStore.getState().setIsPlaying(false);
       useAppStore.getState().setCurrentTime(0);
 
-      // Reset viewport to beginning (show full audio)
+      // Reset viewport to beginning (show first 20% of audio)
       const duration = this.getDuration();
       if (duration > 0) {
-        useAppStore.getState().setViewport(0, duration);
-        useAppStore.getState().setZoomLevel(1);
+        const DEFAULT_ZOOM_STOP = 5;
+        useAppStore.getState().setViewport(0, duration / DEFAULT_ZOOM_STOP);
+        useAppStore.getState().setZoomLevel(DEFAULT_ZOOM_STOP);
       }
 
       // Stop position tracking

@@ -250,9 +250,10 @@ export class HowlerAudioEngine {
           
           // Update store only on initial load (not on pitch switch)
           if (!preserveState) {
+            const DEFAULT_ZOOM = 5; // Show 20% (1/5) of audio initially
             useAppStore.getState().setDuration(this.duration);
-            useAppStore.getState().setViewport(0, this.duration);
-            useAppStore.getState().setZoomLevel(1);
+            useAppStore.getState().setViewport(0, this.duration / DEFAULT_ZOOM);
+            useAppStore.getState().setZoomLevel(DEFAULT_ZOOM);
             
             // Initialize speed from store
             const storedSpeed = useAppStore.getState().globalControls.playbackRate;
@@ -519,11 +520,12 @@ export class HowlerAudioEngine {
       this.howl.seek(0);
     }
     
-    // Reset viewport to beginning (show full audio)
+    // Reset viewport to beginning (show first 20% of audio)
     const duration = this.getDuration();
     if (duration > 0) {
-      useAppStore.getState().setViewport(0, duration);
-      useAppStore.getState().setZoomLevel(1);
+      const DEFAULT_ZOOM_STOP = 5; // Show 20% (1/5) of audio
+      useAppStore.getState().setViewport(0, duration / DEFAULT_ZOOM_STOP);
+      useAppStore.getState().setZoomLevel(DEFAULT_ZOOM_STOP);
     }
     
     // Restore volume after fade out

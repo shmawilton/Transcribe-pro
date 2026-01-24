@@ -557,40 +557,34 @@ const App: React.FC = () => {
           {/* Mobile Menu */}
           <MobileMenu />
 
-          {/* Main Content Area - Stacked vertically, order: Waveform → Timeline → Markers → Playback */}
+          {/* Main Content Area - Stacked vertically, order: Waveform → Timeline → Playback → Markers */}
+          {/* Controls Panel (zoom/pitch) moved to MobileMenu dropdown */}
           <div className="main-content mobile-content">
-            {/* Waveform Section */}
+            {/* Waveform Section - scrollable */}
             <div className="mobile-panel waveform-mobile-section">
               <ErrorBoundary>
                 <Waveform />
               </ErrorBoundary>
             </div>
 
-            {/* Marker Timeline Section */}
+            {/* Marker Timeline Section - takes most space for stacked markers */}
             <div className="mobile-panel timeline-mobile-section">
               <ErrorBoundary>
                 <MarkerTimeline />
               </ErrorBoundary>
             </div>
 
-            {/* Marker Panel / Settings */}
-            <div className="mobile-panel marker-panel-section">
-              <ErrorBoundary>
-                <MarkerPanel />
-              </ErrorBoundary>
-            </div>
-
-            {/* Controls Panel - Zoom & Pitch */}
-            <div className="mobile-panel controls-panel-section">
-              <ErrorBoundary>
-                <MobileControlsPanel />
-              </ErrorBoundary>
-            </div>
-
-            {/* Playback Panel - At bottom */}
+            {/* Playback Panel - Before marker panel */}
             <div className="mobile-panel playback-section">
               <ErrorBoundary>
                 <PlaybackPanel />
+              </ErrorBoundary>
+            </div>
+
+            {/* Marker Panel - fixed height, shows 2.5 markers, scrollable */}
+            <div className="mobile-panel marker-panel-section">
+              <ErrorBoundary>
+                <MarkerPanel />
               </ErrorBoundary>
             </div>
           </div>
