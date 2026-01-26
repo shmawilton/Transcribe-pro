@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/store';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
+import { useAudioEngine } from '../audio/useAudioEngine';
+import { onPitchStatus } from '../audio/HowlerAudioEngine';
 
 const KENYAN_GREEN = '#006644';
 const KENYAN_RED = '#DE2910';
@@ -16,9 +18,21 @@ const MobileControlsPanel: React.FC = () => {
   const viewportEnd = useAppStore((state) => state.ui.viewportEnd);
   const rawZoomLevel = useAppStore((state) => state.zoomLevel);
   const pitch = useAppStore((state) => state.globalControls.pitch);
-  const setPitch = useAppStore((state) => state.setPitch);
   
+  // Use audio engine's pitch method (same as desktop)
+  const { setPitch: setAudioPitch } = useAudioEngine();
   const { animateZoom } = useSmoothViewport();
+  
+  // Pitch processing status
+  const [isPitchProcessing, setIsPitchProcessing] = useState(false);
+  
+  // Subscribe to pitch processing status (same as desktop)
+  useEffect(() => {
+    const unsubscribe = onPitchStatus((status) => {
+      setIsPitchProcessing(status.isProcessing);
+    });
+    return unsubscribe;
+  }, []);
   
   // Safe zoom level
   const zoomLevel = (typeof rawZoomLevel === 'number' && !isNaN(rawZoomLevel) && isFinite(rawZoomLevel))
@@ -33,43 +47,49 @@ const MobileControlsPanel: React.FC = () => {
   const neuRaised = `2px 2px 4px ${shadowDark}, -1px -1px 2px ${shadowLight}`;
   const neuPressed = `inset 1px 1px 2px ${shadowDark}, inset -1px -1px 2px ${shadowLight}`;
   
-  // Zoom handlers - same as desktop version
+  // Zoom handlers - matching the app's zoom logic (5 = 20% view, 50 = 2% view)
+  const MIN_ZOOM = 5; // Minimum zoom: show 20% (1/5) of audio
+  const MAX_ZOOM = 50; // Maximum zoom: show 2% (1/50) of audio
+  
   const handleZoomIn = () => {
-    if (duration <= 0) return;
-    const newZoom = Math.min(zoomLevel * 1.5, 8); // Same max zoom as desktop
+    if (duration <= 0 || !isAudioLoaded) return;
+    const newZoom = Math.min(zoomLevel * 1.5, MAX_ZOOM);
     animateZoom(newZoom, currentTime, { duration: 250, easing: 'easeOutCubic' });
   };
   
   const handleZoomOut = () => {
-    if (duration <= 0) return;
-    const newZoom = Math.max(zoomLevel / 1.5, 1);
-    const center = newZoom === 1 ? undefined : (viewportStart + viewportEnd) / 2;
-    animateZoom(newZoom, center, { duration: 250, easing: 'easeOutCubic' });
+    if (duration <= 0 || !isAudioLoaded) return;
+    const newZoom = Math.max(zoomLevel / 1.5, MIN_ZOOM);
+    animateZoom(newZoom, undefined, { duration: 250, easing: 'easeOutCubic' });
   };
   
   const handleZoomReset = () => {
-    if (duration > 0) {
-      animateZoom(1, undefined, { duration: 300, easing: 'easeOutCubic' });
+    if (duration > 0 && isAudioLoaded) {
+      // Reset to default 20% view (zoom level 5)
+      animateZoom(MIN_ZOOM, undefined, { duration: 300, easing: 'easeOutCubic' });
     }
   };
   
-  // Pitch handlers
+  // Pitch handlers - use audio engine (same as desktop)
   const handlePitchUp = () => {
-    const newPitch = Math.min(pitch + 1, 2);
-    setPitch(newPitch);
+    if (!isAudioLoaded || isPitchProcessing) return;
+    const newPitch = Math.min(Math.round((pitch + 0.1) * 10) / 10, 2);
+    setAudioPitch(newPitch);
   };
   
   const handlePitchDown = () => {
-    const newPitch = Math.max(pitch - 1, -2);
-    setPitch(newPitch);
+    if (!isAudioLoaded || isPitchProcessing) return;
+    const newPitch = Math.max(Math.round((pitch - 0.1) * 10) / 10, -2);
+    setAudioPitch(newPitch);
   };
   
   const handlePitchReset = () => {
-    setPitch(0);
+    if (!isAudioLoaded || isPitchProcessing) return;
+    setAudioPitch(0);
   };
   
   const zoomDisplay = Math.round(zoomLevel * 100);
-  const pitchDisplay = pitch > 0 ? `+${pitch}` : pitch.toString();
+  const pitchDisplay = isPitchProcessing ? '...' : (pitch > 0 ? `+${pitch.toFixed(1)}` : pitch.toFixed(1));
   
   const btnStyle = (disabled: boolean = false) => ({
     width: '26px',
@@ -124,8 +144,8 @@ const MobileControlsPanel: React.FC = () => {
         <span style={{ fontSize: '10px', marginRight: '1px' }}>🔍</span>
         <button
           onClick={handleZoomOut}
-          disabled={!isAudioLoaded || zoomLevel <= 1}
-          style={btnStyle(!isAudioLoaded || zoomLevel <= 1)}
+          disabled={!isAudioLoaded || zoomLevel <= MIN_ZOOM}
+          style={btnStyle(!isAudioLoaded || zoomLevel <= MIN_ZOOM)}
           title="Zoom Out"
         >
           −
@@ -133,19 +153,19 @@ const MobileControlsPanel: React.FC = () => {
         <span style={valueStyle}>{zoomDisplay}%</span>
         <button
           onClick={handleZoomIn}
-          disabled={!isAudioLoaded || zoomLevel >= 8}
-          style={btnStyle(!isAudioLoaded || zoomLevel >= 8)}
+          disabled={!isAudioLoaded || zoomLevel >= MAX_ZOOM}
+          style={btnStyle(!isAudioLoaded || zoomLevel >= MAX_ZOOM)}
           title="Zoom In"
         >
           +
         </button>
         <button
           onClick={handleZoomReset}
-          disabled={!isAudioLoaded || zoomLevel === 1}
-          style={{ ...btnStyle(!isAudioLoaded || zoomLevel === 1), fontSize: '9px', fontWeight: 700 }}
-          title="Reset"
+          disabled={!isAudioLoaded || Math.abs(zoomLevel - MIN_ZOOM) < 0.1}
+          style={{ ...btnStyle(!isAudioLoaded || Math.abs(zoomLevel - MIN_ZOOM) < 0.1), fontSize: '9px', fontWeight: 700 }}
+          title="Reset to 1/5 view"
         >
-          1x
+          1/5
         </button>
       </div>
       
@@ -163,8 +183,8 @@ const MobileControlsPanel: React.FC = () => {
         <span style={{ fontSize: '10px', marginRight: '1px' }}>🎵</span>
         <button
           onClick={handlePitchDown}
-          disabled={!isAudioLoaded || pitch <= -2}
-          style={btnStyle(!isAudioLoaded || pitch <= -2)}
+          disabled={!isAudioLoaded || isPitchProcessing || pitch <= -2}
+          style={btnStyle(!isAudioLoaded || isPitchProcessing || pitch <= -2)}
           title="Lower Pitch"
         >
           ↓
@@ -174,16 +194,16 @@ const MobileControlsPanel: React.FC = () => {
         </span>
         <button
           onClick={handlePitchUp}
-          disabled={!isAudioLoaded || pitch >= 2}
-          style={btnStyle(!isAudioLoaded || pitch >= 2)}
+          disabled={!isAudioLoaded || isPitchProcessing || pitch >= 2}
+          style={btnStyle(!isAudioLoaded || isPitchProcessing || pitch >= 2)}
           title="Raise Pitch"
         >
           ↑
         </button>
         <button
           onClick={handlePitchReset}
-          disabled={!isAudioLoaded || pitch === 0}
-          style={{ ...btnStyle(!isAudioLoaded || pitch === 0), fontSize: '9px', fontWeight: 700 }}
+          disabled={!isAudioLoaded || isPitchProcessing || pitch === 0}
+          style={{ ...btnStyle(!isAudioLoaded || isPitchProcessing || pitch === 0), fontSize: '9px', fontWeight: 700 }}
           title="Reset"
         >
           0

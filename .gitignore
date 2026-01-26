@@ -34,6 +34,7 @@ yarn-error.log*
 # Electron
 out/
 dist-electron/
+release/
 
 # OS
 Thumbs.db

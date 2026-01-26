@@ -601,8 +601,35 @@ export class HowlerAudioEngine {
 
   public setVolume(db: number): void {
     if (!this.howl) return;
-    const linear = Math.pow(10, Math.max(-60, Math.min(6, db)) / 20);
-    this.howl.volume(Math.max(0, Math.min(1, linear)));
+    
+    // Clamp dB to valid range (-60 to +6)
+    const clampedDb = Math.max(-60, Math.min(6, db));
+    
+    // For Electron/Howler with HTML5 Audio:
+    // HTML5 Audio only supports 0.0 to 1.0 volume range
+    // Use proper dB to linear conversion, but normalize to 0-1 range
+    // Treat +6 dB as the reference (1.0), so 0 dB = 0.5, -6 dB = 0.25, etc.
+    // This gives more headroom at lower volumes while ensuring max loudness at +6 dB
+    
+    if (clampedDb <= -60) {
+      this.howl.volume(0);
+      return;
+    }
+    
+    // Convert dB to linear: linear = 10^(dB/20)
+    // At +6 dB: 10^(6/20) = ~1.995
+    // At 0 dB: 10^(0/20) = 1.0
+    // At -6 dB: 10^(-6/20) = ~0.5
+    // At -60 dB: 10^(-60/20) = ~0.001
+    
+    // Calculate the linear value relative to +6 dB (our max)
+    const linear = Math.pow(10, clampedDb / 20);
+    const maxLinear = Math.pow(10, 6 / 20); // ~1.995 (value at +6 dB)
+    
+    // Normalize so +6 dB = 1.0 and scale down from there
+    const normalizedVolume = linear / maxLinear;
+    
+    this.howl.volume(Math.max(0, Math.min(1, normalizedVolume)));
   }
 
   /**

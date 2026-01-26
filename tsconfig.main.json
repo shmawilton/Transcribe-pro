@@ -6,11 +6,11 @@
     "lib": ["ES2020"],
     "moduleResolution": "node",
     "allowImportingTsExtensions": false,
-    "outDir": "./dist",
+    "outDir": "./dist-electron",
     "noEmit": false,
     "jsx": "react"
   },
   "include": ["src/main/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "dist-electron"]
 }
 

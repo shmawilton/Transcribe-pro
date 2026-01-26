@@ -458,13 +458,19 @@ export function MarkerTimeline() {
     if (duration === 0 || usableWidth === 0 || visibleDuration === 0) return [];
     
     // Calculate appropriate interval based on VISIBLE duration (not total)
+    // MUST match Waveform.tsx getTimeInterval exactly for alignment
+    // Finer intervals for highly zoomed views to prevent large gaps
     let interval = 30; // default 30 seconds
-    if (visibleDuration > 600) interval = 60; // 1 minute for > 10 min visible
-    if (visibleDuration > 1800) interval = 300; // 5 minutes for > 30 min visible
-    if (visibleDuration < 60) interval = 10; // 10 seconds for < 1 min visible
-    if (visibleDuration < 30) interval = 5; // 5 seconds for < 30 sec visible
-    if (visibleDuration < 10) interval = 2; // 2 seconds for < 10 sec visible (when very zoomed)
-    if (visibleDuration < 5) interval = 1; // 1 second for < 5 sec visible
+    if (visibleDuration < 2) interval = 0.25;      // 0.25 seconds for < 2 sec visible (very zoomed)
+    else if (visibleDuration < 5) interval = 0.5;  // 0.5 seconds for < 5 sec visible
+    else if (visibleDuration < 10) interval = 1;   // 1 second for < 10 sec visible
+    else if (visibleDuration < 20) interval = 2;   // 2 seconds for < 20 sec visible
+    else if (visibleDuration < 30) interval = 5;   // 5 seconds for < 30 sec visible
+    else if (visibleDuration < 60) interval = 10;  // 10 seconds for < 1 min visible
+    else if (visibleDuration < 180) interval = 15; // 15 seconds for < 3 min visible
+    else if (visibleDuration < 600) interval = 30; // 30 seconds for < 10 min visible
+    else if (visibleDuration < 1800) interval = 60; // 1 minute for < 30 min visible
+    else interval = 300;                            // 5 minutes for > 30 min visible
     
     const markers = [];
     
@@ -476,9 +482,18 @@ export function MarkerTimeline() {
       const x = timeToPixel(time);
       // Only include markers that are within the visible container width
       if (x >= TIME_LABEL_PADDING && x <= containerWidth - TIME_LABEL_PADDING) {
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        const label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        // Format label based on interval (show milliseconds for sub-second intervals)
+        let label: string;
+        if (interval < 1) {
+          const minutes = Math.floor(time / 60);
+          const seconds = Math.floor(time % 60);
+          const ms = Math.round((time % 1) * 10);
+          label = `${minutes}:${seconds.toString().padStart(2, '0')}.${ms}`;
+        } else {
+          const minutes = Math.floor(time / 60);
+          const seconds = Math.floor(time % 60);
+          label = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
         markers.push({ time, x, label });
       }
     }

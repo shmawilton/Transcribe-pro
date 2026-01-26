@@ -957,8 +957,20 @@ button, a, [role="button"] {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 140px;
-  max-height: 250px;
+  min-height: 160px;
+  max-height: 300px;
+}
+
+/* Desktop waveform - increase height to show full waveform */
+@media (min-width: 769px) {
+  .waveform-container {
+    min-height: 180px;
+    max-height: 350px;
+  }
+  
+  .waveform-container canvas {
+    min-height: 180px;
+  }
 }
 
 .waveform-canvas {
@@ -2123,7 +2135,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 /* Timeline section on mobile - takes remaining space for stacked markers */
 .mobile-panel.timeline-mobile-section {
   flex: 1 1 auto; /* Take remaining space */
-  min-height: 40px; /* Reduced by 40px */
+  min-height: 30px; /* Reduced by 10px more */
   padding: 0 !important; /* No horizontal padding - edge to edge */
   margin: 0 !important;
   background: rgba(0, 102, 68, 0.08);
@@ -2175,17 +2187,31 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   background: rgba(0, 102, 68, 0.6);
 }
 
-/* Playback section on mobile - fixed 115px, MUST show buttons */
+/* Playback section on mobile - fixed 125px, MUST show buttons */
 .mobile-panel.playback-section {
-  flex: 0 0 115px; /* Increased by 25px */
-  height: 115px;
-  min-height: 110px;
-  max-height: 120px;
+  flex: 0 0 125px; /* Increased by 10px more */
+  height: 125px;
+  min-height: 120px;
+  max-height: 130px;
   padding: 4px 8px !important;
   overflow: visible !important;
   margin: 2px 4px 0 4px !important; /* Small margins on sides */
   border-radius: 8px !important;
   box-shadow: var(--neu-flat) !important;
+}
+
+/* Larger playback buttons on mobile */
+.mobile-panel.playback-section button {
+  min-width: 48px !important;
+  min-height: 48px !important;
+  max-width: 56px !important;
+  max-height: 56px !important;
+  padding: 8px !important;
+}
+
+.mobile-panel.playback-section button svg {
+  width: 26px !important;
+  height: 26px !important;
 }
 
 /* Ensure playback panel content is visible */

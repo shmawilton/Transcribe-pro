@@ -9,6 +9,7 @@ import { getProjectSaver } from '../project/ProjectSaver';
 import { getProjectLoader } from '../project/ProjectLoader';
 import { showToast } from './Toast';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
+import { onPitchStatus } from '../audio/HowlerAudioEngine';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -43,11 +44,26 @@ const MobileMenu: React.FC = () => {
   
   // Pitch and playback rate
   const pitch = useAppStore((state) => state.globalControls.pitch) || 0;
-  const setPitch = useAppStore((state) => state.setPitch);
   const playbackRate = useAppStore((state) => state.globalControls.playbackRate) || 1;
+  const volume = useAppStore((state) => state.globalControls.volume) || 6;
+  const isMuted = useAppStore((state) => state.globalControls.isMuted) || false;
+  const toggleMute = useAppStore((state) => state.toggleMute);
+  const setVolumeStore = useAppStore((state) => state.setVolume);
   
-  const { loadFile, resumeAudioContext } = useAudioEngine();
+  // Use audio engine's pitch method (same as desktop)
+  const { loadFile, resumeAudioContext, setPitch: setAudioPitch, setVolume: setAudioVolume } = useAudioEngine();
   const { animateZoom } = useSmoothViewport();
+  
+  // Pitch processing status
+  const [isPitchProcessing, setIsPitchProcessing] = useState(false);
+  
+  // Subscribe to pitch processing status (same as desktop)
+  useEffect(() => {
+    const unsubscribe = onPitchStatus((status) => {
+      setIsPitchProcessing(status.isProcessing);
+    });
+    return unsubscribe;
+  }, []);
   
   // Neumorphic colors based on theme
   const neuBg = isLightMode ? '#e4ebf5' : '#1e1e1e';
@@ -170,21 +186,42 @@ const MobileMenu: React.FC = () => {
   };
   
   // Pitch handlers - matching desktop behavior (±2 semitones range, 0.1 step)
+  // Uses audio engine's setPitch (same as desktop for proper audio processing)
   const handlePitchUp = () => {
-    if (!isAudioLoaded) return;
+    if (!isAudioLoaded || isPitchProcessing) return;
     const newPitch = Math.min(Math.round((pitch + 0.1) * 10) / 10, 2);
-    setPitch(newPitch);
+    setAudioPitch(newPitch); // Use audio engine's setPitch
   };
   
   const handlePitchDown = () => {
-    if (!isAudioLoaded) return;
+    if (!isAudioLoaded || isPitchProcessing) return;
     const newPitch = Math.max(Math.round((pitch - 0.1) * 10) / 10, -2);
-    setPitch(newPitch);
+    setAudioPitch(newPitch); // Use audio engine's setPitch
   };
   
   const handlePitchReset = () => {
+    if (!isAudioLoaded || isPitchProcessing) return;
+    setAudioPitch(0); // Use audio engine's setPitch
+  };
+  
+  // Volume handlers
+  const handleVolumeUp = () => {
     if (!isAudioLoaded) return;
-    setPitch(0);
+    const newVolume = Math.min(volume + 3, 6);
+    setVolumeStore(newVolume);
+    setAudioVolume(newVolume);
+  };
+  
+  const handleVolumeDown = () => {
+    if (!isAudioLoaded) return;
+    const newVolume = Math.max(volume - 3, -60);
+    setVolumeStore(newVolume);
+    setAudioVolume(newVolume);
+  };
+  
+  const handleToggleMute = () => {
+    if (!isAudioLoaded) return;
+    toggleMute();
   };
   
   // Format pitch display like desktop
@@ -192,6 +229,13 @@ const MobileMenu: React.FC = () => {
     if (value === 0) return '0%';
     const sign = value > 0 ? '+' : '';
     return `${sign}${value.toFixed(1)}%`;
+  };
+  
+  // Format volume display
+  const formatVolumeDisplay = (value: number): string => {
+    if (value <= -60) return 'Muted';
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${Math.round(value)} dB`;
   };
   
   const handleNewProject = async () => {
@@ -311,30 +355,56 @@ const MobileMenu: React.FC = () => {
         borderRadius: '12px',
         boxShadow: neuRaised,
       }}>
-        {/* Left: Hamburger */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          style={{
-            ...btnStyle(isExpanded),
-            width: '36px',
-            height: '36px',
-          }}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
-            {isExpanded ? (
-              <>
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </>
-            ) : (
-              <>
-                <line x1="4" y1="6" x2="20" y2="6" />
-                <line x1="4" y1="12" x2="20" y2="12" />
-                <line x1="4" y1="18" x2="20" y2="18" />
-              </>
-            )}
-          </svg>
-        </button>
+        {/* Left: Logo + Hamburger */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Logo */}
+          <div style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            background: '#0a0a0a',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: neuPressed,
+          }}>
+            <img 
+              src="/logo.png" 
+              alt="Transcribe Pro" 
+              style={{ 
+                width: '28px', 
+                height: '28px', 
+                objectFit: 'contain' 
+              }} 
+            />
+          </div>
+          
+          {/* Hamburger */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            style={{
+              ...btnStyle(isExpanded),
+              width: '36px',
+              height: '36px',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
+              {isExpanded ? (
+                <>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </>
+              ) : (
+                <>
+                  <line x1="4" y1="6" x2="20" y2="6" />
+                  <line x1="4" y1="12" x2="20" y2="12" />
+                  <line x1="4" y1="18" x2="20" y2="18" />
+                </>
+              )}
+            </svg>
+          </button>
+        </div>
         
         {/* Center: Essential actions */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
@@ -502,7 +572,7 @@ const MobileMenu: React.FC = () => {
             </div>
           </div>
           
-          {/* Audio Controls - Pitch */}
+          {/* Audio Controls - Pitch, Volume, Mute */}
           <Divider isLightMode={isLightMode} />
           <div style={{ marginBottom: '6px' }}>
             <div style={{ 
@@ -528,8 +598,8 @@ const MobileMenu: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
                   onClick={handlePitchDown}
-                  disabled={!isAudioLoaded || pitch <= -2}
-                  style={btnStyle(false, !isAudioLoaded || pitch <= -2)}
+                  disabled={!isAudioLoaded || isPitchProcessing || pitch <= -2}
+                  style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch <= -2)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="5" y1="12" x2="19" y2="12" />
@@ -542,12 +612,12 @@ const MobileMenu: React.FC = () => {
                   minWidth: '48px',
                   textAlign: 'center',
                 }}>
-                  {formatPitchDisplay(pitch)}
+                  {isPitchProcessing ? '...' : formatPitchDisplay(pitch)}
                 </span>
                 <button
                   onClick={handlePitchUp}
-                  disabled={!isAudioLoaded || pitch >= 2}
-                  style={btnStyle(false, !isAudioLoaded || pitch >= 2)}
+                  disabled={!isAudioLoaded || isPitchProcessing || pitch >= 2}
+                  style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch >= 2)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="12" y1="5" x2="12" y2="19" />
@@ -556,9 +626,9 @@ const MobileMenu: React.FC = () => {
                 </button>
                 <button
                   onClick={handlePitchReset}
-                  disabled={!isAudioLoaded || pitch === 0}
+                  disabled={!isAudioLoaded || isPitchProcessing || pitch === 0}
                   style={{ 
-                    ...btnStyle(false, !isAudioLoaded || pitch === 0),
+                    ...btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch === 0),
                     fontSize: '9px',
                     fontWeight: 600,
                     width: 'auto',
@@ -566,6 +636,72 @@ const MobileMenu: React.FC = () => {
                   }}
                 >
                   Reset
+                </button>
+              </div>
+            </div>
+            
+            {/* Volume Control */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              padding: '6px 10px',
+              gap: '8px',
+            }}>
+              <span style={{ fontSize: '12px', color: textColor, fontWeight: 500 }}>Volume</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  onClick={handleVolumeDown}
+                  disabled={!isAudioLoaded || volume <= -60}
+                  style={btnStyle(false, !isAudioLoaded || volume <= -60)}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+                <span style={{ 
+                  fontSize: '11px', 
+                  fontWeight: 600, 
+                  color: isMuted ? KENYAN_RED : textColor,
+                  minWidth: '48px',
+                  textAlign: 'center',
+                }}>
+                  {isMuted ? 'Muted' : formatVolumeDisplay(volume)}
+                </span>
+                <button
+                  onClick={handleVolumeUp}
+                  disabled={!isAudioLoaded || volume >= 6}
+                  style={btnStyle(false, !isAudioLoaded || volume >= 6)}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleToggleMute}
+                  disabled={!isAudioLoaded}
+                  style={{ 
+                    ...btnStyle(isMuted, !isAudioLoaded),
+                    width: 'auto',
+                    padding: '0 6px',
+                    background: isMuted ? KENYAN_RED : undefined,
+                    color: isMuted ? 'white' : textColor,
+                  }}
+                >
+                  {isMuted ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                      <line x1="23" y1="9" x2="17" y2="15"/>
+                      <line x1="17" y1="9" x2="23" y2="15"/>
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                    </svg>
+                  )}
                 </button>
               </div>
             </div>

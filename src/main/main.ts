@@ -78,7 +78,7 @@ const createWindow = (): void => {
     }, 500);
     mainWindow.webContents.openDevTools();
   } else {
-    const filePath = path.join(__dirname, '../renderer/index.html');
+    const filePath = path.join(__dirname, '../dist/index.html');
     mainWindow.loadFile(filePath);
   }
 

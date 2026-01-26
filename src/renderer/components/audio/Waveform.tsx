@@ -113,68 +113,20 @@ const Waveform: React.FC = () => {
     }
   }, [duration, setViewport]);
   
-  // Smooth zoom animation
+  // Sync animated viewport ref with store values directly for perfect sync with MarkerTimeline
+  // Animation is now handled by useSmoothViewport hook which updates the store
   useEffect(() => {
     const targetStart = viewportStart;
     const targetEnd = viewportEnd > 0 ? viewportEnd : duration;
     
-    // Initialize animated viewport on first load
-    if (!animatedViewportRef.current.initialized && targetEnd > 0) {
+    // Update animated viewport ref directly from store values
+    // This ensures perfect sync with MarkerTimeline which also reads from store
+    if (targetEnd > 0) {
       animatedViewportRef.current = { start: targetStart, end: targetEnd, initialized: true };
       targetViewportRef.current = { start: targetStart, end: targetEnd };
+      // Force re-render to update waveform
       setAnimationTick(n => n + 1);
-      return;
     }
-    
-    // Skip if target hasn't changed significantly
-    const threshold = 0.001;
-    if (
-      Math.abs(targetViewportRef.current.start - targetStart) < threshold && 
-      Math.abs(targetViewportRef.current.end - targetEnd) < threshold
-    ) {
-      return;
-    }
-    
-    targetViewportRef.current = { start: targetStart, end: targetEnd };
-    
-    // Cancel existing animation
-    if (zoomAnimationRef.current) {
-      cancelAnimationFrame(zoomAnimationRef.current);
-    }
-    
-    // Animate to new viewport
-    const startTime = performance.now();
-    const animationDuration = 350; // ms - smooth but quick
-    const fromStart = animatedViewportRef.current.start;
-    const fromEnd = animatedViewportRef.current.end;
-    
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / animationDuration, 1);
-      
-      // Ease-out cubic for smooth water-like deceleration
-      const eased = 1 - Math.pow(1 - progress, 3);
-      
-      const newStart = fromStart + (targetStart - fromStart) * eased;
-      const newEnd = fromEnd + (targetEnd - fromEnd) * eased;
-      
-      animatedViewportRef.current = { start: newStart, end: newEnd, initialized: true };
-      
-      // Force re-render for smooth animation
-      setAnimationTick(n => n + 1);
-      
-      if (progress < 1) {
-        zoomAnimationRef.current = requestAnimationFrame(animate);
-      }
-    };
-    
-    zoomAnimationRef.current = requestAnimationFrame(animate);
-    
-    return () => {
-      if (zoomAnimationRef.current) {
-        cancelAnimationFrame(zoomAnimationRef.current);
-      }
-    };
   }, [viewportStart, viewportEnd, duration]);
   
   // Cache peaks outside component state to avoid unnecessary re-renders
@@ -435,16 +387,21 @@ const Waveform: React.FC = () => {
   /**
    * Calculate appropriate time interval based on VISIBLE duration
    * MUST match MarkerTimeline intervals exactly for alignment
+   * Added finer intervals for zoomed views to prevent large gaps
    */
   const getTimeInterval = (visibleDuration: number): number => {
     // Match MarkerTimeline.tsx intervals exactly
-    if (visibleDuration > 1800) return 300;    // 5 minutes for > 30 min visible
-    if (visibleDuration > 600) return 60;      // 1 minute for > 10 min visible
-    if (visibleDuration < 5) return 1;         // 1 second for < 5 sec visible (very zoomed)
-    if (visibleDuration < 10) return 2;        // 2 seconds for < 10 sec visible
+    // Finer intervals for highly zoomed views
+    if (visibleDuration < 2) return 0.25;      // 0.25 seconds for < 2 sec visible (very zoomed)
+    if (visibleDuration < 5) return 0.5;       // 0.5 seconds for < 5 sec visible
+    if (visibleDuration < 10) return 1;        // 1 second for < 10 sec visible
+    if (visibleDuration < 20) return 2;        // 2 seconds for < 20 sec visible
     if (visibleDuration < 30) return 5;        // 5 seconds for < 30 sec visible
     if (visibleDuration < 60) return 10;       // 10 seconds for < 1 min visible
-    return 30;                                  // default 30 seconds
+    if (visibleDuration < 180) return 15;      // 15 seconds for < 3 min visible
+    if (visibleDuration < 600) return 30;      // 30 seconds for < 10 min visible
+    if (visibleDuration < 1800) return 60;     // 1 minute for < 30 min visible
+    return 300;                                 // 5 minutes for > 30 min visible
   };
 
   /**
@@ -472,19 +429,29 @@ const Waveform: React.FC = () => {
     // Start from first interval point at or after viewportStart
     const firstMarkerTime = Math.ceil(viewportStart / interval) * interval;
     
-    // Draw grid lines at each interval within viewport (matching MarkerTimeline)
-    for (let time = firstMarkerTime; time <= viewportEnd; time += interval) {
-      // Calculate X position relative to viewport
+    // Draw intermediate gridlines (half-interval) for finer resolution
+    const subInterval = interval / 2;
+    const firstSubMarkerTime = Math.ceil(viewportStart / subInterval) * subInterval;
+    
+    for (let time = firstSubMarkerTime; time <= viewportEnd; time += subInterval) {
       const relativeTime = time - viewportStart;
       const x = Math.round(offsetX + (relativeTime / visibleDuration) * usableWidth);
       
-      // Only draw if within visible area
       if (x >= offsetX && x <= width - offsetX) {
-        // Subtle grid lines - no labels needed
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 1;
+        // Check if this is a main interval or sub-interval
+        const isMainInterval = Math.abs(time % interval) < 0.001 || Math.abs((time % interval) - interval) < 0.001;
         
-        // Draw vertical line at half-pixel offset for crisp 1px lines
+        if (isMainInterval) {
+          // Main grid lines - brighter
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+          ctx.lineWidth = 1;
+        } else {
+          // Sub grid lines - more subtle
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+          ctx.lineWidth = 0.5;
+        }
+        
+        // Draw vertical line at half-pixel offset for crisp lines
         ctx.beginPath();
         ctx.moveTo(x + 0.5, 0);
         ctx.lineTo(x + 0.5, height);

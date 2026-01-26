@@ -10,7 +10,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['pwa.svg'],
+      includeAssets: ['pwa.svg', 'logo.png'],
       manifest: {
         name: 'Transcription Pro',
         short_name: 'Transcribe Pro',
@@ -18,19 +18,54 @@ export default defineConfig({
         theme_color: '#0a0a0a',
         background_color: '#0a0a0a',
         display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        orientation: 'any',
         icons: [
           {
-            src: '/pwa.svg',
+            src: '/logo.png',
             sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable',
+          },
+          {
+            src: '/pwa.svg',
+            sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any',
           },
         ],
+        screenshots: [],
+        categories: ['music', 'productivity'],
       },
       workbox: {
         // Cache app shell + built assets for offline use
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf,eot}'],
         navigateFallback: '/index.html',
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'gstatic-fonts-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+              },
+            },
+          },
+        ],
       },
     }),
   ],

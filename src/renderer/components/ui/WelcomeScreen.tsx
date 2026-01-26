@@ -21,6 +21,8 @@ const HANDWRITTEN_FONT = "'Merienda', 'Caveat', cursive";
 interface WelcomeScreenProps {
   onAudioLoaded: () => void;
   onProjectLoaded?: () => void;
+  pendingRestore?: boolean;
+  onRestorePendingSession?: () => void;
 }
 
 // SVG Icons
@@ -64,12 +66,13 @@ const HeartIcon = () => (
   </svg>
 );
 
-const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectLoaded }) => {
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectLoaded, pendingRestore, onRestorePendingSession }) => {
   const { loadFile, isLoading, resumeAudioContext } = useAudioEngine();
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const [isRestoringSession, setIsRestoringSession] = useState(false);
   
   // Mobile/PWA stored projects
   const [storedProjects, setStoredProjects] = useState<StoredProject[]>([]);
@@ -78,6 +81,17 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
   const [isMobile] = useState(() => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768);
   
   const theme = useAppStore((state) => state.theme);
+  
+  // Handle restoring pending session (mobile audio context fix)
+  const handleRestoreSession = async () => {
+    if (!onRestorePendingSession) return;
+    setIsRestoringSession(true);
+    try {
+      await onRestorePendingSession();
+    } finally {
+      setIsRestoringSession(false);
+    }
+  };
   const isLightMode = theme === 'light';
   
   // Neumorphic colors based on theme
@@ -419,6 +433,45 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
           width: isMobile ? '100%' : 'auto',
           minWidth: isMobile ? 'auto' : '400px'
         }}>
+          {/* Restore Previous Session Button (shown on mobile when audio context failed) */}
+          {pendingRestore && onRestorePendingSession && (
+            <button
+              onClick={handleRestoreSession}
+              disabled={isRestoringSession}
+              style={{
+                width: '100%',
+                padding: isMobile ? 'clamp(0.75rem, 3vw, 1rem) clamp(0.75rem, 3vw, 1.5rem)' : '0.75rem 1.25rem',
+                border: `2px solid ${KENYAN_GREEN}`,
+                borderRadius: isMobile ? 'clamp(12px, 3vw, 16px)' : '14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.75rem',
+                cursor: isRestoringSession ? 'wait' : 'pointer',
+                background: `linear-gradient(135deg, ${KENYAN_GREEN}20, ${KENYAN_GREEN}10)`,
+                transition: 'all 0.3s ease',
+                boxShadow: `0 0 20px ${KENYAN_GREEN}30`,
+                opacity: isRestoringSession ? 0.7 : 1,
+                fontFamily: HANDWRITTEN_FONT,
+                minHeight: isMobile ? '50px' : '50px',
+                touchAction: 'manipulation',
+                animation: 'pulse 2s ease-in-out infinite'
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+              <span style={{
+                color: KENYAN_GREEN,
+                fontWeight: '600',
+                fontSize: isMobile ? 'clamp(0.85rem, 3vw, 1rem)' : '0.95rem'
+              }}>
+                {isRestoringSession ? 'Restoring...' : 'Tap to Restore Previous Session'}
+              </span>
+            </button>
+          )}
+          
           {/* New Project Button */}
           <button
             onDragOver={handleDragOver}

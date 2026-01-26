@@ -70,7 +70,19 @@ const App: React.FC = () => {
   const currentTime = useAppStore((state) => state.audio.currentTime);
   const duration = useAppStore((state) => state.audio.duration);
   const currentVolume = useAppStore((state) => state.globalControls.volume);
+  const isMuted = useAppStore((state) => state.globalControls.isMuted);
   const setVolumeStore = useAppStore((state) => state.setVolume);
+  
+  // Sync volume/mute changes with audio engine
+  // This ensures mute toggle works correctly
+  useEffect(() => {
+    if (isAudioLoaded) {
+      // Apply volume from store to audio engine
+      // When muted, volume is -60 dB (effectively silent)
+      setVolume(currentVolume);
+      console.log('[App] Volume synced:', { currentVolume, isMuted });
+    }
+  }, [currentVolume, isMuted, isAudioLoaded, setVolume]);
   
   // Track if we've already triggered auto-replay to prevent loops
   const autoReplayTriggeredRef = React.useRef(false);
@@ -115,6 +127,9 @@ const App: React.FC = () => {
     console.log('[App] Loading state changed:', { isLoading, isAudioLoaded, showWelcome });
   }, [isLoading, isAudioLoaded, showWelcome]);
 
+  // Track if auto-restore is pending (failed due to audio context)
+  const [pendingRestore, setPendingRestore] = React.useState(false);
+  
   // Web-only: restore last auto-saved project on reload (offline-friendly)
   useEffect(() => {
     const isElectron = !!(window as any).electronAPI || 
@@ -129,11 +144,28 @@ const App: React.FC = () => {
         const store = useAppStore.getState();
         if (store.audio.isLoaded || store.audio.isLoading) return;
 
-        await resumeAudioContext();
+        // Check if there's an auto-saved project first
+        const autosaveData = localStorage.getItem('transcribe-pro-web-autosave');
+        if (!autosaveData) {
+          console.log('[App] No auto-saved project found');
+          return;
+        }
+        
+        // Try to resume audio context - this may fail on mobile without user interaction
+        try {
+          await resumeAudioContext();
+        } catch (audioCtxError) {
+          console.warn('[App] Audio context resume failed (mobile restriction), will retry on interaction:', audioCtxError);
+          // Mark that we have a pending restore
+          setPendingRestore(true);
+          return;
+        }
+        
         const loader = getProjectLoader();
         const restored = await loader.loadAutoSavedProject(loadFile);
         if (restored) {
           setShowWelcome(false);
+          setPendingRestore(false);
           // Mark autosave timestamp so exit warnings don't fire immediately
           try {
             (useAppStore.getState() as any).setLastAutoSaveAt?.(Date.now());
@@ -142,9 +174,32 @@ const App: React.FC = () => {
         }
       } catch (e) {
         console.warn('[App] Auto-restore failed:', e);
+        // Check if it's a mobile audio context issue
+        if (localStorage.getItem('transcribe-pro-web-autosave')) {
+          setPendingRestore(true);
+        }
       }
     })();
   }, [loadFile, resumeAudioContext]);
+  
+  // Handle user interaction to restore pending session (mobile fix)
+  const handleRestorePendingSession = React.useCallback(async () => {
+    if (!pendingRestore) return;
+    
+    try {
+      await resumeAudioContext();
+      const loader = getProjectLoader();
+      const restored = await loader.loadAutoSavedProject(loadFile);
+      if (restored) {
+        setShowWelcome(false);
+        setPendingRestore(false);
+        console.log('[App] Restored pending auto-saved project after user interaction');
+      }
+    } catch (e) {
+      console.error('[App] Failed to restore pending session:', e);
+      setPendingRestore(false);
+    }
+  }, [pendingRestore, resumeAudioContext, loadFile]);
 
   // Web-only: auto-save immediately before unload and warn if needed
   useEffect(() => {
@@ -544,6 +599,8 @@ const App: React.FC = () => {
         <WelcomeScreen 
           onAudioLoaded={handleAudioLoaded}
           onProjectLoaded={handleProjectLoaded}
+          pendingRestore={pendingRestore}
+          onRestorePendingSession={handleRestorePendingSession}
         />
       </ErrorBoundary>
     );
