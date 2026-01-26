@@ -959,64 +959,19 @@ const MenuBar: React.FC = () => {
         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Left side - Logo + Connected Neumorphic Menu Tabs */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
-        {/* Logo */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          padding: '6px 12px',
-          borderRadius: '14px',
-          background: isLightMode ? '#e4ebf5' : '#1e1e1e',
-          boxShadow: isLightMode
-            ? '6px 6px 12px rgba(163, 177, 198, 0.5), -4px -4px 8px rgba(255, 255, 255, 0.8)'
-            : '6px 6px 12px rgba(0, 0, 0, 0.4), -4px -4px 8px rgba(50, 50, 50, 0.2)',
-        }}>
-          <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '10px',
-            overflow: 'hidden',
-            background: '#0a0a0a',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: 'inset 2px 2px 4px rgba(0,0,0,0.3)',
-          }}>
-            <img 
-              src="/logo.png" 
-              alt="Transcribe Pro" 
-              style={{ 
-                width: '32px', 
-                height: '32px', 
-                objectFit: 'contain' 
-              }} 
-            />
-          </div>
-          <span style={{
-            fontSize: '1rem',
-            fontWeight: '600',
-            color: textColor,
-            fontFamily: HANDWRITTEN_FONT,
-            letterSpacing: '0.5px',
-          }}>
-            Transcribe Pro
-          </span>
-        </div>
-        
-        {/* Menu Tabs */}
-        <div style={{ 
-          display: 'flex',
-          alignItems: 'center',
-          whiteSpace: 'nowrap',
-          borderRadius: '20px',
-          background: isLightMode ? '#e4ebf5' : '#1e1e1e',
-          boxShadow: isLightMode
-            ? '10px 10px 20px rgba(163, 177, 198, 0.6), -10px -10px 20px rgba(255, 255, 255, 0.9)'
-            : '10px 10px 20px rgba(0, 0, 0, 0.5), -8px -8px 16px rgba(50, 50, 50, 0.25)',
-          overflow: 'hidden',
-        }}>
+      {/* Left side - Connected Neumorphic Menu Tabs */}
+      <div style={{ 
+        display: 'flex',
+        alignItems: 'center',
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
+        borderRadius: '20px',
+        background: isLightMode ? '#e4ebf5' : '#1e1e1e',
+        boxShadow: isLightMode
+          ? '10px 10px 20px rgba(163, 177, 198, 0.6), -10px -10px 20px rgba(255, 255, 255, 0.9)'
+          : '10px 10px 20px rgba(0, 0, 0, 0.5), -8px -8px 16px rgba(50, 50, 50, 0.25)',
+        overflow: 'hidden',
+      }}>
         {menuItems.map((item, index) => {
           const IconComponent = item.icon;
           const isOpen = openMenu === item.id;
@@ -1147,7 +1102,6 @@ const MenuBar: React.FC = () => {
             textColor={textColor}
           />
         </div>
-      </div>
       </div>
 
       {/* Center-Right - Compact Zoom Controls */}

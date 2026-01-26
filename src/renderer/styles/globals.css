@@ -1,6 +1,15 @@
 /* Import fonts first - must be at the top */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merienda:wght@300;400;500;600;700&display=swap');
 
+/* Rounded logo styling */
+img[src*="logo"], 
+img[alt*="logo"],
+img[alt*="Logo"],
+[class*="logo"] img {
+  border-radius: 20% !important;
+  overflow: hidden;
+}
+
 /* Kenyan Theme Foundation - Transcribe Pro */
 
 :root {

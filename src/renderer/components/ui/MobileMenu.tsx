@@ -355,56 +355,30 @@ const MobileMenu: React.FC = () => {
         borderRadius: '12px',
         boxShadow: neuRaised,
       }}>
-        {/* Left: Logo + Hamburger */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {/* Logo */}
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            background: '#0a0a0a',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: neuPressed,
-          }}>
-            <img 
-              src="/logo.png" 
-              alt="Transcribe Pro" 
-              style={{ 
-                width: '28px', 
-                height: '28px', 
-                objectFit: 'contain' 
-              }} 
-            />
-          </div>
-          
-          {/* Hamburger */}
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            style={{
-              ...btnStyle(isExpanded),
-              width: '36px',
-              height: '36px',
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
-              {isExpanded ? (
-                <>
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </>
-              ) : (
-                <>
-                  <line x1="4" y1="6" x2="20" y2="6" />
-                  <line x1="4" y1="12" x2="20" y2="12" />
-                  <line x1="4" y1="18" x2="20" y2="18" />
-                </>
-              )}
-            </svg>
-          </button>
-        </div>
+        {/* Left: Hamburger */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          style={{
+            ...btnStyle(isExpanded),
+            width: '36px',
+            height: '36px',
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
+            {isExpanded ? (
+              <>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </>
+            ) : (
+              <>
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="4" y1="12" x2="20" y2="12" />
+                <line x1="4" y1="18" x2="20" y2="18" />
+              </>
+            )}
+          </svg>
+        </button>
         
         {/* Center: Essential actions */}
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>

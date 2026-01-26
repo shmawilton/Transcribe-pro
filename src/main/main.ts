@@ -48,10 +48,38 @@ function getCamelotKey(key: string, mode: string): string {
 }
 
 const createWindow = (): void => {
+  // Get icon path - use logo.ico for Windows, logo.png for other platforms
+  // Try multiple paths to find the icon
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+  const isWindows = process.platform === 'win32';
+  const iconFile = isWindows ? 'logo.ico' : 'logo.png';
+  let iconPath: string | undefined;
+  
+  // Try different possible paths
+  const possiblePaths = isDev
+    ? [
+        path.join(process.cwd(), 'public', iconFile),
+        path.join(__dirname, '..', '..', '..', 'public', iconFile),
+      ]
+    : [
+        path.join(process.resourcesPath, 'public', iconFile),
+        path.join(process.resourcesPath, 'app.asar.unpacked', 'public', iconFile),
+        path.join(__dirname, '..', '..', 'public', iconFile),
+        path.join(app.getAppPath(), 'public', iconFile),
+      ];
+  
+  for (const testPath of possiblePaths) {
+    if (fs.existsSync(testPath)) {
+      iconPath = testPath;
+      break;
+    }
+  }
+  
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     autoHideMenuBar: true, // Hide the native menu bar
+    icon: iconPath, // Set window icon
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -65,8 +93,6 @@ const createWindow = (): void => {
   });
 
   // Load the app
-  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-  
   if (isDev) {
     const devUrl = 'http://localhost:3000';
     setTimeout(() => {

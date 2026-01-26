@@ -21,7 +21,8 @@
     "appId": "com.transcribepro.app",
     "productName": "TranscribePro",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
@@ -35,6 +36,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "public/logo.png",
+        "to": "public/logo.png"
       }
     ],
     "win": {
@@ -46,7 +51,7 @@
           ]
         }
       ],
-      "icon": "public/icon.ico"
+      "icon": "public/logo.ico"
     },
     "mac": {
       "target": [
@@ -66,7 +71,7 @@
         "AppImage",
         "deb"
       ],
-      "icon": "public/icon.png",
+      "icon": "public/logo.png",
       "category": "Audio"
     },
     "nsis": {
