@@ -92,10 +92,10 @@ const MobileControlsPanel: React.FC = () => {
   const pitchDisplay = isPitchProcessing ? '...' : (pitch > 0 ? `+${pitch.toFixed(1)}` : pitch.toFixed(1));
   
   const btnStyle = (disabled: boolean = false) => ({
-    width: '26px',
-    height: '26px',
-    minWidth: '26px',
-    borderRadius: '5px',
+    width: '36px',
+    height: '36px',
+    minWidth: '36px',
+    borderRadius: '8px',
     border: 'none',
     background: neuBg,
     boxShadow: neuRaised,
@@ -107,14 +107,14 @@ const MobileControlsPanel: React.FC = () => {
     color: textColor,
     touchAction: 'manipulation' as const,
     padding: 0,
-    fontSize: '12px',
+    fontSize: '16px',
     fontWeight: 600 as const,
   });
   
   const valueStyle = {
-    fontSize: '10px',
+    fontSize: '14px',
     fontWeight: 600 as const,
-    minWidth: '32px',
+    minWidth: '44px',
     textAlign: 'center' as const,
     color: KENYAN_GREEN,
   };
@@ -124,24 +124,24 @@ const MobileControlsPanel: React.FC = () => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: '8px',
+      gap: '12px',
       height: '100%',
       width: '100%',
-      padding: '2px 4px',
+      padding: '6px 8px',
       boxSizing: 'border-box',
     }}>
       {/* Zoom Controls */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '3px',
+        gap: '6px',
         background: neuBg,
-        borderRadius: '6px',
-        padding: '2px 4px',
+        borderRadius: '10px',
+        padding: '6px 10px',
         boxShadow: neuPressed,
         flexShrink: 0,
       }}>
-        <span style={{ fontSize: '10px', marginRight: '1px' }}>🔍</span>
+        <span style={{ fontSize: '14px', marginRight: '2px' }}>🔍</span>
         <button
           onClick={handleZoomOut}
           disabled={!isAudioLoaded || zoomLevel <= MIN_ZOOM}
@@ -162,7 +162,7 @@ const MobileControlsPanel: React.FC = () => {
         <button
           onClick={handleZoomReset}
           disabled={!isAudioLoaded || Math.abs(zoomLevel - MIN_ZOOM) < 0.1}
-          style={{ ...btnStyle(!isAudioLoaded || Math.abs(zoomLevel - MIN_ZOOM) < 0.1), fontSize: '9px', fontWeight: 700 }}
+          style={{ ...btnStyle(!isAudioLoaded || Math.abs(zoomLevel - MIN_ZOOM) < 0.1), fontSize: '12px', fontWeight: 700 }}
           title="Reset to 1/5 view"
         >
           1/5
@@ -173,14 +173,14 @@ const MobileControlsPanel: React.FC = () => {
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '3px',
+        gap: '6px',
         background: neuBg,
-        borderRadius: '6px',
-        padding: '2px 4px',
+        borderRadius: '10px',
+        padding: '6px 10px',
         boxShadow: neuPressed,
         flexShrink: 0,
       }}>
-        <span style={{ fontSize: '10px', marginRight: '1px' }}>🎵</span>
+        <span style={{ fontSize: '14px', marginRight: '2px' }}>🎵</span>
         <button
           onClick={handlePitchDown}
           disabled={!isAudioLoaded || isPitchProcessing || pitch <= -2}
@@ -203,7 +203,7 @@ const MobileControlsPanel: React.FC = () => {
         <button
           onClick={handlePitchReset}
           disabled={!isAudioLoaded || isPitchProcessing || pitch === 0}
-          style={{ ...btnStyle(!isAudioLoaded || isPitchProcessing || pitch === 0), fontSize: '9px', fontWeight: 700 }}
+          style={{ ...btnStyle(!isAudioLoaded || isPitchProcessing || pitch === 0), fontSize: '12px', fontWeight: 700 }}
           title="Reset"
         >
           0

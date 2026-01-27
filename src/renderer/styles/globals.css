@@ -2076,24 +2076,26 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 
 /* Mobile layout container */
 .app-container.mobile-layout {
-  padding-top: 52px; /* Space for mobile menu - increased to prevent overlap */
-  padding-bottom: 24px; /* Space for status bar */
-  height: 100vh;
-  height: 100dvh; /* Dynamic viewport height for mobile browsers */
-  overflow: hidden !important; /* NO SCROLLING */
+  padding-top: 68px; /* Space for mobile menu - increased further for larger menu */
+  padding-bottom: 28px; /* Space for status bar */
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile browsers */
+  overflow-y: auto; /* Allow scrolling when content doesn't fit */
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
 
-/* Mobile main content - NO SCROLL on main, flex column */
+/* Mobile main content - Allow scrolling for overflow content */
 .main-content.mobile-content {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  height: calc(100dvh - 76px); /* 100dvh - menu(52) - statusbar(24) */
+  min-height: calc(100dvh - 96px); /* Minimum height, can grow */
   min-height: 0; /* Critical for flexbox to shrink */
-  overflow: hidden !important; /* NO SCROLLING on main */
-  gap: 2px;
+  overflow-y: auto; /* Allow scrolling when needed */
+  overflow-x: hidden;
+  gap: 4px;
   padding: 0 !important; /* No horizontal padding - edge to edge */
 }
 
@@ -2320,7 +2322,94 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   
   /* Time display compact */
   .mobile-panel.playback-section .time-display {
-    font-size: 0.7rem !important;
+    font-size: 0.85rem !important;
+  }
+}
+
+/* ====== MOBILE VISIBILITY IMPROVEMENTS ====== */
+@media (max-width: 768px) {
+  /* Make mobile layout scrollable */
+  .app-container.mobile-layout {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    min-height: 100dvh;
+  }
+  
+  .main-content.mobile-content {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    min-height: auto !important;
+  }
+  
+  /* Increase base font size on mobile */
+  html {
+    font-size: 18px !important;
+  }
+  
+  body {
+    font-size: 1rem !important;
+    line-height: 1.5 !important;
+  }
+  
+  /* Larger playback buttons */
+  .mobile-panel.playback-section button {
+    min-width: 52px !important;
+    min-height: 52px !important;
+    max-width: 60px !important;
+    max-height: 60px !important;
+    padding: 10px !important;
+    border-radius: 12px !important;
+  }
+  
+  .mobile-panel.playback-section button svg {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  
+  /* Increase playback panel height */
+  .mobile-panel.playback-section {
+    flex: 0 0 140px !important;
+    height: 140px !important;
+    min-height: 135px !important;
+    max-height: 150px !important;
+  }
+  
+  /* Marker panel improvements */
+  .mobile-panel.marker-panel-section {
+    min-height: 180px !important;
+    max-height: 200px !important;
+  }
+  
+  .mobile-panel.marker-panel-section button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 0.9rem !important;
+  }
+  
+  .mobile-panel.marker-panel-section svg {
+    width: 20px !important;
+    height: 20px !important;
+  }
+  
+  /* Larger text in marker items */
+  .mobile-panel.marker-panel-section span,
+  .mobile-panel.marker-panel-section p,
+  .mobile-panel.marker-panel-section label {
+    font-size: 0.95rem !important;
+  }
+  
+  /* Global text size increases */
+  span, p, label, div {
+    font-size: inherit;
+  }
+  
+  button {
+    font-size: 0.9rem !important;
+  }
+  
+  input, select, textarea {
+    font-size: 1rem !important;
+    min-height: 44px !important;
   }
 }
 

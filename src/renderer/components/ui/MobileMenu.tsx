@@ -91,37 +91,42 @@ const MobileMenu: React.FC = () => {
     }
   }, [isExpanded]);
   
-  // PWA Install prompt handler
+  // PWA Install prompt handler - More aggressive prompting
   useEffect(() => {
-    // Check if app is already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    // Check if app is already installed (standalone mode)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                         (window.navigator as any).standalone === true;
+    if (isStandalone) {
       setIsAppInstalled(true);
-      return;
-    }
-    
-    // Check localStorage for dismissed banner
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
-    const dismissedTime = dismissed ? parseInt(dismissed, 10) : 0;
-    const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
-    
-    // Only show banner again after 7 days if dismissed
-    if (dismissedTime && daysSinceDismissed < 7) {
       return;
     }
     
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Show install banner after 3 seconds
-      setTimeout(() => {
-        setShowInstallBanner(true);
-      }, 3000);
+      
+      // Check localStorage for dismissed banner
+      const dismissed = localStorage.getItem('pwa-install-dismissed');
+      const dismissedTime = dismissed ? parseInt(dismissed, 10) : 0;
+      const hoursSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60);
+      
+      // Show banner again after 2 hours if dismissed (more frequent reminders)
+      const shouldShowBanner = !dismissedTime || hoursSinceDismissed >= 2;
+      
+      // Show install banner immediately on first load, or after 1 second on subsequent loads
+      if (shouldShowBanner) {
+        const delay = !dismissedTime ? 500 : 1000;
+        setTimeout(() => {
+          setShowInstallBanner(true);
+        }, delay);
+      }
     };
     
     const handleAppInstalled = () => {
       setIsAppInstalled(true);
       setShowInstallBanner(false);
       setDeferredPrompt(null);
+      localStorage.removeItem('pwa-install-dismissed');
       showToast('App installed successfully!', 'success');
     };
     
@@ -133,6 +138,25 @@ const MobileMenu: React.FC = () => {
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+  
+  // Periodic reminder for PWA install (separate effect)
+  useEffect(() => {
+    if (isAppInstalled || !deferredPrompt) return;
+    
+    const periodicReminder = setInterval(() => {
+      // Check if banner is not currently showing and should be shown
+      const dismissed = localStorage.getItem('pwa-install-dismissed');
+      const dismissedTime = dismissed ? parseInt(dismissed, 10) : 0;
+      const hoursSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60);
+      const shouldShowBanner = !dismissedTime || hoursSinceDismissed >= 2;
+      
+      if (shouldShowBanner) {
+        setShowInstallBanner(true);
+      }
+    }, 45000); // Every 45 seconds
+    
+    return () => clearInterval(periodicReminder);
+  }, [isAppInstalled, deferredPrompt]);
   
   // Handle PWA install
   const handleInstallApp = async () => {
@@ -312,11 +336,11 @@ const MobileMenu: React.FC = () => {
     ? Math.round(zoomLevel * 100)
     : 100;
   
-  // Compact button style
+  // Compact button style - LARGER for better visibility
   const btnStyle = (isActive: boolean = false, isDisabled: boolean = false) => ({
-    width: '32px',
-    height: '32px',
-    borderRadius: '8px',
+    width: '44px',
+    height: '44px',
+    borderRadius: '10px',
     border: 'none',
     background: neuBg,
     boxShadow: isActive ? neuPressed : neuRaised,
@@ -344,27 +368,28 @@ const MobileMenu: React.FC = () => {
         gap: '4px',
       }}
     >
-      {/* Main Menu Bar - Compact */}
+      {/* Main Menu Bar - Larger for better visibility */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '4px',
-        padding: '4px 8px',
+        gap: '8px',
+        padding: '8px 12px',
         background: neuBg,
-        borderRadius: '12px',
+        borderRadius: '14px',
         boxShadow: neuRaised,
+        minHeight: '56px',
       }}>
         {/* Left: Hamburger */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           style={{
             ...btnStyle(isExpanded),
-            width: '36px',
-            height: '36px',
+            width: '46px',
+            height: '46px',
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
             {isExpanded ? (
               <>
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -381,14 +406,14 @@ const MobileMenu: React.FC = () => {
         </button>
         
         {/* Center: Essential actions */}
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           {/* Undo */}
           <button
             onClick={() => canUndo() && undo()}
             disabled={!canUndo()}
             style={btnStyle(false, !canUndo())}
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
               <path fillRule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
               <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
             </svg>
@@ -400,7 +425,7 @@ const MobileMenu: React.FC = () => {
             disabled={!canRedo()}
             style={btnStyle(false, !canRedo())}
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
               <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
               <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966a.25.25 0 0 1 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
             </svg>
@@ -412,7 +437,7 @@ const MobileMenu: React.FC = () => {
             style={btnStyle()}
             title="Settings"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="4" y1="21" x2="4" y2="14" />
               <line x1="4" y1="10" x2="4" y2="3" />
               <line x1="12" y1="21" x2="12" y2="12" />
@@ -431,16 +456,16 @@ const MobileMenu: React.FC = () => {
           onClick={toggleTheme}
           style={{
             ...btnStyle(),
-            width: '36px',
-            height: '36px',
+            width: '46px',
+            height: '46px',
           }}
         >
           {isLightMode ? (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
               <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>
             </svg>
           ) : (
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
               <path d="M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13z"/>
             </svg>
@@ -452,20 +477,20 @@ const MobileMenu: React.FC = () => {
       {isExpanded && (
         <div style={{
           background: neuBg,
-          borderRadius: '12px',
+          borderRadius: '14px',
           boxShadow: neuRaised,
-          padding: '8px',
-          maxHeight: '70vh',
+          padding: '12px',
+          maxHeight: '75vh',
           overflowY: 'auto',
           animation: 'slideDown 0.15s ease-out',
         }}>
           {/* File Section */}
-          <div style={{ marginBottom: '6px' }}>
+          <div style={{ marginBottom: '10px' }}>
             <div style={{ 
-              fontSize: '9px', 
+              fontSize: '12px', 
               fontWeight: 700, 
               color: KENYAN_GREEN, 
-              padding: '2px 10px',
+              padding: '4px 14px',
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}>
@@ -480,12 +505,12 @@ const MobileMenu: React.FC = () => {
           
           {/* View Section - Zoom controls */}
           <Divider isLightMode={isLightMode} />
-          <div style={{ marginBottom: '6px' }}>
+          <div style={{ marginBottom: '10px' }}>
             <div style={{ 
-              fontSize: '9px', 
+              fontSize: '12px', 
               fontWeight: 700, 
               color: KENYAN_GREEN, 
-              padding: '2px 10px',
+              padding: '4px 14px',
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}>
@@ -496,25 +521,25 @@ const MobileMenu: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              padding: '6px 10px',
-              gap: '8px',
+              padding: '10px 14px',
+              gap: '10px',
             }}>
-              <span style={{ fontSize: '12px', color: textColor, fontWeight: 500 }}>Zoom</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Zoom</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
                   onClick={handleZoomOut}
                   disabled={!isAudioLoaded || zoomLevel <= MIN_ZOOM}
                   style={btnStyle(false, !isAudioLoaded || zoomLevel <= MIN_ZOOM)}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </button>
                 <span style={{ 
-                  fontSize: '11px', 
+                  fontSize: '14px', 
                   fontWeight: 600, 
                   color: KENYAN_GREEN,
-                  minWidth: '40px',
+                  minWidth: '48px',
                   textAlign: 'center',
                 }}>
                   {zoomDisplay}%
@@ -524,7 +549,7 @@ const MobileMenu: React.FC = () => {
                   disabled={!isAudioLoaded || zoomLevel >= MAX_ZOOM}
                   style={btnStyle(false, !isAudioLoaded || zoomLevel >= MAX_ZOOM)}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
@@ -534,10 +559,11 @@ const MobileMenu: React.FC = () => {
                   disabled={!isAudioLoaded}
                   style={{ 
                     ...btnStyle(false, !isAudioLoaded),
-                    fontSize: '9px',
+                    fontSize: '12px',
                     fontWeight: 600,
                     width: 'auto',
-                    padding: '0 6px',
+                    padding: '0 10px',
+                    minWidth: '44px',
                   }}
                 >
                   1/4
@@ -548,12 +574,12 @@ const MobileMenu: React.FC = () => {
           
           {/* Audio Controls - Pitch, Volume, Mute */}
           <Divider isLightMode={isLightMode} />
-          <div style={{ marginBottom: '6px' }}>
+          <div style={{ marginBottom: '10px' }}>
             <div style={{ 
-              fontSize: '9px', 
+              fontSize: '12px', 
               fontWeight: 700, 
               color: KENYAN_GREEN, 
-              padding: '2px 10px',
+              padding: '4px 14px',
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}>
@@ -565,25 +591,25 @@ const MobileMenu: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              padding: '6px 10px',
-              gap: '8px',
+              padding: '10px 14px',
+              gap: '10px',
             }}>
-              <span style={{ fontSize: '12px', color: textColor, fontWeight: 500 }}>Pitch</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Pitch</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
                   onClick={handlePitchDown}
                   disabled={!isAudioLoaded || isPitchProcessing || pitch <= -2}
                   style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch <= -2)}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </button>
                 <span style={{ 
-                  fontSize: '11px', 
+                  fontSize: '14px', 
                   fontWeight: 600, 
                   color: pitch !== 0 ? (pitch > 0 ? KENYAN_GREEN : KENYAN_RED) : textColor,
-                  minWidth: '48px',
+                  minWidth: '56px',
                   textAlign: 'center',
                 }}>
                   {isPitchProcessing ? '...' : formatPitchDisplay(pitch)}
@@ -593,7 +619,7 @@ const MobileMenu: React.FC = () => {
                   disabled={!isAudioLoaded || isPitchProcessing || pitch >= 2}
                   style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch >= 2)}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
@@ -603,10 +629,11 @@ const MobileMenu: React.FC = () => {
                   disabled={!isAudioLoaded || isPitchProcessing || pitch === 0}
                   style={{ 
                     ...btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch === 0),
-                    fontSize: '9px',
+                    fontSize: '12px',
                     fontWeight: 600,
                     width: 'auto',
-                    padding: '0 6px',
+                    padding: '0 10px',
+                    minWidth: '52px',
                   }}
                 >
                   Reset
@@ -619,25 +646,25 @@ const MobileMenu: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              padding: '6px 10px',
-              gap: '8px',
+              padding: '10px 14px',
+              gap: '10px',
             }}>
-              <span style={{ fontSize: '12px', color: textColor, fontWeight: 500 }}>Volume</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Volume</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
                   onClick={handleVolumeDown}
                   disabled={!isAudioLoaded || volume <= -60}
                   style={btnStyle(false, !isAudioLoaded || volume <= -60)}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </button>
                 <span style={{ 
-                  fontSize: '11px', 
+                  fontSize: '14px', 
                   fontWeight: 600, 
                   color: isMuted ? KENYAN_RED : textColor,
-                  minWidth: '48px',
+                  minWidth: '56px',
                   textAlign: 'center',
                 }}>
                   {isMuted ? 'Muted' : formatVolumeDisplay(volume)}
@@ -647,7 +674,7 @@ const MobileMenu: React.FC = () => {
                   disabled={!isAudioLoaded || volume >= 6}
                   style={btnStyle(false, !isAudioLoaded || volume >= 6)}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="12" y1="5" x2="12" y2="19" />
                     <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
@@ -658,19 +685,20 @@ const MobileMenu: React.FC = () => {
                   style={{ 
                     ...btnStyle(isMuted, !isAudioLoaded),
                     width: 'auto',
-                    padding: '0 6px',
+                    padding: '0 10px',
                     background: isMuted ? KENYAN_RED : undefined,
                     color: isMuted ? 'white' : textColor,
+                    minWidth: '44px',
                   }}
                 >
                   {isMuted ? (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                       <line x1="23" y1="9" x2="17" y2="15"/>
                       <line x1="17" y1="9" x2="23" y2="15"/>
                     </svg>
                   ) : (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                       <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
                       <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -685,12 +713,12 @@ const MobileMenu: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              padding: '6px 10px',
-              gap: '8px',
+              padding: '10px 14px',
+              gap: '10px',
             }}>
-              <span style={{ fontSize: '12px', color: textColor, fontWeight: 500 }}>Speed</span>
+              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Speed</span>
               <span style={{ 
-                fontSize: '11px', 
+                fontSize: '14px', 
                 fontWeight: 600, 
                 color: playbackRate !== 1 ? KENYAN_RED : textColor,
               }}>
@@ -723,38 +751,56 @@ const MobileMenu: React.FC = () => {
               setIsExpanded(false);
             }} 
           />
+          
+          {/* Close/Exit App - for PWA and mobile web */}
+          <Divider isLightMode={isLightMode} />
+          <MenuItem 
+            icon={<CloseIcon />} 
+            label="Close App" 
+            onClick={() => {
+              // Try to close the window/tab
+              if (window.close) {
+                window.close();
+              }
+              // If window.close doesn't work (PWA), show instructions
+              showToast('Swipe up from bottom or use your device\'s back button to close', 'info');
+              setIsExpanded(false);
+            }}
+            color={KENYAN_RED}
+            subtitle="Exit application"
+          />
         </div>
       )}
       
-      {/* PWA Install Banner - Floating notification */}
+      {/* PWA Install Banner - Floating notification - LARGER for better visibility */}
       {showInstallBanner && !isAppInstalled && (
         <div style={{
           position: 'fixed',
-          bottom: '80px',
-          left: '16px',
-          right: '16px',
+          bottom: '90px',
+          left: '12px',
+          right: '12px',
           background: neuBg,
-          borderRadius: '16px',
-          boxShadow: `0 8px 32px rgba(0, 0, 0, 0.3), ${neuRaised}`,
-          padding: '16px',
+          borderRadius: '18px',
+          boxShadow: `0 10px 40px rgba(0, 0, 0, 0.35), ${neuRaised}`,
+          padding: '18px',
           display: 'flex',
           alignItems: 'center',
-          gap: '12px',
+          gap: '14px',
           zIndex: 10001,
           animation: 'slideUp 0.3s ease-out',
         }}>
           {/* App icon */}
           <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
+            width: '56px',
+            height: '56px',
+            borderRadius: '14px',
             background: `linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_RED})`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
           }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
               <path d="M9 18V5l12-2v13"/>
               <circle cx="6" cy="18" r="3"/>
               <circle cx="18" cy="16" r="3"/>
@@ -765,7 +811,7 @@ const MobileMenu: React.FC = () => {
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ 
               color: textColor, 
-              fontSize: '14px', 
+              fontSize: '17px', 
               fontWeight: 600, 
               margin: 0 
             }}>
@@ -773,7 +819,7 @@ const MobileMenu: React.FC = () => {
             </p>
             <p style={{ 
               color: isLightMode ? '#718096' : 'rgba(255,255,255,0.6)', 
-              fontSize: '12px', 
+              fontSize: '14px', 
               margin: '4px 0 0 0' 
             }}>
               Add to home screen for quick access
@@ -781,16 +827,16 @@ const MobileMenu: React.FC = () => {
           </div>
           
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '10px', flexShrink: 0, flexDirection: 'column' }}>
             <button
               onClick={dismissInstallBanner}
               style={{
-                padding: '8px 12px',
+                padding: '10px 14px',
                 background: 'transparent',
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 color: isLightMode ? '#718096' : 'rgba(255,255,255,0.5)',
-                fontSize: '12px',
+                fontSize: '14px',
                 fontWeight: 500,
                 cursor: 'pointer',
               }}
@@ -800,15 +846,16 @@ const MobileMenu: React.FC = () => {
             <button
               onClick={handleInstallApp}
               style={{
-                padding: '8px 16px',
+                padding: '12px 20px',
                 background: KENYAN_GREEN,
                 border: 'none',
-                borderRadius: '8px',
+                borderRadius: '10px',
                 color: 'white',
-                fontSize: '12px',
+                fontSize: '15px',
                 fontWeight: 600,
                 cursor: 'pointer',
-                boxShadow: `0 2px 8px rgba(0, 102, 68, 0.4)`,
+                boxShadow: `0 3px 12px rgba(0, 102, 68, 0.4)`,
+                minWidth: '80px',
               }}
             >
               Install
@@ -846,19 +893,20 @@ const MenuItem: React.FC<{
     style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '10px',
-      padding: '10px 10px',
+      gap: '14px',
+      padding: '14px 14px',
       background: 'transparent',
       border: 'none',
-      borderRadius: '8px',
+      borderRadius: '10px',
       width: '100%',
       color: color || 'inherit',
-      fontSize: '13px',
+      fontSize: '16px',
       fontWeight: 500,
       cursor: disabled ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.4 : 1,
       touchAction: 'manipulation',
       textAlign: 'left',
+      minHeight: '52px',
     }}
   >
     {icon}
@@ -866,10 +914,10 @@ const MenuItem: React.FC<{
       <span>{label}</span>
       {subtitle && (
         <span style={{ 
-          fontSize: '10px', 
+          fontSize: '13px', 
           opacity: 0.6, 
           fontWeight: 400,
-          marginTop: '1px',
+          marginTop: '2px',
         }}>
           {subtitle}
         </span>
@@ -886,9 +934,9 @@ const Divider: React.FC<{ isLightMode: boolean }> = ({ isLightMode }) => (
   }} />
 );
 
-// Icons
+// Icons - Larger size (20x20) for better mobile visibility
 const NewFileIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
     <polyline points="14 2 14 8 20 8"/>
     <line x1="12" y1="18" x2="12" y2="12"/>
@@ -897,13 +945,13 @@ const NewFileIcon = () => (
 );
 
 const FolderIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
   </svg>
 );
 
 const SaveIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
     <polyline points="17 21 17 13 7 13 7 21"/>
     <polyline points="7 3 7 8 15 8"/>
@@ -911,7 +959,7 @@ const SaveIcon = () => (
 );
 
 const ExportIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
     <polyline points="17 8 12 3 7 8"/>
     <line x1="12" y1="3" x2="12" y2="15"/>
@@ -919,7 +967,7 @@ const ExportIcon = () => (
 );
 
 const InfoIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10"/>
     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
     <line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -927,10 +975,18 @@ const InfoIcon = () => (
 );
 
 const InstallIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
     <polyline points="7 10 12 15 17 10"/>
     <line x1="12" y1="15" x2="12" y2="3"/>
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <line x1="15" y1="9" x2="9" y2="15"/>
+    <line x1="9" y1="9" x2="15" y2="15"/>
   </svg>
 );
 
