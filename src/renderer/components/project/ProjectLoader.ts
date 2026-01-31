@@ -318,11 +318,13 @@ export class ProjectLoader {
           projectData: validation.projectData,
         };
       } else {
-        // Browser: use file input
+        // Browser: use file input for .tsproj only (not audio)
+        // Note: We cannot set default folder to Downloads on web (browser security)
         return new Promise((resolve) => {
           const input = document.createElement('input');
           input.type = 'file';
-          input.accept = '.tsproj,application/json';
+          input.accept = '.tsproj,application/json,.json';
+          input.title = 'Select a .tsproj project file';
           input.style.display = 'none';
 
           // Safe cleanup function that checks if element is still in DOM

@@ -9,6 +9,7 @@ import { getProjectLoader } from '../project/ProjectLoader';
 import { getProjectSaver, StoredProject, deleteProjectFromIndexedDB } from '../project/ProjectSaver';
 import { useAppStore } from '../../store/store';
 import QuickStartGuide from './QuickStartGuide';
+import { showToast } from './Toast';
 
 // Kenyan flag colors
 const KENYAN_RED = '#DE2910';
@@ -241,6 +242,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       setError(null);
       setIsLoadingProject(true);
       await resumeAudioContext();
+      // On phones: hint to select .tsproj (picker cannot open Downloads by default on web)
+      if (isMobile) {
+        showToast('Select a .tsproj file (e.g. from Downloads or Files)', 'info', 4000);
+      }
       const loaded = await projectLoader.loadProject(loadFile);
       if (loaded) {
         onProjectLoaded ? onProjectLoaded() : onAudioLoaded();

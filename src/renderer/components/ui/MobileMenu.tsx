@@ -256,6 +256,10 @@ const MobileMenu: React.FC = () => {
     try {
       await resumeAudioContext();
       const loader = getProjectLoader();
+      // On phones: hint to select .tsproj (picker cannot open Downloads by default on web)
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        showToast('Select a .tsproj file (e.g. from Downloads or Files)', 'info', 4000);
+      }
       const loaded = await loader.loadProject(loadFile);
       if (loaded) {
         setIsExpanded(false);
