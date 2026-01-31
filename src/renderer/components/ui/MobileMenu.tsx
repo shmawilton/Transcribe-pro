@@ -65,6 +65,7 @@ const MobileMenu: React.FC = () => {
   const [showSaveToDeviceModal, setShowSaveToDeviceModal] = useState(false);
   const [saveToDeviceProjectName, setSaveToDeviceProjectName] = useState('');
   const [saveToDeviceBusy, setSaveToDeviceBusy] = useState(false);
+  const [saveAsMode, setSaveAsMode] = useState(false); // true = Save As (new project), false = first-time save
   
   // Subscribe to pitch processing status (same as desktop)
   useEffect(() => {
@@ -233,7 +234,8 @@ const MobileMenu: React.FC = () => {
       if (store.globalControls.isMuted) store.toggleMute();
       // Start with 20% view (zoom 5) on all devices
       store.setZoomLevel(5);
-      
+      getProjectSaver().setCurrentProjectId(null);
+
       await resumeAudioContext();
       const file = await pickAudioFile();
       if (!file) return;
@@ -270,10 +272,11 @@ const MobileMenu: React.FC = () => {
     }
   };
   
-  const handleOpenSaveToDeviceModal = () => {
+  const handleOpenSaveToDeviceModal = (asSaveAs: boolean = false) => {
     const saver = getProjectSaver();
     const current = saver.getCurrentProjectName();
     setSaveToDeviceProjectName(current === 'Untitled Project' ? '' : current);
+    setSaveAsMode(asSaveAs);
     setShowSaveToDeviceModal(true);
   };
 
@@ -286,10 +289,14 @@ const MobileMenu: React.FC = () => {
     setSaveToDeviceBusy(true);
     try {
       const saver = getProjectSaver();
+      if (saveAsMode) {
+        saver.setCurrentProjectId(null);
+      }
       const result = await saver.saveToDevice(name);
       if (result.success) {
-        showToast('Saved! Open from Menu → My Projects', 'success');
+        showToast(saveAsMode ? 'Saved as new project' : 'Saved! Open from Menu → My Projects', 'success');
         setShowSaveToDeviceModal(false);
+        setSaveAsMode(false);
         setIsExpanded(false);
       }
     } catch (err) {
@@ -318,8 +325,27 @@ const MobileMenu: React.FC = () => {
     }
   };
 
-  const handleSaveProject = () => {
+  /** Save: update current project in place if already saved; else open modal (first time) */
+  const handleSave = async () => {
+    const saver = getProjectSaver();
+    if (saver.getCurrentProjectId()) {
+      try {
+        const result = await saver.saveToDevice();
+        if (result.success) {
+          showToast('Project saved', 'success');
+          setIsExpanded(false);
+        }
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : 'Failed to save', 'error');
+      }
+      return;
+    }
     handleOpenSaveToDeviceModal();
+  };
+
+  /** Save As: always open modal to save with a new name or as file */
+  const handleSaveAs = () => {
+    handleOpenSaveToDeviceModal(true);
   };
 
   const handleOpenMyProjects = async () => {
@@ -341,6 +367,7 @@ const MobileMenu: React.FC = () => {
       const saver = getProjectSaver();
       const loader = getProjectLoader();
       saver.setCurrentProjectId(project.id);
+      saver.setCurrentProjectName(project.name);
       const ok = await loader.loadFromStoredProject(project.projectData, loadFile);
       setShowMyProjectsModal(false);
       setIsExpanded(false);
@@ -549,7 +576,8 @@ const MobileMenu: React.FC = () => {
             <MenuItem icon={<NewFileIcon />} label="New Project" onClick={handleNewProject} color={KENYAN_GREEN} />
             <MenuItem icon={<FolderIcon />} label="Load Project" onClick={handleLoadProject} color={KENYAN_RED} />
             <MenuItem icon={<FolderIcon />} label="My Projects" onClick={handleOpenMyProjects} color={KENYAN_GREEN} subtitle="Saved on this device" />
-            <MenuItem icon={<SaveIcon />} label="Save to Device" onClick={handleSaveProject} disabled={!isAudioLoaded} color={KENYAN_GREEN} />
+            <MenuItem icon={<SaveIcon />} label="Save" onClick={handleSave} disabled={!isAudioLoaded} color={KENYAN_GREEN} subtitle="Save current project" />
+            <MenuItem icon={<SaveIcon />} label="Save As" onClick={handleSaveAs} disabled={!isAudioLoaded} color={KENYAN_GREEN} subtitle="New name or download file" />
             <MenuItem icon={<ExportIcon />} label="Export/Share" onClick={handleExportProject} disabled={!isAudioLoaded} subtitle="Download .tsproj file" />
           </div>
           

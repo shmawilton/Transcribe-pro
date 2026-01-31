@@ -10,7 +10,7 @@ const APP_VERSION = '1.0.0';
 const RECENT_PROJECTS_KEY = 'transcribe-pro-recent-projects';
 const WEB_AUTOSAVE_KEY = 'transcribe-pro-web-autosave';
 const MAX_RECENT_PROJECTS = 10;
-const AUTO_SAVE_INTERVAL = 5 * 60 * 1000; // 5 minutes in milliseconds
+const AUTO_SAVE_INTERVAL = 3 * 60 * 1000; // 3 minutes after first save, then continuous
 
 // IndexedDB constants for mobile PWA storage
 const IDB_DATABASE_NAME = 'TranscribeProDB';
@@ -577,14 +577,15 @@ export class ProjectSaver {
   }
 
   /**
-   * Get current project name from path
+   * Get current project name (from device name, path, or default)
    */
   getCurrentProjectName(): string {
-    if (!this.currentProjectPath) {
-      return 'Untitled Project';
+    if (this.currentProjectName) return this.currentProjectName;
+    if (this.currentProjectPath) {
+      const fileName = this.currentProjectPath.split(/[/\\]/).pop() || 'project.tsproj';
+      return fileName.replace(/\.tsproj$/, '');
     }
-    const fileName = this.currentProjectPath.split(/[/\\]/).pop() || 'project.tsproj';
-    return fileName.replace(/\.tsproj$/, '');
+    return 'Untitled Project';
   }
 
   /**
@@ -605,7 +606,7 @@ export class ProjectSaver {
   }
 
   /**
-   * Start auto-save (saves every 5 minutes)
+   * Start auto-save (every 3 min after first save, continuous; interval configurable in settings)
    */
   startAutoSave() {
     this.stopAutoSave(); // Clear any existing timer
@@ -635,17 +636,22 @@ export class ProjectSaver {
         const store = useAppStore.getState();
         if (!store.audio.file || !store.audio.isLoaded) return;
 
-        const projectData = await this.getProjectData();
-
         if (isElectron) {
           // Only auto-save to disk if we have a saved project path
           if (this.currentProjectPath) {
+            const projectData = await this.getProjectData();
             await this.saveToFile(projectData, this.currentProjectPath);
             console.log('[ProjectSaver] Auto-saved project to file');
           }
         } else {
-          // Web: always auto-save to localStorage snapshot
-          this.saveToLocalStorage(projectData);
+          // Web: if saved to device (IndexedDB), update that project in place; else localStorage snapshot
+          if (this.currentProjectId) {
+            await this.saveToDevice(undefined, true);
+            console.log('[ProjectSaver] Auto-saved project to device');
+          } else {
+            const projectData = await this.getProjectData();
+            this.saveToLocalStorage(projectData);
+          }
         }
       } catch (error) {
         console.error('[ProjectSaver] Auto-save failed:', error);
@@ -738,10 +744,17 @@ export class ProjectSaver {
   private currentProjectId: string | null = null;
 
   /**
+   * Current project name when saved to device (IndexedDB) - for "Save" to update in place
+   */
+  private currentProjectName: string | null = null;
+
+  /**
    * Save project to device storage (IndexedDB) - Mobile friendly
    * This saves the project locally without triggering a file download
+   * @param projectName - Optional name; uses current name if updating existing
+   * @param silent - If true, do not show success toast (e.g. for auto-save)
    */
-  async saveToDevice(projectName?: string): Promise<{ success: boolean; projectId?: string }> {
+  async saveToDevice(projectName?: string, silent?: boolean): Promise<{ success: boolean; projectId?: string }> {
     try {
       const store = useAppStore.getState();
       
@@ -787,8 +800,9 @@ export class ProjectSaver {
 
       await saveProjectToIndexedDB(storedProject);
       
-      // Update current project ID
+      // Update current project ID and name (for "Save" to update in place)
       this.currentProjectId = projectId;
+      this.currentProjectName = name;
       
       // Mark as saved
       try {
@@ -803,7 +817,7 @@ export class ProjectSaver {
         this.onProjectNameChange(name);
       }
 
-      this.notify('Project saved to device!', 'success');
+      if (!silent) this.notify('Project saved to device!', 'success');
       return { success: true, projectId };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save project';
@@ -909,9 +923,18 @@ export class ProjectSaver {
 
   /**
    * Set current project ID (for tracking which project is open)
+   * When clearing (null), also clears current project name
    */
   setCurrentProjectId(id: string | null) {
     this.currentProjectId = id;
+    if (id === null) this.currentProjectName = null;
+  }
+
+  /**
+   * Set current project name (when loading from device storage)
+   */
+  setCurrentProjectName(name: string | null) {
+    this.currentProjectName = name;
   }
 
   /**
