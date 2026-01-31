@@ -2,6 +2,7 @@
 // Playback controls panel with Kenyan-themed styling, glassmorphism, and animations
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { useAppStore } from '../../store/store';
 import { MarkerManager } from '../markers/MarkerManager';
@@ -28,11 +29,14 @@ const PlaybackPanel: React.FC = () => {
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
   
-  // Mobile detection
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  // Mobile and tablet detection for responsive speed popup
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const isMobile = windowWidth < 768;
+  const isTablet = windowWidth >= 768 && windowWidth <= 1024;
+  const isMobileOrTablet = isMobile || isTablet;
   
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -62,16 +66,20 @@ const PlaybackPanel: React.FC = () => {
     }
   }, [storedSpeed]);
   
-  // Close speed popup when clicking outside
+  // Close speed popup when clicking/touching outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (speedPopupRef.current && !speedPopupRef.current.contains(e.target as Node)) {
         setShowSpeedPopup(false);
       }
     };
     if (showSpeedPopup) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside, { passive: true });
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
+      };
     }
   }, [showSpeedPopup]);
   
@@ -633,130 +641,169 @@ const PlaybackPanel: React.FC = () => {
             </svg>
           </button>
 
-          {/* Speed Popup Slider */}
-          {showSpeedPopup && (
-            <div 
-              ref={speedPopupRef}
-              className="mx-auto"
-              style={{
-                position: 'absolute',
-                bottom: '100%',
-                right: 0,
-                left: 'auto',
-                marginBottom: '8px',
-                padding: 'clamp(10px, 3vw, 16px)',
-                width: 'clamp(200px, 60vw, 260px)',
-                maxWidth: 'min(260px, calc(100vw - 20px))',
-                background: isLightMode ? 'rgba(228, 235, 245, 0.95)' : 'rgba(26, 26, 26, 0.95)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                border: isLightMode ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: 'clamp(8px, 2vw, 12px)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-                zIndex: 1000,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'clamp(8px, 2vw, 12px)',
-                animation: 'fadeInScale 0.2s ease-out',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden'
-              }}
-            >
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '8px',
-                minWidth: 0
-              }}>
-                <span style={{
-                  fontSize: '0.75rem',
-                  fontWeight: '600',
-                  color: isLightMode ? '#666' : '#aaa',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0
-                }}>
-                  Speed
-                </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <span style={{
-                    fontSize: '1rem',
-                    fontWeight: '700',
-                    color: isLightMode ? '#1a1a1a' : '#ffffff',
-                    fontFamily: HANDWRITTEN_FONT,
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {playbackSpeed.toFixed(2)}x
-                  </span>
-                  <button
-                    onClick={() => {
-                      handleSpeedChange(1.0);
-                    }}
-                    disabled={!isAudioLoaded || playbackSpeed === 1.0}
-                    style={{
-                      padding: '3px 8px',
-                      fontSize: '0.65rem',
-                      background: playbackSpeed === 1.0 ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') : 'transparent',
-                      border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'}`,
-                      borderRadius: '4px',
-                      color: isLightMode ? '#666' : '#aaa',
-                      cursor: (!isAudioLoaded || playbackSpeed === 1.0) ? 'not-allowed' : 'pointer',
-                      opacity: (!isAudioLoaded || playbackSpeed === 1.0) ? 0.4 : 1,
-                      transition: 'all 0.2s ease',
-                      whiteSpace: 'nowrap'
-                    }}
-                    title="Reset to 1.0x"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </div>
-              
-              {/* Speed Labels */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: '0.7rem',
-                color: isLightMode ? '#999' : '#666',
-                fontWeight: '500'
-              }}>
-                <span>0.25x</span>
-                <span>1.0x</span>
-                <span>2.0x</span>
-                <span>4.0x</span>
-              </div>
-              
-              <input
-                type="range"
-                min="0.25"
-                max="4.0"
-                step="0.01"
-                value={playbackSpeed}
-                onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                onInput={(e) => handleSpeedChange(parseFloat((e.target as HTMLInputElement).value))}
-                disabled={!isAudioLoaded}
+          {/* Speed Popup Slider - responsive: portal overlay on mobile/tablet, centered absolute on desktop */}
+          {showSpeedPopup && (() => {
+            const popupPadding = isMobile ? 20 : isTablet ? 18 : 14;
+            const labelFontSize = isMobile ? '0.9rem' : isTablet ? '0.85rem' : '0.75rem';
+            const valueFontSize = isMobile ? '1.25rem' : isTablet ? '1.1rem' : '1rem';
+            const resetPadding = isMobile ? '10px 14px' : isTablet ? '8px 12px' : '3px 8px';
+            const resetFontSize = isMobile ? '0.9rem' : isTablet ? '0.8rem' : '0.65rem';
+            const sliderHeight = isMobileOrTablet ? 12 : 8;
+            const popupWidth = isMobile ? Math.min(320, window.innerWidth - 32) : isTablet ? Math.min(300, window.innerWidth - 40) : 260;
+            const popupContent = (
+              <div
+                ref={speedPopupRef}
                 style={{
-                  width: '100%',
-                  height: '8px',
-                  borderRadius: '4px',
-                  position: 'relative',
-                  display: 'block',
-                  background: isLightMode 
-                    ? `linear-gradient(to right, #ccc 0%, #ccc ${((playbackSpeed - 0.25) / 3.75) * 100}%, #e0e0e0 ${((playbackSpeed - 0.25) / 3.75) * 100}%, #e0e0e0 100%)`
-                    : `linear-gradient(to right, #555 0%, #555 ${((playbackSpeed - 0.25) / 3.75) * 100}%, #333 ${((playbackSpeed - 0.25) / 3.75) * 100}%, #333 100%)`,
-                  outline: 'none',
-                  cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-                  WebkitAppearance: 'none',
-                  appearance: 'none',
-                  opacity: isAudioLoaded ? 1 : 0.4,
-                  transition: 'background 0.1s ease'
+                  padding: popupPadding,
+                  width: popupWidth,
+                  maxWidth: 'calc(100vw - 24px)',
+                  boxSizing: 'border-box',
+                  background: isLightMode ? 'rgba(228, 235, 245, 0.98)' : 'rgba(26, 26, 26, 0.98)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  border: isLightMode ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: isMobile ? 16 : isTablet ? 14 : 12,
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: isMobile ? 16 : isTablet ? 14 : 10,
+                  animation: 'fadeInScale 0.2s ease-out',
                 }}
-                className="speed-popup-slider"
-              />
-            </div>
-          )}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: isMobile ? 12 : 8,
+                  minWidth: 0,
+                  flexWrap: 'wrap',
+                }}>
+                  <span style={{
+                    fontSize: labelFontSize,
+                    fontWeight: '600',
+                    color: isLightMode ? '#666' : '#aaa',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    flexShrink: 0,
+                  }}>
+                    Speed
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 8, flexShrink: 0 }}>
+                    <span style={{
+                      fontSize: valueFontSize,
+                      fontWeight: '700',
+                      color: isLightMode ? '#1a1a1a' : '#ffffff',
+                      fontFamily: HANDWRITTEN_FONT,
+                      minWidth: isMobile ? '4.5ch' : '3.5ch',
+                      textAlign: 'right',
+                    }}>
+                      {playbackSpeed.toFixed(2)}x
+                    </span>
+                    <button
+                      onClick={() => handleSpeedChange(1.0)}
+                      disabled={!isAudioLoaded || playbackSpeed === 1.0}
+                      style={{
+                        padding: resetPadding,
+                        fontSize: resetFontSize,
+                        minHeight: isMobileOrTablet ? 44 : undefined,
+                        background: playbackSpeed === 1.0 ? (isLightMode ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)') : 'transparent',
+                        border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'}`,
+                        borderRadius: isMobile ? 10 : 6,
+                        color: isLightMode ? '#666' : '#aaa',
+                        cursor: (!isAudioLoaded || playbackSpeed === 1.0) ? 'not-allowed' : 'pointer',
+                        opacity: (!isAudioLoaded || playbackSpeed === 1.0) ? 0.4 : 1,
+                        transition: 'all 0.2s ease',
+                        touchAction: 'manipulation',
+                      }}
+                      title="Reset to 1.0x"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontSize: isMobile ? '0.85rem' : isTablet ? '0.8rem' : '0.7rem',
+                  color: isLightMode ? '#999' : '#666',
+                  fontWeight: '500',
+                }}>
+                  <span>0.25x</span>
+                  <span>1.0x</span>
+                  <span>2.0x</span>
+                  <span>4.0x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="4.0"
+                  step="0.01"
+                  value={playbackSpeed}
+                  onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                  onInput={(e) => handleSpeedChange(parseFloat((e.target as HTMLInputElement).value))}
+                  disabled={!isAudioLoaded}
+                  style={{
+                    width: '100%',
+                    height: sliderHeight,
+                    borderRadius: 4,
+                    position: 'relative',
+                    display: 'block',
+                    background: isLightMode
+                      ? `linear-gradient(to right, #ccc 0%, #ccc ${((playbackSpeed - 0.25) / 3.75) * 100}%, #e0e0e0 ${((playbackSpeed - 0.25) / 3.75) * 100}%, #e0e0e0 100%)`
+                      : `linear-gradient(to right, #555 0%, #555 ${((playbackSpeed - 0.25) / 3.75) * 100}%, #333 ${((playbackSpeed - 0.25) / 3.75) * 100}%, #333 100%)`,
+                    outline: 'none',
+                    cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+                    WebkitAppearance: 'none',
+                    appearance: 'none',
+                    opacity: isAudioLoaded ? 1 : 0.4,
+                    transition: 'background 0.1s ease',
+                  }}
+                  className={`speed-popup-slider ${isMobileOrTablet ? 'speed-popup-slider-touch' : ''}`}
+                />
+              </div>
+            );
+            if (isMobileOrTablet) {
+              return createPortal(
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    backdropFilter: 'blur(2px)',
+                    zIndex: 10000,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 16,
+                    boxSizing: 'border-box',
+                  }}
+                  onClick={() => setShowSpeedPopup(false)}
+                >
+                  {popupContent}
+                </div>,
+                document.body
+              );
+            }
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: '50%',
+                  right: 'auto',
+                  transform: 'translateX(-50%)',
+                  marginBottom: 8,
+                  zIndex: 1000,
+                }}
+              >
+                {popupContent}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -823,6 +870,17 @@ const PlaybackPanel: React.FC = () => {
           border: 2px solid ${isLightMode ? '#999' : '#666'};
           box-shadow: 0 2px 8px rgba(0,0,0,0.2);
           margin-top: -6px;
+        }
+        /* Touch-friendly slider thumb on mobile/tablet */
+        .speed-popup-slider-touch::-webkit-slider-thumb {
+          width: 28px;
+          height: 28px;
+          margin-top: -8px;
+        }
+        .speed-popup-slider-touch::-moz-range-thumb {
+          width: 28px;
+          height: 28px;
+          margin-top: -8px;
         }
       `}</style>
     </div>
