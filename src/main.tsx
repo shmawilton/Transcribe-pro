@@ -6,27 +6,6 @@ import './index.css'
 
 // Global error handlers to catch unhandled errors
 window.addEventListener('error', (event) => {
-  console.error('========== [GLOBAL ERROR] ==========');
-  console.error('[GLOBAL ERROR] Error object:', event.error);
-  console.error('[GLOBAL ERROR] Message:', event.message);
-  console.error('[GLOBAL ERROR] Filename:', event.filename);
-  console.error('[GLOBAL ERROR] Line:', event.lineno, 'Col:', event.colno);
-  console.error('[GLOBAL ERROR] Stack:', event.error?.stack);
-  
-  // Special handling for removeChild errors
-  if (event.message && event.message.includes('removeChild')) {
-    console.error('========== [REMOVECHILD ERROR DETECTED] ==========');
-    console.error('[REMOVECHILD ERROR] This is a DOM manipulation error');
-    console.error('[REMOVECHILD ERROR] Current DOM state:', {
-      bodyChildren: document.body.children.length,
-      bodyHTML: document.body.innerHTML.substring(0, 500) // First 500 chars
-    });
-    console.error('[REMOVECHILD ERROR] Error name:', event.error?.name);
-    console.error('[REMOVECHILD ERROR] Full error:', event.error);
-    console.error('[REMOVECHILD ERROR] Stack trace:', event.error?.stack);
-    console.error('===========================================');
-  }
-  
   // Show error in UI
   const root = document.getElementById('root');
   if (root) {
@@ -48,9 +27,6 @@ ${event.error?.stack || 'No stack trace'}
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('[UNHANDLED PROMISE REJECTION]', event.reason);
-  console.error('[UNHANDLED PROMISE REJECTION] Stack:', event.reason?.stack);
-  
   // Show error in UI
   const root = document.getElementById('root');
   if (root && event.reason) {
@@ -69,13 +45,9 @@ ${event.reason?.stack || 'No stack trace'}
   }
 });
 
-console.log('[Main] Starting app...');
-
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>,
 )
-
-console.log('[Main] App rendered');
 

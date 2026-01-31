@@ -30,7 +30,6 @@ export class ProjectHistory {
       
       return entry.id;
     } catch (error) {
-      console.error('[ProjectHistory] Failed to save snapshot:', error);
       throw error;
     }
   }
@@ -44,7 +43,6 @@ export class ProjectHistory {
       if (!data) return [];
       return JSON.parse(data) as HistoryEntry[];
     } catch (error) {
-      console.error('[ProjectHistory] Failed to get history:', error);
       return [];
     }
   }
@@ -67,7 +65,6 @@ export class ProjectHistory {
       localStorage.setItem(PROJECT_HISTORY_KEY, JSON.stringify(updated));
       return true;
     } catch (error) {
-      console.error('[ProjectHistory] Failed to delete entry:', error);
       return false;
     }
   }
@@ -80,7 +77,6 @@ export class ProjectHistory {
       localStorage.removeItem(PROJECT_HISTORY_KEY);
       return true;
     } catch (error) {
-      console.error('[ProjectHistory] Failed to clear history:', error);
       return false;
     }
   }

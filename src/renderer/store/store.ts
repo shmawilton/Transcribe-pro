@@ -108,72 +108,38 @@ export const useAppStore = create<AppStore>((set, get) => ({
   // Audio State
   audio: initialAudioState,
   setAudioFile: (file) => {
-    console.log('[Store] setAudioFile called:', file ? { name: file.name, size: file.size } : 'null');
-    set((state) => {
-      const newState = {
-        // Clear buffer and reset state when starting new load
-        // This prevents showing old waveform during loading
-        audio: { 
-          ...state.audio, 
-          file, 
-          isLoaded: false,
-          isLoading: true,    // Mark as loading
-          buffer: undefined,  // Clear old buffer
-          currentTime: 0,     // Reset playback position
-        },
-      };
-      console.log('[Store] setAudioFile - new state:', {
-        hasFile: !!newState.audio.file,
-        isLoaded: newState.audio.isLoaded,
-        isLoading: newState.audio.isLoading,
-        hasBuffer: !!newState.audio.buffer
-      });
-      return newState;
-    });
+    set((state) => ({
+      audio: {
+        ...state.audio,
+        file,
+        isLoaded: false,
+        isLoading: true,
+        buffer: undefined,
+        currentTime: 0,
+      },
+    }));
   },
   setCurrentTime: (time) => {
-    // Only log every 10th update to avoid spam
-    if (Math.floor(time * 10) % 10 === 0) {
-      console.log('[Store] setCurrentTime:', time);
-    }
     set((state) => ({ audio: { ...state.audio, currentTime: time } }));
   },
   setIsPlaying: (isPlaying) => {
-    console.log('[Store] setIsPlaying:', isPlaying);
     set((state) => ({ audio: { ...state.audio, isPlaying } }));
   },
   setDuration: (duration) => {
-    console.log('[Store] setDuration:', duration);
     set((state) => ({ audio: { ...state.audio, duration } }));
   },
   setAudioBuffer: (buffer) => {
-    console.log('[Store] setAudioBuffer called:', {
-      hasBuffer: !!buffer,
-      sampleRate: buffer?.sampleRate,
-      duration: buffer?.duration,
-      length: buffer?.length
-    });
-    set((state) => {
-      const newState = {
-        audio: { 
-          ...state.audio, 
-          buffer, 
-          sampleRate: buffer?.sampleRate,
-          isLoaded: buffer !== null && buffer !== undefined,
-          isLoading: false, // Loading complete
-        },
-      };
-      console.log('[Store] setAudioBuffer - new state:', {
-        hasBuffer: !!newState.audio.buffer,
-        isLoaded: newState.audio.isLoaded,
-        isLoading: newState.audio.isLoading,
-        sampleRate: newState.audio.sampleRate
-      });
-      return newState;
-    });
+    set((state) => ({
+      audio: {
+        ...state.audio,
+        buffer,
+        sampleRate: buffer?.sampleRate,
+        isLoaded: buffer != null,
+        isLoading: false,
+      },
+    }));
   },
   setIsLoading: (isLoading) => {
-    console.log('[Store] setIsLoading:', isLoading);
     set((state) => ({ audio: { ...state.audio, isLoading } }));
   },
   clearAudioBuffer: () =>
@@ -374,7 +340,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   undo: () => {
     set((state) => {
       if (state.undoHistory.length === 0) {
-        console.log('[Store] Nothing to undo');
         return state;
       }
       
@@ -402,7 +367,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   redo: () => {
     set((state) => {
       if (state.redoHistory.length === 0) {
-        console.log('[Store] Nothing to redo');
         return state;
       }
       

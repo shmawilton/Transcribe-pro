@@ -14,9 +14,7 @@ const MobileControlsPanel: React.FC = () => {
   const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
   const duration = useAppStore((state) => state.audio.duration) || 0;
   const currentTime = useAppStore((state) => state.audio.currentTime || 0);
-  const viewportStart = useAppStore((state) => state.ui.viewportStart);
-  const viewportEnd = useAppStore((state) => state.ui.viewportEnd);
-  const rawZoomLevel = useAppStore((state) => state.zoomLevel);
+  const rawZoomLevel = useAppStore((state) => state.ui.zoomLevel);
   const pitch = useAppStore((state) => state.globalControls.pitch);
   
   // Use audio engine's pitch method (same as desktop)
@@ -34,9 +32,13 @@ const MobileControlsPanel: React.FC = () => {
     return unsubscribe;
   }, []);
   
-  // Safe zoom level
+  // Zoom limits - same as mobile menu (5 = 20% view, 50 = 2% view)
+  const MIN_ZOOM = 5;
+  const MAX_ZOOM = 50;
+  
+  // Safe zoom level - same source as Waveform/MarkerTimeline (ui.zoomLevel)
   const zoomLevel = (typeof rawZoomLevel === 'number' && !isNaN(rawZoomLevel) && isFinite(rawZoomLevel))
-    ? rawZoomLevel : 1;
+    ? rawZoomLevel : MIN_ZOOM;
   
   // Neumorphic colors
   const neuBg = isLightMode ? '#e4ebf5' : '#1e1e1e';
@@ -47,9 +49,7 @@ const MobileControlsPanel: React.FC = () => {
   const neuRaised = `2px 2px 4px ${shadowDark}, -1px -1px 2px ${shadowLight}`;
   const neuPressed = `inset 1px 1px 2px ${shadowDark}, inset -1px -1px 2px ${shadowLight}`;
   
-  // Zoom handlers - matching the app's zoom logic (5 = 20% view, 50 = 2% view)
-  const MIN_ZOOM = 5; // Minimum zoom: show 20% (1/5) of audio
-  const MAX_ZOOM = 50; // Maximum zoom: show 2% (1/50) of audio
+  // Zoom handlers - matching desktop: animateZoom updates ui.zoomLevel and viewport
   
   const handleZoomIn = () => {
     if (duration <= 0 || !isAudioLoaded) return;

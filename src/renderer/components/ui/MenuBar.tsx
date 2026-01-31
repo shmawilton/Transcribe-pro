@@ -391,7 +391,6 @@ const MenuBar: React.FC = () => {
     try {
       await projectLoader.loadProjectFromPath(filePath, loadFile);
     } catch (error) {
-      console.error('Failed to load recent project:', error);
       showToast('Failed to load recent project', 'error', 5000);
     } finally {
       setIsLoading(false);
@@ -506,13 +505,11 @@ const MenuBar: React.FC = () => {
       }
       
       // Complete reset: stop, unload, reset store, then clear project state
-      console.log('[MenuBar] Starting new project - performing complete reset');
       
       // Stop playback first
       try {
         await stop();
       } catch (err) {
-        console.warn('[MenuBar] Error stopping playback:', err);
       }
       
       // Unload audio and reset engine (await to ensure complete cleanup)
@@ -526,12 +523,10 @@ const MenuBar: React.FC = () => {
       setProjectName('Untitled Project');
       setOpenMenu(null);
       
-      console.log('[MenuBar] New project started - all state reset');
       
       // Welcome screen will be shown automatically when isAudioLoaded becomes false
       // User can then pick file from welcome screen
     } catch (err) {
-      console.error('Failed to start new project:', err);
     }
   };
 
@@ -568,20 +563,17 @@ const MenuBar: React.FC = () => {
       }
       setOpenMenu(null);
     } catch (error) {
-      console.error('[MenuBar] Failed to load project:', error);
       showToast('Failed to load project', 'error', 5000);
       setIsLoading(false);
     }
   };
 
   const handleCloseAudio = async () => {
-    console.log('[MenuBar] Closing audio and resetting project');
     try {
       // Stop playback first
       try {
         await stop();
       } catch (err) {
-        console.warn('[MenuBar] Error stopping playback:', err);
       }
       
       // Unload audio from engine (await to ensure complete cleanup)
@@ -591,9 +583,7 @@ const MenuBar: React.FC = () => {
       resetProject();
       setOpenMenu(null);
       
-      console.log('[MenuBar] Audio closed and project reset');
     } catch (err) {
-      console.error('[MenuBar] Error closing audio:', err);
     }
   };
 
@@ -605,7 +595,6 @@ const MenuBar: React.FC = () => {
       // Toast notification will be shown via callback
       setOpenMenu(null);
     } catch (error) {
-      console.error('[MenuBar] Failed to save project:', error);
       showToast('Failed to save project', 'error', 5000);
       setIsSaving(false);
     }
@@ -619,14 +608,12 @@ const MenuBar: React.FC = () => {
       // Toast notification will be shown via callback
       setOpenMenu(null);
     } catch (error) {
-      console.error('[MenuBar] Failed to save project as:', error);
       showToast('Failed to save project', 'error', 5000);
       setIsSaving(false);
     }
   };
 
   const handleExit = () => {
-    console.log('[MenuBar] Exiting application');
     // First stop any playing audio
     stop();
     // Unload audio
@@ -647,7 +634,6 @@ const MenuBar: React.FC = () => {
         try {
           window.close();
         } catch (e) {
-          console.log('[MenuBar] Cannot close window programmatically in browser');
           // Show a message that the app cannot be closed this way
           alert('Please close this browser tab/window manually.');
         }
@@ -900,9 +886,7 @@ const MenuBar: React.FC = () => {
         const { undo, canUndo } = useAppStore.getState();
         if (canUndo()) {
           undo();
-          console.log('[MenuBar] Undo performed');
         } else {
-          console.log('[MenuBar] Nothing to undo');
         }
       } 
     },
@@ -914,9 +898,7 @@ const MenuBar: React.FC = () => {
         const { redo, canRedo } = useAppStore.getState();
         if (canRedo()) {
           redo();
-          console.log('[MenuBar] Redo performed');
         } else {
-          console.log('[MenuBar] Nothing to redo');
         }
       } 
     },

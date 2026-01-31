@@ -13,7 +13,6 @@ async function main() {
     sharp = require('sharp');
     pngToIco = (await import('png-to-ico')).default;
   } catch (e) {
-    console.error('Missing dependencies. Run: npm install --save-dev sharp png-to-ico');
     process.exit(1);
   }
 
@@ -22,7 +21,6 @@ async function main() {
   const icoPath = path.join(projectRoot, 'public', 'logo.ico');
 
   if (!fs.existsSync(pngPath)) {
-    console.error('public/logo.png not found');
     process.exit(1);
   }
 
@@ -37,10 +35,8 @@ async function main() {
     const icoBuffer = await pngToIco(tempPath);
     fs.writeFileSync(icoPath, icoBuffer);
     fs.unlinkSync(tempPath);
-    console.log('Generated public/logo.ico (256x256)');
   } catch (err) {
     if (fs.existsSync(tempPath)) try { fs.unlinkSync(tempPath); } catch (_) {}
-    console.error('Failed to generate icon:', err.message);
     process.exit(1);
   }
 }

@@ -71,7 +71,6 @@ export class AudioEngine {
   private blobUrl: string | null = null;
 
   constructor() {
-    console.log('[AudioEngine] Initializing with Tone.js...');
     this.initializeAudioContext();
     this.initializeToneNodes();
   }
@@ -89,13 +88,7 @@ export class AudioEngine {
 
       this.audioContext = new AudioContextClass();
       this.isInitialized = true;
-      
-      console.log('[AudioEngine] AudioContext initialized', {
-        sampleRate: this.audioContext.sampleRate,
-        state: this.audioContext.state,
-      });
     } catch (error) {
-      console.error('[AudioEngine] Failed to initialize AudioContext', error);
       this.isInitialized = false;
     }
   }
@@ -121,9 +114,7 @@ export class AudioEngine {
       this.pitchShift.connect(this.volumeNode);
       this.volumeNode.toDestination();
 
-      console.log('[AudioEngine] Tone.js nodes initialized (PitchShift → Volume → Destination)');
     } catch (error) {
-      console.error('[AudioEngine] Failed to initialize Tone.js nodes', error);
     }
   }
 
@@ -159,19 +150,10 @@ export class AudioEngine {
     }
 
     try {
-      console.log('[AudioEngine] ===== LOAD AUDIO FILE START =====');
-      console.log('[AudioEngine] File info:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-      });
-
       // Step 1: Update store with file
-      console.log('[AudioEngine] Step 1: Updating store with file');
       useAppStore.getState().setAudioFile(file);
 
       // Step 2: Read file as ArrayBuffer
-      console.log('[AudioEngine] Step 2: Reading file as ArrayBuffer');
       const arrayBuffer = await this.readFileAsArrayBuffer(file);
 
       if (arrayBuffer.byteLength === 0) {
@@ -179,7 +161,6 @@ export class AudioEngine {
       }
 
       // Step 3: Create Blob URL (needed for Tone.Player)
-      console.log('[AudioEngine] Step 3: Creating Blob URL for Tone.Player');
       
       // Clean up previous Blob URL if exists
       if (this.blobUrl) {
@@ -188,15 +169,12 @@ export class AudioEngine {
       
       const blob = new Blob([arrayBuffer], { type: file.type || 'audio/mpeg' });
       this.blobUrl = URL.createObjectURL(blob);
-      console.log('[AudioEngine] Blob URL created:', this.blobUrl);
 
       // Step 4: Initialize Tone.js and create Player FIRST (before decoding for waveform)
       // This is because Tone.Player loading is more reliable in Electron
-      console.log('[AudioEngine] Step 4: Starting Tone.js and creating Player...');
       
       // Start Tone.js (required by browsers before audio playback)
       await Tone.start();
-      console.log('[AudioEngine] Tone.js started, context state:', Tone.context.state);
 
       // Dispose existing player if any
       if (this.player) {
@@ -219,28 +197,23 @@ export class AudioEngine {
           playbackRate: this.currentPlaybackRate,
           onload: () => {
             clearTimeout(timeout);
-            console.log('[AudioEngine] Tone.Player loaded successfully!');
             this.playerLoaded = true;
             playerDuration = this.player!.buffer.duration;
-            console.log('[AudioEngine] Player duration:', playerDuration);
             
             // Connect Player to PitchShift
             if (this.pitchShift) {
               this.player!.connect(this.pitchShift);
-              console.log('[AudioEngine] Player connected to PitchShift → Volume → Destination');
             }
             resolve();
           },
           onerror: (error) => {
             clearTimeout(timeout);
-            console.error('[AudioEngine] Tone.Player load error:', error);
             reject(error);
           }
         });
       });
 
       // Step 5: Create AudioBuffer for waveform visualization
-      console.log('[AudioEngine] Step 5: Creating AudioBuffer for waveform...');
       
       // Detect Electron environment
       const isElectron = !!(window as any).electronAPI || 
@@ -250,11 +223,9 @@ export class AudioEngine {
       
       if (isElectron) {
         // ELECTRON: Skip decodeAudioData (causes crashes) - create synthetic waveform
-        console.log('[AudioEngine] Electron detected - creating synthetic waveform to avoid crash');
         decodedBuffer = this.createSyntheticWaveform(playerDuration);
       } else {
         // Browser: Use standard decodeAudioData
-        console.log('[AudioEngine] Browser detected - using decodeAudioData');
         
         // Ensure AudioContext is running
         if (this.audioContext.state === 'suspended') {
@@ -264,33 +235,23 @@ export class AudioEngine {
         try {
           decodedBuffer = await this.decodeAudioBuffer(arrayBuffer.slice(0));
         } catch (decodeError) {
-          console.warn('[AudioEngine] decodeAudioData failed, using synthetic waveform:', decodeError);
           decodedBuffer = this.createSyntheticWaveform(playerDuration);
         }
       }
       
       // Validate buffer
       if (!decodedBuffer || decodedBuffer.length === 0) {
-        console.warn('[AudioEngine] Buffer empty, creating synthetic waveform');
         decodedBuffer = this.createSyntheticWaveform(playerDuration);
       }
 
       this.audioBuffer = decodedBuffer;
-      console.log('[AudioEngine] AudioBuffer ready:', {
-        duration: decodedBuffer.duration,
-        sampleRate: decodedBuffer.sampleRate,
-        channels: decodedBuffer.numberOfChannels,
-        synthetic: isElectron
-      });
 
       // Step 6: Initialize analyser node
-      console.log('[AudioEngine] Step 6: Initializing analyser node');
       this.initializeAnalyserNode();
 
       // Step 7: Update store with buffer and duration
       // Use player duration as it's more reliable than decoded buffer duration in Electron
       const finalDuration = playerDuration > 0 ? playerDuration : decodedBuffer.duration;
-      console.log('[AudioEngine] Step 7: Updating store with buffer and duration:', finalDuration);
       useAppStore.getState().setAudioBuffer(decodedBuffer);
       useAppStore.getState().setDuration(finalDuration);
       
@@ -300,7 +261,6 @@ export class AudioEngine {
       useAppStore.getState().setZoomLevel(DEFAULT_ZOOM);
 
       // Step 8: Reset playback state
-      console.log('[AudioEngine] Step 8: Resetting playback state');
       this.playbackStartPosition = 0;
       this.isPlaying = false;
       useAppStore.getState().setIsPlaying(false);
@@ -316,13 +276,9 @@ export class AudioEngine {
       const isMuted = useAppStore.getState().globalControls.isMuted;
       const targetVolume = isMuted ? -60 : (storeVolume !== undefined ? storeVolume : 6);
       this.setVolume(targetVolume);
-      console.log('[AudioEngine] Volume set to', targetVolume, 'dB on load');
 
-      console.log('[AudioEngine] ===== LOAD AUDIO FILE COMPLETE =====');
-      console.log('[AudioEngine] Ready for playback with independent pitch/speed control');
 
     } catch (error) {
-      console.error('[AudioEngine] Failed to load audio file', error);
       
       // Reset state on error
       const store = useAppStore.getState();
@@ -370,12 +326,6 @@ export class AudioEngine {
     const sampleRate = 44100;
     const totalSamples = Math.floor(duration * sampleRate);
     const bufferLength = Math.min(totalSamples, sampleRate * 600); // Max 10 min worth of samples
-    
-    console.log('[AudioEngine] Creating synthetic waveform:', { 
-      duration, 
-      sampleRate, 
-      bufferLength 
-    });
 
     // Create stereo buffer
     const buffer = this.audioContext.createBuffer(2, bufferLength, sampleRate);
@@ -414,12 +364,6 @@ export class AudioEngine {
       }
     }
 
-    console.log('[AudioEngine] Synthetic waveform created:', {
-      duration: buffer.duration,
-      channels: buffer.numberOfChannels,
-      length: buffer.length
-    });
-
     return buffer;
   }
 
@@ -456,9 +400,7 @@ export class AudioEngine {
       this.analyserNode = this.audioContext.createAnalyser();
       this.analyserNode.fftSize = 2048;
       this.analyserNode.smoothingTimeConstant = 0.8;
-      console.log('[AudioEngine] Analyser node initialized');
     } catch (error) {
-      console.error('[AudioEngine] Failed to initialize analyser node', error);
     }
   }
 
@@ -467,19 +409,16 @@ export class AudioEngine {
    */
   public async play(): Promise<void> {
     if (!this.player || !this.playerLoaded) {
-      console.error('[AudioEngine] Cannot play: Player not initialized or not loaded');
       throw new Error('AudioEngine: No audio loaded');
     }
 
     // Resume audio context if suspended
     if (Tone.context.state !== 'running') {
-      console.log('[AudioEngine] Resuming Tone.js context...');
       await Tone.context.resume();
     }
 
     // If already playing, do nothing
     if (this.isPlaying) {
-      console.log('[AudioEngine] Already playing');
       return;
     }
 
@@ -526,14 +465,7 @@ export class AudioEngine {
         this.volumeNode.volume.rampTo(targetDb, 0.03); // 30ms = 0.03s
       }
 
-      console.log('[AudioEngine] Playback started', {
-        startPosition,
-        playbackRate: this.currentPlaybackRate,
-        pitch: this.currentPitch
-      });
-
     } catch (error) {
-      console.error('[AudioEngine] Failed to play audio', error);
       this.isPlaying = false;
       useAppStore.getState().setIsPlaying(false);
       throw error;
@@ -565,10 +497,8 @@ export class AudioEngine {
       // Stop position tracking
       this.stopPositionTracking();
 
-      console.log('[AudioEngine] Playback paused at', currentTime);
 
     } catch (error) {
-      console.error('[AudioEngine] Failed to pause audio', error);
     }
   }
 
@@ -615,10 +545,8 @@ export class AudioEngine {
         this.volumeNode.volume.value = currentDb;
       }
 
-      console.log('[AudioEngine] Playback stopped');
 
     } catch (error) {
-      console.error('[AudioEngine] Failed to stop audio', error);
     }
   }
 
@@ -652,9 +580,7 @@ export class AudioEngine {
         // Restart position tracking
         this.startPositionTracking();
         
-        console.log('[AudioEngine] Seeked to', seekTime, 'while playing - playback continued');
       } catch (error) {
-        console.error('[AudioEngine] Error seeking during playback:', error);
         // Fallback: stop and restart
         if (this.player) {
           this.player.stop();
@@ -664,7 +590,6 @@ export class AudioEngine {
       }
     } else {
       // Not playing, just update position
-      console.log('[AudioEngine] Seeked to', seekTime, '(not playing)');
     }
   }
 
@@ -713,18 +638,7 @@ export class AudioEngine {
           // Use a threshold (0.1s) to account for timing precision and ensure we catch it
           const loopEndThreshold = this.loopEnd - 0.1;
           if (currentTime >= loopEndThreshold) {
-            console.log('[AudioEngine] Loop end detected:', { 
-              currentTime, 
-              loopEnd: this.loopEnd, 
-              loopStart: this.loopStart,
-              loopEndThreshold,
-              isLooping: this.isLooping,
-              isPlaying: this.isPlaying
-            });
-            // Call handleLoopEnd - it's async but we don't await it in the callback
-            this.handleLoopEnd().catch(err => {
-              console.error('[AudioEngine] Error in handleLoopEnd:', err);
-            });
+            this.handleLoopEnd().catch(() => {});
             return; // Don't check for audio end if we're looping
           }
         }
@@ -736,7 +650,6 @@ export class AudioEngine {
       }
     }, 0.1); // 100ms interval
 
-    console.log('[AudioEngine] Position tracking started');
   }
 
   /**
@@ -766,7 +679,6 @@ export class AudioEngine {
       this.player.stop();
     }
 
-    console.log('[AudioEngine] Playback ended');
   }
 
   /**
@@ -774,14 +686,9 @@ export class AudioEngine {
    */
   private async handleLoopEnd(): Promise<void> {
     if (!this.isLooping || this.loopStart === null) {
-      console.warn('[AudioEngine] handleLoopEnd called but loop is not active:', {
-        isLooping: this.isLooping,
-        loopStart: this.loopStart
-      });
       return;
     }
 
-    console.log('[AudioEngine] Loop end reached, jumping to loop start:', this.loopStart);
     
     // Get current playback state BEFORE making any changes
     const wasPlaying = this.isPlaying;
@@ -806,9 +713,7 @@ export class AudioEngine {
         // Restart position tracking
         this.startPositionTracking();
         
-        console.log('[AudioEngine] Looped back to start:', this.loopStart, '- playback continued');
       } catch (error) {
-        console.error('[AudioEngine] Error looping during playback:', error);
         // Fallback: use seek method
         await this.seek(this.loopStart);
         if (wasPlaying && !this.isPlaying) {
@@ -840,12 +745,9 @@ export class AudioEngine {
 
     // Warn about extreme speeds
     if (clampedRate < 0.5) {
-      console.warn('[AudioEngine] Very slow speed may degrade audio quality');
     } else if (clampedRate > 2.0) {
-      console.warn('[AudioEngine] Very fast speed may degrade audio quality');
     }
 
-    console.log('[AudioEngine] Playback rate set to', clampedRate, 'x (pitch maintained)');
   }
 
   /**
@@ -871,7 +773,6 @@ export class AudioEngine {
 
     const speed = speedMap[preset] || 1.0;
     this.setSpeed(speed);
-    console.log('[AudioEngine] Speed preset applied:', preset, '=', speed, 'x');
   }
 
   /**
@@ -885,7 +786,6 @@ export class AudioEngine {
     
     // Validate loop bounds
     if (start < 0 || end > duration || start >= end) {
-      console.warn('[AudioEngine] Invalid loop bounds:', { start, end, duration });
       return;
     }
 
@@ -893,14 +793,9 @@ export class AudioEngine {
     this.loopEnd = end;
     this.isLooping = true;
 
-    console.log('[AudioEngine] Loop enabled:', { 
       start, 
       end, 
-      duration,
-      isLooping: this.isLooping,
-      loopStart: this.loopStart,
-      loopEnd: this.loopEnd
-    });
+      duration
   }
 
   /**
@@ -912,7 +807,6 @@ export class AudioEngine {
     this.loopStart = null;
     this.loopEnd = null;
 
-    console.log('[AudioEngine] Loop disabled');
   }
 
   /**
@@ -927,7 +821,6 @@ export class AudioEngine {
     this.currentPitch = clampedPitch;
 
     if (!this.pitchShift) {
-      console.warn('[AudioEngine] PitchShift node not initialized. Cannot set pitch.');
       // Update store anyway so UI reflects the change
       useAppStore.getState().setPitch(clampedPitch);
       return;
@@ -936,7 +829,6 @@ export class AudioEngine {
     try {
       // Ensure Tone.js context is running (only if suspended)
       if (Tone.context.state === 'suspended') {
-        console.log('[AudioEngine] Tone.js context suspended, attempting to start...');
         Tone.start().catch(() => {
           // Ignore errors - might already be starting
         });
@@ -945,15 +837,7 @@ export class AudioEngine {
       // Apply pitch change smoothly - Tone.js PitchShift supports real-time changes
       // This does NOT stop playback - pitch changes smoothly during playback
       this.pitchShift.pitch = clampedPitch;
-      
-      console.log('[AudioEngine] Pitch set to', clampedPitch, 'semitones (playback continues)', {
-        pitchShiftExists: !!this.pitchShift,
-        pitchShiftPitch: this.pitchShift.pitch,
-        isPlaying: this.isPlaying,
-        playerConnected: !!this.player
-      });
     } catch (error) {
-      console.error('[AudioEngine] Error setting pitch:', error);
     }
 
     // Update store with new pitch value
@@ -965,7 +849,6 @@ export class AudioEngine {
    */
   public resetPitch(): void {
     this.setPitch(0);
-    console.log('[AudioEngine] Pitch reset to 0');
   }
 
   /**
@@ -978,7 +861,6 @@ export class AudioEngine {
       this.volumeNode.volume.value = clampedDb;
     }
 
-    console.log('[AudioEngine] Volume set to', clampedDb, 'dB');
   }
 
   /**
@@ -1073,12 +955,10 @@ export class AudioEngine {
   public async resumeAudioContext(): Promise<void> {
     if (Tone.context.state !== 'running') {
       await Tone.context.resume();
-      console.log('[AudioEngine] Tone.js context resumed');
     }
     
     if (this.audioContext && this.audioContext.state === 'suspended') {
       await this.audioContext.resume();
-      console.log('[AudioEngine] Web Audio context resumed');
     }
   }
 
@@ -1086,7 +966,6 @@ export class AudioEngine {
    * Clean up resources
    */
   public dispose(): void {
-    console.log('[AudioEngine] Disposing...');
 
     // Stop playback
     this.stop();
@@ -1129,7 +1008,6 @@ export class AudioEngine {
     this.playerLoaded = false;
     this.isPlaying = false;
 
-    console.log('[AudioEngine] Disposed');
   }
 }
 
@@ -1155,5 +1033,4 @@ export function resetAudioEngine(): void {
     audioEngineInstance.dispose();
     audioEngineInstance = null;
   }
-  console.log('[AudioEngine] Singleton reset');
 }

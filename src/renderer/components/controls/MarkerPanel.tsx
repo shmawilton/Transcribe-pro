@@ -149,7 +149,6 @@ const MarkerPanel: React.FC = () => {
           },
         });
       } catch (error) {
-        console.error('[MarkerPanel] Error activating marker:', error);
       }
     },
     [seek, setLoop, disableLoop]
@@ -173,7 +172,6 @@ const MarkerPanel: React.FC = () => {
     setTimeout(() => {
       const store = useAppStore.getState();
       store.setSelectedMarkerId(null);
-      console.log('[MarkerPanel] Marker deactivated, loop disabled, speed reset to 1.0x');
     }, 50);
   }, [setSpeed, disableLoop]);
 
@@ -192,17 +190,14 @@ const MarkerPanel: React.FC = () => {
         // Ensure minimum duration of 0.5 seconds
         if (end - start >= 0.5) {
           MarkerManager.createQuickMarker(start, end);
-          console.log('[MarkerPanel] Quick marker created at:', start, '-', end);
         } else {
           // If at end of audio, create marker ending at current position
           const altStart = Math.max(0, currentTime - 5);
           if (currentTime - altStart >= 0.5) {
             MarkerManager.createQuickMarker(altStart, currentTime);
-            console.log('[MarkerPanel] Quick marker created at:', altStart, '-', currentTime);
           }
         }
       } catch (error) {
-        console.error('[MarkerPanel] Failed to create quick marker:', error);
       }
     }
   }, [duration, currentTime]);
@@ -251,14 +246,11 @@ const MarkerPanel: React.FC = () => {
         // Apply loop setting
         if (editFormData.loop) {
           setLoop(editFormData.start, editFormData.end);
-          console.log('[MarkerPanel] Applied loop setting:', editFormData.start, '-', editFormData.end);
         } else {
           disableLoop();
-          console.log('[MarkerPanel] Disabled loop');
         }
         
         // Speed is handled by useMarkerSpeedControl hook based on playback position
-        console.log('[MarkerPanel] Marker updated - speed will be applied by hook:', editFormData.speed);
       }
 
       setEditingMarkerId(null);

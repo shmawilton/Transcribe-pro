@@ -367,9 +367,7 @@ const Waveform: React.FC = () => {
       
       // Log peak generation (minimal logging)
       if (Array.isArray(peaks)) {
-        console.log('[Waveform] Generated peaks for viewport:', { vpStart: roundedVpStart.toFixed(2), vpEnd: roundedVpEnd.toFixed(2), count: peaks.length });
       } else if (peaks && 'left' in peaks) {
-        console.log('[Waveform] Generated stereo peaks for viewport:', { vpStart: roundedVpStart.toFixed(2), vpEnd: roundedVpEnd.toFixed(2) });
       }
       
       // Update cache
@@ -1006,7 +1004,6 @@ const Waveform: React.FC = () => {
     setClickFeedback(true);
     setTimeout(() => setClickFeedback(false), 150);
     
-    console.log('[Waveform] Seeked to:', formatHoverTime(clampedTime));
   }, [duration, seek, viewportStart, viewportEnd]);
 
   // Smooth viewport animation hook

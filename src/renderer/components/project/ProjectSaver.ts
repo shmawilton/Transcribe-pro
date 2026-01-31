@@ -37,7 +37,6 @@ const openDatabase = (): Promise<IDBDatabase> => {
     const request = indexedDB.open(IDB_DATABASE_NAME, IDB_VERSION);
     
     request.onerror = () => {
-      console.error('[IndexedDB] Failed to open database:', request.error);
       reject(request.error);
     };
     
@@ -53,7 +52,6 @@ const openDatabase = (): Promise<IDBDatabase> => {
         const store = db.createObjectStore(IDB_STORE_NAME, { keyPath: 'id' });
         store.createIndex('name', 'name', { unique: false });
         store.createIndex('updatedAt', 'updatedAt', { unique: false });
-        console.log('[IndexedDB] Created projects store');
       }
     };
   });
@@ -80,12 +78,10 @@ export const saveProjectToIndexedDB = async (project: StoredProject): Promise<vo
     const request = store.put(project);
     
     request.onerror = () => {
-      console.error('[IndexedDB] Failed to save project:', request.error);
       reject(request.error);
     };
     
     request.onsuccess = () => {
-      console.log('[IndexedDB] Project saved:', project.name);
       resolve();
     };
   });
@@ -103,7 +99,6 @@ export const getAllProjectsFromIndexedDB = async (): Promise<StoredProject[]> =>
       const request = store.getAll();
       
       request.onerror = () => {
-        console.error('[IndexedDB] Failed to get projects:', request.error);
         reject(request.error);
       };
       
@@ -114,8 +109,7 @@ export const getAllProjectsFromIndexedDB = async (): Promise<StoredProject[]> =>
         resolve(projects);
       };
     });
-  } catch (error) {
-    console.error('[IndexedDB] Error getting projects:', error);
+  } catch {
     return [];
   }
 };
@@ -132,7 +126,6 @@ export const getProjectFromIndexedDB = async (id: string): Promise<StoredProject
       const request = store.get(id);
       
       request.onerror = () => {
-        console.error('[IndexedDB] Failed to get project:', request.error);
         reject(request.error);
       };
       
@@ -140,8 +133,7 @@ export const getProjectFromIndexedDB = async (id: string): Promise<StoredProject
         resolve(request.result || null);
       };
     });
-  } catch (error) {
-    console.error('[IndexedDB] Error getting project:', error);
+  } catch {
     return null;
   }
 };
@@ -157,12 +149,10 @@ export const deleteProjectFromIndexedDB = async (id: string): Promise<void> => {
     const request = store.delete(id);
     
     request.onerror = () => {
-      console.error('[IndexedDB] Failed to delete project:', request.error);
       reject(request.error);
     };
     
     request.onsuccess = () => {
-      console.log('[IndexedDB] Project deleted:', id);
       resolve();
     };
   });
@@ -179,12 +169,10 @@ export const clearAllProjectsFromIndexedDB = async (): Promise<void> => {
     const request = store.clear();
     
     request.onerror = () => {
-      console.error('[IndexedDB] Failed to clear projects:', request.error);
       reject(request.error);
     };
     
     request.onsuccess = () => {
-      console.log('[IndexedDB] All projects cleared');
       resolve();
     };
   });
@@ -197,10 +185,7 @@ export const clearAutoSaveData = (): void => {
   try {
     localStorage.removeItem(WEB_AUTOSAVE_KEY);
     localStorage.removeItem('transcribe-pro-web-autosave-partial');
-    console.log('[ProjectSaver] Autosave data cleared');
-  } catch (error) {
-    console.error('[ProjectSaver] Failed to clear autosave:', error);
-  }
+  } catch (_) {}
 };
 
 /**
@@ -216,8 +201,7 @@ export const getStorageUsageEstimate = async (): Promise<{ used: number; quota: 
       };
     }
     return null;
-  } catch (error) {
-    console.error('[ProjectSaver] Failed to get storage estimate:', error);
+  } catch {
     return null;
   }
 };
@@ -245,12 +229,8 @@ export class ProjectSaver {
   private notify(message: string, type: 'success' | 'error' = 'success') {
     if (this.onNotification) {
       this.onNotification(message, type);
-    } else {
-      // Fallback to console or alert
-      console.log(`[ProjectSaver] ${type.toUpperCase()}: ${message}`);
-      if (type === 'error') {
-        alert(`Error: ${message}`);
-      }
+    } else if (type === 'error') {
+      alert(`Error: ${message}`);
     }
   }
 
@@ -294,12 +274,6 @@ export class ProjectSaver {
       
       // Embed audio file as base64 (REQUIRED for new format)
       try {
-        console.log('[ProjectSaver] Embedding audio file:', {
-          name: audioFileName,
-          size: audioFile.size,
-          type: audioFile.type
-        });
-        
         const audioData = await this.audioFileToBase64(audioFile);
         audioFileData = audioData.data;
         audioFileMimeType = audioData.mimeType;
@@ -307,19 +281,8 @@ export class ProjectSaver {
         if (!audioFileData || audioFileData.length === 0) {
           throw new Error('Failed to encode audio file - empty data');
         }
-        
-        console.log('[ProjectSaver] Audio file embedded successfully:', {
-          name: audioFileName,
-          originalSize: audioFile.size,
-          mimeType: audioFileMimeType,
-          base64Length: audioFileData.length,
-          estimatedSize: Math.round(audioFileData.length * 0.75) // Base64 is ~33% larger
-        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error('[ProjectSaver] CRITICAL: Failed to embed audio file:', errorMessage);
-        // Don't fall back - this is a critical error
-        // Projects MUST have embedded audio in the new format
         throw new Error(`Failed to embed audio file in project: ${errorMessage}. Please try again.`);
       }
     }
@@ -357,10 +320,7 @@ export class ProjectSaver {
       try {
         (useAppStore.getState() as any).setLastAutoSaveAt?.(this.lastAutoSavedAt);
       } catch (_) {}
-      console.log('[ProjectSaver] Web auto-saved project to localStorage');
-    } catch (error) {
-      console.warn('[ProjectSaver] Failed to web auto-save to localStorage:', error);
-    }
+    } catch (_) {}
   }
 
   /**
@@ -388,9 +348,7 @@ export class ProjectSaver {
             } else {
               throw new Error('Direct save failed');
             }
-          } catch (error) {
-            // If direct save fails (e.g., file was moved/deleted), fall back to dialog
-            console.warn('[ProjectSaver] Direct save failed, falling back to dialog:', error);
+          } catch {
             const result = await (window as any).electronAPI.saveProjectDialog(jsonData);
             if (result.canceled) {
               return null;
@@ -417,7 +375,6 @@ export class ProjectSaver {
 
       return filePath || null;
     } catch (error) {
-      console.error('[ProjectSaver] Error saving project:', error);
       throw error;
     }
   }
@@ -442,12 +399,6 @@ export class ProjectSaver {
         this.notify('Failed to embed audio file in project. Please try again.', 'error');
         return false;
       }
-      
-      console.log('[ProjectSaver] Project data ready:', {
-        hasEmbeddedAudio: !!projectData.audioFileData,
-        audioFileName: projectData.audioFileName,
-        markersCount: projectData.markers.length
-      });
       
       // If no path is set, auto-save with untitled name
       let filePath = this.currentProjectPath;
@@ -519,21 +470,13 @@ export class ProjectSaver {
         return false;
       }
       
-      console.log('[ProjectSaver] Project data ready:', {
-        hasEmbeddedAudio: !!projectData.audioFileData,
-        audioFileName: projectData.audioFileName,
-        markersCount: projectData.markers.length
-      });
-      
       this.notify('Saving project with embedded audio...', 'success');
       const filePath = await this.saveToFile(projectData);
 
       if (!filePath) {
-        // User cancelled
         return false;
       }
 
-      // Update current project path
       this.currentProjectPath = filePath;
       try {
         (useAppStore.getState() as any).setLastManualSaveAt?.(Date.now());
@@ -626,10 +569,7 @@ export class ProjectSaver {
       }
     } catch (_) {}
 
-    if (!enabled) {
-      console.log('[ProjectSaver] Auto-save disabled in settings');
-      return;
-    }
+    if (!enabled) return;
 
     this.autoSaveTimer = setInterval(async () => {
       try {
@@ -641,22 +581,17 @@ export class ProjectSaver {
           if (this.currentProjectPath) {
             const projectData = await this.getProjectData();
             await this.saveToFile(projectData, this.currentProjectPath);
-            console.log('[ProjectSaver] Auto-saved project to file');
           }
         } else {
           // Web: if saved to device (IndexedDB), update that project in place; else localStorage snapshot
           if (this.currentProjectId) {
             await this.saveToDevice(undefined, true);
-            console.log('[ProjectSaver] Auto-saved project to device');
           } else {
             const projectData = await this.getProjectData();
             this.saveToLocalStorage(projectData);
           }
         }
-      } catch (error) {
-        console.error('[ProjectSaver] Auto-save failed:', error);
-        // Don't show error notification for auto-save failures
-      }
+      } catch (_) {}
     }, intervalMs);
   }
 
@@ -691,9 +626,7 @@ export class ProjectSaver {
       const updated = [newProject, ...filtered].slice(0, MAX_RECENT_PROJECTS);
       
       localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
-    } catch (error) {
-      console.error('[ProjectSaver] Failed to add to recent projects:', error);
-    }
+    } catch (_) {}
   }
 
   /**
@@ -706,8 +639,7 @@ export class ProjectSaver {
         return [];
       }
       return JSON.parse(data) as RecentProject[];
-    } catch (error) {
-      console.error('[ProjectSaver] Failed to get recent projects:', error);
+    } catch {
       return [];
     }
   }
@@ -720,9 +652,7 @@ export class ProjectSaver {
       const recentProjects = this.getRecentProjects();
       const filtered = recentProjects.filter(p => p.filePath !== filePath);
       localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(filtered));
-    } catch (error) {
-      console.error('[ProjectSaver] Failed to remove recent project:', error);
-    }
+    } catch (_) {}
   }
 
   /**
@@ -731,9 +661,7 @@ export class ProjectSaver {
   clearRecentProjects() {
     try {
       localStorage.removeItem(RECENT_PROJECTS_KEY);
-    } catch (error) {
-      console.error('[ProjectSaver] Failed to clear recent projects:', error);
-    }
+    } catch (_) {}
   }
 
   // ============ Mobile PWA Save Methods ============
@@ -821,7 +749,6 @@ export class ProjectSaver {
       return { success: true, projectId };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save project';
-      console.error('[ProjectSaver] Save to device failed:', error);
       this.notify(`Save failed: ${errorMessage}`, 'error');
       return { success: false };
     }
@@ -865,8 +792,6 @@ export class ProjectSaver {
           this.notify('Project shared successfully!', 'success');
           return true;
         } catch (shareError) {
-          // If share fails (user cancelled or not supported), fall back to download
-          console.log('[ProjectSaver] Share failed, falling back to download:', shareError);
         }
       }
       

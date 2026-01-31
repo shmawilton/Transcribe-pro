@@ -627,9 +627,7 @@ export function MarkerTimeline() {
         try {
           // Use quick marker creation - auto name and color
           MarkerManager.createQuickMarker(start, end);
-          console.log('[MarkerTimeline] Quick marker created via touch drag:', formatTime(start), '-', formatTime(end));
         } catch (error) {
-          console.error('[MarkerTimeline] Failed to create quick marker:', error);
         }
       }
     }
@@ -658,9 +656,7 @@ export function MarkerTimeline() {
             try {
               // Use quick marker creation - auto name and color
               MarkerManager.createQuickMarker(start, end);
-              console.log('[MarkerTimeline] Quick marker created via mouse drag:', formatTime(start), '-', formatTime(end));
             } catch (error) {
-              console.error('[MarkerTimeline] Failed to create quick marker:', error);
             }
           }
         }
@@ -714,7 +710,6 @@ export function MarkerTimeline() {
   // Click handler to activate marker with full functionality (speed, loop, seek)
   const handleMarkerClick = useCallback(async (e: React.MouseEvent, markerId: string) => {
     e.stopPropagation(); // Prevent triggering SVG click
-    console.log('[MarkerTimeline] Marker clicked:', markerId);
     
     try {
       const marker = MarkerManager.getMarker(markerId);
@@ -734,7 +729,6 @@ export function MarkerTimeline() {
         },
       });
     } catch (error) {
-      console.error('[MarkerTimeline] Error activating marker:', error);
     }
   }, [seek, setLoop, disableLoop]);
   

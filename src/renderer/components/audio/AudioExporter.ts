@@ -21,7 +21,6 @@ async function ensureFFmpegLoaded(): Promise<FFmpeg> {
       });
       ffmpegLoaded = true;
     } catch (e) {
-      console.error('[AudioExporter] Failed to load FFmpeg:', e);
       throw e;
     }
   })();
@@ -137,7 +136,6 @@ export class AudioExporter {
 
       return blob;
     } catch (error) {
-      console.error('[AudioExporter] Export failed:', error);
       throw new Error(`Failed to export audio: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

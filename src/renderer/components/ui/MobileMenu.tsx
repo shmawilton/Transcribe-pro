@@ -32,8 +32,9 @@ const MobileMenu: React.FC = () => {
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
   const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
-  const zoomLevel = useAppStore((state) => state.zoomLevel) || 5; // Default to 5x zoom (20% view)
+  const zoomLevel = useAppStore((state) => state.ui.zoomLevel) ?? 5; // Same as desktop: read from ui.zoomLevel (default 5 on mobile)
   const duration = useAppStore((state) => state.audio.duration) || 0;
+  const currentTime = useAppStore((state) => state.audio.currentTime) || 0;
   const undo = useAppStore((state) => state.undo);
   const redo = useAppStore((state) => state.redo);
   const canUndo = useAppStore((state) => state.canUndo);
@@ -152,20 +153,19 @@ const MobileMenu: React.FC = () => {
     if (!isAudioLoaded || !duration) return;
     const currentZoom = typeof zoomLevel === 'number' && !isNaN(zoomLevel) ? zoomLevel : MIN_ZOOM;
     const newZoom = Math.min(currentZoom * 1.5, MAX_ZOOM);
-    animateZoom(newZoom, { duration: 300, easing: 'easeOutCubic' });
+    animateZoom(newZoom, currentTime, { duration: 300, easing: 'easeOutCubic' });
   };
   
   const handleZoomOut = () => {
     if (!isAudioLoaded || !duration) return;
     const currentZoom = typeof zoomLevel === 'number' && !isNaN(zoomLevel) ? zoomLevel : MIN_ZOOM;
     const newZoom = Math.max(currentZoom / 1.5, MIN_ZOOM);
-    animateZoom(newZoom, { duration: 300, easing: 'easeOutCubic' });
+    animateZoom(newZoom, currentTime, { duration: 300, easing: 'easeOutCubic' });
   };
   
   const handleZoomReset = () => {
     if (!isAudioLoaded || !duration) return;
-    // Reset to minimum (1/4 view) on mobile
-    animateZoom(MIN_ZOOM, { duration: 300, easing: 'easeOutCubic' });
+    animateZoom(MIN_ZOOM, undefined, { duration: 300, easing: 'easeOutCubic' });
   };
   
   // Pitch handlers - matching desktop behavior (±2 semitones range, 0.1 step)

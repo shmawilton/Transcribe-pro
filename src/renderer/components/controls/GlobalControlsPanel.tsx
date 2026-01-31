@@ -61,14 +61,7 @@ const GlobalControlsPanel: React.FC = () => {
   const [pitch, setPitchState] = useState(storedPitch || 0);
   const [isAnimating, setIsAnimating] = useState(false);
   
-  // Debug: Log when component mounts
-  useEffect(() => {
-    console.log('[GlobalControlsPanel] Component mounted', {
-      isAudioLoaded,
-      storedPitch,
-      currentPitch: pitch
-    });
-  }, []);
+  useEffect(() => {}, []);
   
   // Sync pitch with store on mount and when store changes
   useEffect(() => {
@@ -87,7 +80,6 @@ const GlobalControlsPanel: React.FC = () => {
   // Handle pitch change
   const handlePitchChange = (newPitch: number) => {
     if (!isAudioLoaded) {
-      console.warn('[GlobalControlsPanel] Cannot change pitch: No audio loaded');
       return;
     }
     
@@ -98,9 +90,7 @@ const GlobalControlsPanel: React.FC = () => {
     // Apply pitch to audio engine
     try {
       setPitch(clampedPitch);
-      console.log('[GlobalControlsPanel] Pitch changed to:', clampedPitch, 'semitones');
     } catch (error) {
-      console.error('[GlobalControlsPanel] Error setting pitch:', error);
     }
     
     // Update store

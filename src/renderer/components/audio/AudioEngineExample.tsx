@@ -34,7 +34,6 @@ export const AudioEngineExample: React.FC = () => {
       const file = await pickAudioFile();
 
       if (!file) {
-        console.log('No file selected');
         return;
       }
 
@@ -47,14 +46,7 @@ export const AudioEngineExample: React.FC = () => {
 
       // Load audio file
       await loadFile(file);
-      
-      console.log('Audio loaded successfully!', {
-        name: file.name,
-        duration: audio.duration,
-        sampleRate: audio.sampleRate,
-      });
     } catch (err) {
-      console.error('Failed to load audio:', err);
       alert(`Failed to load audio: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
@@ -64,7 +56,6 @@ export const AudioEngineExample: React.FC = () => {
       await resumeAudioContext();
       await play();
     } catch (err) {
-      console.error('Failed to play:', err);
     }
   };
 
@@ -72,7 +63,6 @@ export const AudioEngineExample: React.FC = () => {
     try {
       await seek(time);
     } catch (err) {
-      console.error('Failed to seek:', err);
     }
   };
 

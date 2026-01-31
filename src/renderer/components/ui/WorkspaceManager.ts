@@ -57,7 +57,6 @@ export class WorkspaceManager {
       if (!data) return [];
       return JSON.parse(data) as WorkspaceLayout[];
     } catch (error) {
-      console.error('[WorkspaceManager] Failed to get layouts:', error);
       return [];
     }
   }
@@ -77,7 +76,6 @@ export class WorkspaceManager {
       
       return true;
     } catch (error) {
-      console.error('[WorkspaceManager] Failed to load layout:', error);
       return false;
     }
   }
@@ -92,7 +90,6 @@ export class WorkspaceManager {
       localStorage.setItem(WORKSPACE_LAYOUTS_KEY, JSON.stringify(updated));
       return true;
     } catch (error) {
-      console.error('[WorkspaceManager] Failed to delete layout:', error);
       return false;
     }
   }

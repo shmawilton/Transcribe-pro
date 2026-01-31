@@ -70,7 +70,6 @@ const SettingsModal: React.FC = () => {
           const parsed = JSON.parse(savedSettings);
           setSettings({ ...DEFAULT_SETTINGS, ...parsed });
         } catch (e) {
-          console.error('Failed to parse settings:', e);
         }
       }
       // Fetch storage usage

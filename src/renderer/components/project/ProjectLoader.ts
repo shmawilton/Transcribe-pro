@@ -40,11 +40,8 @@ export class ProjectLoader {
   private notify(message: string, type: 'success' | 'error' = 'success') {
     if (this.onNotification) {
       this.onNotification(message, type);
-    } else {
-      console.log(`[ProjectLoader] ${type.toUpperCase()}: ${message}`);
-      if (type === 'error') {
-        alert(`Error: ${message}`);
-      }
+    } else if (type === 'error') {
+      alert(`Error: ${message}`);
     }
   }
 
@@ -65,7 +62,7 @@ export class ProjectLoader {
 
       // Check if version is compatible (for now, accept 1.0.0)
       if (data.version !== PROJECT_VERSION) {
-        console.warn(`[ProjectLoader] Project version ${data.version} may not be fully compatible with current version ${PROJECT_VERSION}`);
+        // Version mismatch - continue loading
       }
 
       // Check required fields
@@ -86,39 +83,30 @@ export class ProjectLoader {
       for (let i = 0; i < data.markers.length; i++) {
         const marker = data.markers[i];
         if (!marker || typeof marker !== 'object') {
-          console.warn(`[ProjectLoader] Skipping invalid marker at index ${i}`);
           continue;
         }
 
-        // Validate required marker fields
         if (typeof marker.id !== 'string' || !marker.id) {
-          console.warn(`[ProjectLoader] Marker at index ${i} missing id, generating one`);
           marker.id = `marker-${Date.now()}-${i}`;
         }
 
         if (typeof marker.start !== 'number' || isNaN(marker.start) || marker.start < 0) {
-          console.warn(`[ProjectLoader] Marker ${marker.id} has invalid start time, skipping`);
           continue;
         }
 
         if (typeof marker.end !== 'number' || isNaN(marker.end) || marker.end < 0) {
-          console.warn(`[ProjectLoader] Marker ${marker.id} has invalid end time, skipping`);
           continue;
         }
 
         if (marker.end <= marker.start) {
-          console.warn(`[ProjectLoader] Marker ${marker.id} has end time <= start time, fixing`);
-          marker.end = marker.start + 0.1; // Minimum 0.1 second duration
+          marker.end = marker.start + 0.1;
         }
 
         if (typeof marker.name !== 'string') {
-          console.warn(`[ProjectLoader] Marker ${marker.id} missing name, using default`);
           marker.name = `Marker ${i + 1}`;
         }
 
-        // Validate optional fields
         if (marker.speed !== undefined && (typeof marker.speed !== 'number' || marker.speed < 0.25 || marker.speed > 4.0)) {
-          console.warn(`[ProjectLoader] Marker ${marker.id} has invalid speed, resetting to 1.0`);
           marker.speed = 1.0;
         }
 
@@ -187,9 +175,7 @@ export class ProjectLoader {
       
       // Log what format we detected
       if (projectData.audioFileData) {
-        console.log('[ProjectLoader] Project has embedded audio (new format)');
       } else {
-        console.log('[ProjectLoader] Project uses legacy format (no embedded audio)');
       }
 
       return { valid: true, projectData };
@@ -213,7 +199,6 @@ export class ProjectLoader {
       if (!validation.valid || !validation.projectData) return false;
       return await this.applyProjectData(validation.projectData, loadFileCallback, { silent: true, filePath: 'web-autosave' });
     } catch (e) {
-      console.warn('[ProjectLoader] Failed to load auto-saved project:', e);
       return false;
     }
   }
@@ -329,45 +314,17 @@ export class ProjectLoader {
 
           // Safe cleanup function that checks if element is still in DOM
           const safeCleanup = () => {
-            console.log('[ProjectLoader] safeCleanup called');
             try {
-              console.log('[ProjectLoader] Checking if input is in DOM...', {
-                parentNode: input.parentNode,
-                isBody: input.parentNode === document.body,
-                bodyChildren: document.body.children.length
-              });
-              // Check if input is still a child of body before removing
               if (input.parentNode === document.body) {
-                console.log('[ProjectLoader] Removing input from DOM');
                 document.body.removeChild(input);
-                console.log('[ProjectLoader] Input removed successfully');
-              } else {
-                console.log('[ProjectLoader] Input not in body, skipping removal', {
-                  parentNode: input.parentNode,
-                  parentNodeType: input.parentNode?.nodeName
-                });
               }
-            } catch (error) {
-              // Element might have already been removed, ignore error
-              console.error('[ProjectLoader] Cleanup error:', error);
-              console.error('[ProjectLoader] Error details:', {
-                errorName: error instanceof Error ? error.name : 'Unknown',
-                errorMessage: error instanceof Error ? error.message : String(error),
-                stack: error instanceof Error ? error.stack : undefined,
-                inputParent: input.parentNode,
-                inputInBody: input.parentNode === document.body
-              });
-            }
+            } catch (_) {}
           };
 
           let resolved = false;
-          console.log('[ProjectLoader] Setting up file input for project file selection');
           
-          // Safety timeout: only fires if user cancels and onchange never fires (5 minutes)
           const safetyTimeout = setTimeout(() => {
-            console.log('[ProjectLoader] Safety timeout fired (user likely cancelled)');
             if (!resolved) {
-              console.log('[ProjectLoader] Resolving with canceled (timeout)');
               safeCleanup();
               resolved = true;
               resolve({ canceled: true });
@@ -375,27 +332,15 @@ export class ProjectLoader {
           }, 5 * 60 * 1000); // 5 minutes
 
           input.onchange = async (event) => {
-            console.log('[ProjectLoader] onchange event fired');
             const target = event.target as HTMLInputElement;
             const file = target.files?.[0];
-            console.log('[ProjectLoader] File selected:', file ? { name: file.name, size: file.size } : 'null');
-            
-            console.log('[ProjectLoader] Clearing safety timeout');
             clearTimeout(safetyTimeout);
-            
-            // Clean up safely after a small delay to avoid React render conflicts
-            setTimeout(() => {
-              console.log('[ProjectLoader] Executing cleanup in setTimeout');
-              safeCleanup();
-            }, 0);
+            setTimeout(() => safeCleanup(), 0);
 
             if (!file) {
               if (!resolved) {
-                console.log('[ProjectLoader] No file selected, resolving with canceled');
                 resolved = true;
                 resolve({ canceled: true });
-              } else {
-                console.log('[ProjectLoader] Already resolved, ignoring');
               }
               return;
             }
@@ -419,25 +364,17 @@ export class ProjectLoader {
               }
 
               if (!resolved) {
-                console.log('[ProjectLoader] Resolving with project data:', {
-                  filePath: file.name,
-                  hasProjectData: !!validation.projectData
-                });
                 resolved = true;
                 resolve({
                   canceled: false,
                   filePath: file.name,
                   projectData: validation.projectData,
                 });
-              } else {
-                console.log('[ProjectLoader] Already resolved, ignoring result');
               }
             } catch (error) {
-              console.error('[ProjectLoader] Error loading project file:', error);
               const errorMessage = error instanceof Error ? error.message : 'Failed to load project file';
               this.notify(errorMessage, 'error');
               if (!resolved) {
-                console.log('[ProjectLoader] Resolving with canceled due to error');
                 resolved = true;
                 resolve({ canceled: true });
               }
@@ -447,11 +384,8 @@ export class ProjectLoader {
           // Note: We don't handle oncancel explicitly because it's not reliably supported
           // The safety timeout (5 minutes) will handle cancellation cases
 
-          console.log('[ProjectLoader] Appending input to body and triggering click');
           document.body.appendChild(input);
-          console.log('[ProjectLoader] Input appended, body children count:', document.body.children.length);
           input.click();
-          console.log('[ProjectLoader] Click triggered, waiting for user selection...');
         });
       }
     } catch (error) {
@@ -486,23 +420,11 @@ export class ProjectLoader {
       // First, try to load from embedded audio data (new format with embedded audio)
       if (projectData.audioFileData && projectData.audioFileMimeType && projectData.audioFileName) {
         try {
-          console.log('[ProjectLoader] Attempting to load embedded audio:', {
-            fileName: projectData.audioFileName,
-            mimeType: projectData.audioFileMimeType,
-            dataLength: projectData.audioFileData.length
-          });
-          
           const file = this.base64ToFile(
             projectData.audioFileData,
             projectData.audioFileMimeType,
             projectData.audioFileName
           );
-          
-          console.log('[ProjectLoader] Successfully loaded audio from embedded data:', {
-            name: file.name,
-            size: file.size,
-            type: file.type
-          });
           
           // Validate the reconstructed file
           const validation = validateAudioFile(file);
@@ -512,22 +434,13 @@ export class ProjectLoader {
           
           return file;
         } catch (error) {
-          console.error('[ProjectLoader] Failed to load embedded audio:', error);
-          // If embedded audio fails, we need to fall back to file selection
           // But this should be rare - log it as an error
           const errorMessage = error instanceof Error ? error.message : 'Failed to decode embedded audio';
           this.notify(`Failed to load embedded audio: ${errorMessage}. Please select the audio file.`, 'error');
         }
-      } else {
-        // No embedded audio - this is an old project format
-        console.log('[ProjectLoader] No embedded audio found - using legacy format (file path/name only)');
       }
 
-      // Fallback: Prompt user to select audio file (for backward compatibility with old projects)
-      // Only show this if we don't have embedded audio
       if (!projectData.audioFileData) {
-        console.warn('[ProjectLoader] Project does not have embedded audio - this is a legacy format project');
-        
         if (projectData.audioFileName) {
           // Use a less alarming message for old projects
           const proceed = confirm(
@@ -721,7 +634,6 @@ export class ProjectLoader {
           audioStore.setViewport(0, duration / DEFAULT_ZOOM_2);
         } else if (attempts >= maxAttempts) {
           clearInterval(checkAudioLoaded);
-          console.warn('[ProjectLoader] Audio did not load within timeout, viewport may not be restored');
         }
       }, 100);
 
@@ -762,9 +674,7 @@ export class ProjectLoader {
       
       const updated = [newProject, ...filtered].slice(0, 10);
       localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated));
-    } catch (error) {
-      console.error('[ProjectLoader] Failed to add to recent projects:', error);
-    }
+    } catch (_) {}
   }
 
   /**
@@ -778,7 +688,6 @@ export class ProjectLoader {
       }
       return JSON.parse(data) as RecentProject[];
     } catch (error) {
-      console.error('[ProjectLoader] Failed to get recent projects:', error);
       return [];
     }
   }
@@ -814,7 +723,6 @@ export class ProjectLoader {
       return success;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to load project';
-      console.error('[ProjectLoader] Load from stored project failed:', error);
       this.notify(`Load failed: ${errorMessage}`, 'error');
       return false;
     }

@@ -479,7 +479,6 @@ export class MarkerManager {
     
     // If ID doesn't match any marker (data corruption), handle gracefully
     if (!activeMarker) {
-      console.warn(`[MarkerManager] Active marker ID "${activeMarkerId}" not found in markers array. This may indicate data corruption.`);
       return null;
     }
     
@@ -524,7 +523,6 @@ export class MarkerManager {
     
     // If marker not found (shouldn't happen), return first marker
     if (currentIndex === -1) {
-      console.warn(`[MarkerManager] Active marker not found in sorted array. Returning first marker.`);
       return sortedMarkers[0];
     }
     
@@ -577,7 +575,6 @@ export class MarkerManager {
     
     // If marker not found (shouldn't happen), return last marker
     if (currentIndex === -1) {
-      console.warn(`[MarkerManager] Active marker not found in sorted array. Returning last marker.`);
       return sortedMarkers[sortedMarkers.length - 1];
     }
     
@@ -633,22 +630,17 @@ export class MarkerManager {
     // The hook monitors playback position and applies marker speed only when within marker range
     // We don't apply speed here anymore - let the hook handle it dynamically
     const markerSpeed = marker.speed !== undefined ? marker.speed : 1.0;
-    console.log(`[MarkerManager] Marker activated: ${marker.name} (speed: ${markerSpeed}x, will apply when in range)`);
 
     // Step 4: Apply marker's loop settings
     if (marker.loop) {
       // If loop is true, call AudioEngine's setLoop() method with marker's start and end times
       if (options?.audioEngine?.setLoop) {
         options.audioEngine.setLoop(marker.start, marker.end);
-        console.log(`[MarkerManager] Enabled loop for marker: ${marker.start}s - ${marker.end}s`);
-      } else {
-        console.warn('[MarkerManager] AudioEngine.setLoop not available. Loop not applied.');
       }
     } else {
       // If false, disable looping
       if (options?.audioEngine?.disableLoop) {
         options.audioEngine.disableLoop();
-        console.log('[MarkerManager] Disabled loop');
       }
     }
 
@@ -657,9 +649,7 @@ export class MarkerManager {
     if (options?.seekToMarker) {
       if (options?.audioEngine?.seek) {
         await options.audioEngine.seek(marker.start);
-        console.log(`[MarkerManager] Seeked to marker start: ${marker.start}s`);
       } else {
-        console.warn('[MarkerManager] AudioEngine.seek not available. Seek not performed.');
       }
     }
   }

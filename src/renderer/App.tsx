@@ -60,8 +60,6 @@ const App: React.FC = () => {
       // Start auto-save timer when project has been saved at least once
       const projectSaver = getProjectSaver();
       projectSaver.startAutoSave();
-      console.log('[App] Auto-save started (project saved at least once)');
-      
       return () => {
         projectSaver.stopAutoSave();
       };
@@ -83,7 +81,6 @@ const App: React.FC = () => {
       // Apply volume from store to audio engine
       // When muted, volume is -60 dB (effectively silent)
       setVolume(currentVolume);
-      console.log('[App] Volume synced:', { currentVolume, isMuted });
     }
   }, [currentVolume, isMuted, isAudioLoaded, setVolume]);
   
@@ -109,9 +106,7 @@ const App: React.FC = () => {
         try {
           await seek(0); // Reset to beginning
           await play();  // Start playing again
-          console.log('[App] Auto-replay: Audio ended and restarted');
-        } catch (error) {
-          console.error('[App] Auto-replay failed:', error);
+        } catch {
           autoReplayTriggeredRef.current = false; // Allow retry on error
         }
       }, 300); // Slightly longer delay for stability
@@ -124,11 +119,6 @@ const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
-
-  // Debug: Track loading state changes
-  useEffect(() => {
-    console.log('[App] Loading state changed:', { isLoading, isAudioLoaded, showWelcome });
-  }, [isLoading, isAudioLoaded, showWelcome]);
 
   // Track if auto-restore is pending (failed due to audio context)
   const [pendingRestore, setPendingRestore] = React.useState(false);
@@ -151,15 +141,10 @@ const App: React.FC = () => {
 
     // Check if there's an auto-saved project
     const autosaveData = localStorage.getItem('transcribe-pro-web-autosave');
-    if (!autosaveData) {
-      console.log('[App] No auto-saved project found');
-      return;
-    }
-    
-    // Show restore dialog instead of auto-restoring
+    if (!autosaveData) return;
+
     setHasAutosaveData(true);
     setShowRestoreDialog(true);
-    console.log('[App] Found auto-saved project, showing restore dialog');
   }, []);
   
   // Handle restore from dialog
@@ -170,8 +155,7 @@ const App: React.FC = () => {
       // Try to resume audio context - this may fail on mobile without user interaction
       try {
         await resumeAudioContext();
-      } catch (audioCtxError) {
-        console.warn('[App] Audio context resume failed (mobile restriction), will retry on interaction:', audioCtxError);
+      } catch {
         setPendingRestore(true);
         return;
       }
@@ -186,10 +170,8 @@ const App: React.FC = () => {
         try {
           (useAppStore.getState() as any).setLastAutoSaveAt?.(Date.now());
         } catch (_) {}
-        console.log('[App] Restored auto-saved project from dialog');
       }
-    } catch (e) {
-      console.warn('[App] Restore failed:', e);
+    } catch {
       // Check if it's a mobile audio context issue
       if (localStorage.getItem('transcribe-pro-web-autosave')) {
         setPendingRestore(true);
@@ -205,10 +187,7 @@ const App: React.FC = () => {
     try {
       localStorage.removeItem('transcribe-pro-web-autosave');
       localStorage.removeItem('transcribe-pro-web-autosave-partial');
-      console.log('[App] Cleared autosave data, starting fresh');
-    } catch (e) {
-      console.warn('[App] Failed to clear autosave:', e);
-    }
+    } catch (_) {}
   }, []);
   
   // Handle user interaction to restore pending session (mobile fix)
@@ -223,10 +202,8 @@ const App: React.FC = () => {
         setShowWelcome(false);
         setPendingRestore(false);
         setHasAutosaveData(false);
-        console.log('[App] Restored pending auto-saved project after user interaction');
       }
-    } catch (e) {
-      console.error('[App] Failed to restore pending session:', e);
+    } catch {
       setPendingRestore(false);
     }
   }, [pendingRestore, resumeAudioContext, loadFile]);
@@ -263,10 +240,7 @@ const App: React.FC = () => {
         };
         // Note: We can't save audio file synchronously, but markers/settings are saved
         localStorage.setItem('transcribe-pro-web-autosave-partial', JSON.stringify(projectData));
-        console.log('[App] Partial auto-save before unload');
-      } catch (err) {
-        console.error('[App] Failed to auto-save before unload:', err);
-      }
+      } catch (_) {}
 
       // Respect settings (auto-save on/off)
       let autoSaveEnabled = true;
@@ -359,13 +333,11 @@ const App: React.FC = () => {
           // Ctrl+Z: Undo
           if (canUndo()) {
             undo();
-            console.log('[App] Undo via keyboard shortcut');
           }
         } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
           // Ctrl+Y or Ctrl+Shift+Z: Redo
           if (canRedo()) {
             redo();
-            console.log('[App] Redo via keyboard shortcut');
           }
         }
         return;
@@ -405,18 +377,14 @@ const App: React.FC = () => {
               const end = Math.min(currentTimeForMarker + 5, audioDuration);
               if (end - start >= 0.5) {
                 MarkerManager.createQuickMarker(start, end);
-                console.log('[App] Quick marker created via M key:', start, '-', end);
               } else {
                 const altStart = Math.max(0, currentTimeForMarker - 5);
                 if (currentTimeForMarker - altStart >= 0.5) {
                   MarkerManager.createQuickMarker(altStart, currentTimeForMarker);
-                  console.log('[App] Quick marker created via M key (alt):', altStart, '-', currentTimeForMarker);
                 }
               }
             }
-          } catch (err) {
-            console.error('[App] Failed to create marker via M key:', err);
-          }
+          } catch (_) {}
           break;
 
         case 'ArrowLeft': // Left Arrow - Skip backward 5 seconds

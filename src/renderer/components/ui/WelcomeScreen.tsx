@@ -142,7 +142,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
         setShowStoredProjects(true);
       }
     } catch (err) {
-      console.error('[WelcomeScreen] Failed to load stored projects:', err);
     }
   }, [projectSaver, isMobile]);
 

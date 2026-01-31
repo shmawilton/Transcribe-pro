@@ -145,7 +145,6 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => {
       showToast(`Exported ${markersToExport.length} marker${markersToExport.length > 1 ? 's' : ''} successfully!`, 'success');
       onClose();
     } catch (error) {
-      console.error('[ExportModal] Export failed:', error);
       showToast(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     } finally {
       setIsExporting(false);

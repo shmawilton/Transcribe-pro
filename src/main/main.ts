@@ -20,12 +20,12 @@ let mainWindow: BrowserWindow | null = null;
 // AUTO-UPDATER CONFIGURATION
 // ============================================
 
-// Configure auto-updater logging
+// Configure auto-updater logging (no-op in production to avoid leaking info)
 autoUpdater.logger = {
-  info: (message: any) => console.log('[AutoUpdater]', message),
-  warn: (message: any) => console.warn('[AutoUpdater]', message),
-  error: (message: any) => console.error('[AutoUpdater]', message),
-  debug: (message: any) => console.log('[AutoUpdater DEBUG]', message),
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
 };
 
 // Don't auto-download - let user choose
@@ -49,13 +49,11 @@ function sendUpdateStatus(status: string, data?: any) {
 function initAutoUpdater() {
   // Check for updates error
   autoUpdater.on('error', (error) => {
-    console.error('[AutoUpdater] Error:', error);
     sendUpdateStatus('error', { message: error.message });
   });
 
   // Update available
   autoUpdater.on('update-available', (info: UpdateInfo) => {
-    console.log('[AutoUpdater] Update available:', info.version);
     updateAvailable = true;
     updateInfo = info;
     sendUpdateStatus('update-available', {
@@ -67,7 +65,6 @@ function initAutoUpdater() {
 
   // No update available
   autoUpdater.on('update-not-available', (info: UpdateInfo) => {
-    console.log('[AutoUpdater] No update available. Current version:', info.version);
     sendUpdateStatus('update-not-available', { version: info.version });
   });
 
@@ -84,7 +81,6 @@ function initAutoUpdater() {
 
   // Update downloaded
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-    console.log('[AutoUpdater] Update downloaded:', info.version);
     downloadedUpdate = true;
     sendUpdateStatus('update-downloaded', {
       version: info.version,
@@ -104,14 +100,12 @@ async function checkForUpdates(silent: boolean = false) {
       return;
     }
 
-    console.log('[AutoUpdater] Checking for updates...');
     if (!silent) {
       sendUpdateStatus('checking');
     }
     
     await autoUpdater.checkForUpdates();
   } catch (error) {
-    console.error('[AutoUpdater] Check failed:', error);
     if (!silent) {
       sendUpdateStatus('error', { message: (error as Error).message });
     }
