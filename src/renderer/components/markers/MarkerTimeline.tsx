@@ -778,17 +778,18 @@ export function MarkerTimeline() {
       style={{
         position: 'relative',
         width: '100%',
-        flex: '1 1 auto',
+        flexGrow: isMobile ? 1 : 0,
+        flexShrink: 0,
+        flexBasis: 'auto',
         minHeight: isMobile ? '100%' : '100px',
-        maxHeight: isMobile ? '100%' : '250px',
+        maxHeight: isMobile ? '100%' : undefined,
         height: isMobile ? '100%' : 'auto',
         display: 'flex',
         flexDirection: 'column',
         background: 'rgba(0, 102, 68, 0.08)',
         borderRadius: isMobile ? '0' : '16px',
-        overflow: 'hidden',
+        overflow: isMobile ? 'hidden' : 'visible',
         boxShadow: isMobile ? 'none' : 'var(--neu-raised)',
-        flexShrink: 0,
       }}
     >
       {/* Marker hover tooltip */}

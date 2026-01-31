@@ -13,6 +13,8 @@ import ToastContainer, { useToast } from './components/ui/Toast';
 import StatusBar from './components/ui/StatusBar';
 import CommandPalette from './components/ui/CommandPalette';
 import ExportModal from './components/ui/ExportModal';
+import PWAInstallBanner from './components/ui/PWAInstallBanner';
+import RestoreSessionDialog from './components/ui/RestoreSessionDialog';
 import { useAppStore } from './store/store';
 import { useAudioEngine } from './components/audio/useAudioEngine';
 import { getProjectLoader } from './components/project/ProjectLoader';
@@ -28,13 +30,13 @@ const App: React.FC = () => {
   const isLoading = useAppStore((state) => state.audio.isLoading); // Use global store
   const [showWelcome, setShowWelcome] = useState(true);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
   const restoreAttemptedRef = React.useRef(false);
   const { toasts, closeToast } = useToast();
   
-  // Handle window resize for mobile detection
+  // Handle window resize: mobile layout (stacked panels) for phone + tablet (≤1024), desktop for >1024
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    const handleResize = () => setIsMobile(window.innerWidth <= 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -130,7 +132,11 @@ const App: React.FC = () => {
   // Track if auto-restore is pending (failed due to audio context)
   const [pendingRestore, setPendingRestore] = React.useState(false);
   
-  // Web-only: restore last auto-saved project on reload (offline-friendly)
+  // Show restore dialog instead of auto-restoring
+  const [showRestoreDialog, setShowRestoreDialog] = React.useState(false);
+  const [hasAutosaveData, setHasAutosaveData] = React.useState(false);
+  
+  // Web-only: check for auto-saved project and show restore dialog
   useEffect(() => {
     const isElectron = !!(window as any).electronAPI || 
       (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron);
@@ -138,49 +144,71 @@ const App: React.FC = () => {
     if (restoreAttemptedRef.current) return;
     restoreAttemptedRef.current = true;
 
-    (async () => {
-      try {
-        // Only restore if nothing is loaded and we're not currently loading
-        const store = useAppStore.getState();
-        if (store.audio.isLoaded || store.audio.isLoading) return;
+    // Only check if nothing is loaded and we're not currently loading
+    const store = useAppStore.getState();
+    if (store.audio.isLoaded || store.audio.isLoading) return;
 
-        // Check if there's an auto-saved project first
-        const autosaveData = localStorage.getItem('transcribe-pro-web-autosave');
-        if (!autosaveData) {
-          console.log('[App] No auto-saved project found');
-          return;
-        }
-        
-        // Try to resume audio context - this may fail on mobile without user interaction
-        try {
-          await resumeAudioContext();
-        } catch (audioCtxError) {
-          console.warn('[App] Audio context resume failed (mobile restriction), will retry on interaction:', audioCtxError);
-          // Mark that we have a pending restore
-          setPendingRestore(true);
-          return;
-        }
-        
-        const loader = getProjectLoader();
-        const restored = await loader.loadAutoSavedProject(loadFile);
-        if (restored) {
-          setShowWelcome(false);
-          setPendingRestore(false);
-          // Mark autosave timestamp so exit warnings don't fire immediately
-          try {
-            (useAppStore.getState() as any).setLastAutoSaveAt?.(Date.now());
-          } catch (_) {}
-          console.log('[App] Restored last auto-saved project');
-        }
-      } catch (e) {
-        console.warn('[App] Auto-restore failed:', e);
-        // Check if it's a mobile audio context issue
-        if (localStorage.getItem('transcribe-pro-web-autosave')) {
-          setPendingRestore(true);
-        }
+    // Check if there's an auto-saved project
+    const autosaveData = localStorage.getItem('transcribe-pro-web-autosave');
+    if (!autosaveData) {
+      console.log('[App] No auto-saved project found');
+      return;
+    }
+    
+    // Show restore dialog instead of auto-restoring
+    setHasAutosaveData(true);
+    setShowRestoreDialog(true);
+    console.log('[App] Found auto-saved project, showing restore dialog');
+  }, []);
+  
+  // Handle restore from dialog
+  const handleRestoreFromDialog = React.useCallback(async () => {
+    setShowRestoreDialog(false);
+    
+    try {
+      // Try to resume audio context - this may fail on mobile without user interaction
+      try {
+        await resumeAudioContext();
+      } catch (audioCtxError) {
+        console.warn('[App] Audio context resume failed (mobile restriction), will retry on interaction:', audioCtxError);
+        setPendingRestore(true);
+        return;
       }
-    })();
-  }, [loadFile, resumeAudioContext]);
+      
+      const loader = getProjectLoader();
+      const restored = await loader.loadAutoSavedProject(loadFile);
+      if (restored) {
+        setShowWelcome(false);
+        setPendingRestore(false);
+        setHasAutosaveData(false);
+        // Mark autosave timestamp so exit warnings don't fire immediately
+        try {
+          (useAppStore.getState() as any).setLastAutoSaveAt?.(Date.now());
+        } catch (_) {}
+        console.log('[App] Restored auto-saved project from dialog');
+      }
+    } catch (e) {
+      console.warn('[App] Restore failed:', e);
+      // Check if it's a mobile audio context issue
+      if (localStorage.getItem('transcribe-pro-web-autosave')) {
+        setPendingRestore(true);
+      }
+    }
+  }, [resumeAudioContext, loadFile]);
+  
+  // Handle start fresh from dialog
+  const handleStartFresh = React.useCallback(() => {
+    setShowRestoreDialog(false);
+    setHasAutosaveData(false);
+    // Clear autosave data so user truly starts fresh
+    try {
+      localStorage.removeItem('transcribe-pro-web-autosave');
+      localStorage.removeItem('transcribe-pro-web-autosave-partial');
+      console.log('[App] Cleared autosave data, starting fresh');
+    } catch (e) {
+      console.warn('[App] Failed to clear autosave:', e);
+    }
+  }, []);
   
   // Handle user interaction to restore pending session (mobile fix)
   const handleRestorePendingSession = React.useCallback(async () => {
@@ -193,6 +221,7 @@ const App: React.FC = () => {
       if (restored) {
         setShowWelcome(false);
         setPendingRestore(false);
+        setHasAutosaveData(false);
         console.log('[App] Restored pending auto-saved project after user interaction');
       }
     } catch (e) {
@@ -592,7 +621,20 @@ const App: React.FC = () => {
     );
   }
   
-  // Priority 2: Show welcome screen if no audio loaded
+  // Priority 2: Show restore dialog if autosave exists
+  if (showRestoreDialog) {
+    return (
+      <ErrorBoundary>
+        <RestoreSessionDialog
+          isOpen={showRestoreDialog}
+          onRestore={handleRestoreFromDialog}
+          onStartFresh={handleStartFresh}
+        />
+      </ErrorBoundary>
+    );
+  }
+  
+  // Priority 3: Show welcome screen if no audio loaded
   if (showWelcome && !isAudioLoaded) {
     return (
       <ErrorBoundary>
@@ -601,6 +643,8 @@ const App: React.FC = () => {
           onProjectLoaded={handleProjectLoaded}
           pendingRestore={pendingRestore}
           onRestorePendingSession={handleRestorePendingSession}
+          hasAutosaveData={hasAutosaveData}
+          onRestoreAutosave={handleRestoreFromDialog}
         />
       </ErrorBoundary>
     );
@@ -663,6 +707,8 @@ const App: React.FC = () => {
           
           {/* Toast Notifications */}
           <ToastContainer toasts={toasts} onClose={closeToast} />
+          {/* PWA install banner – shown on every load, works in Safari/Firefox/Edge/Chrome */}
+          <PWAInstallBanner />
         </div>
       </ErrorBoundary>
     );
@@ -721,6 +767,8 @@ const App: React.FC = () => {
         
         {/* Toast Notifications */}
         <ToastContainer toasts={toasts} onClose={closeToast} />
+        {/* PWA install banner – shown on every load, works in Safari/Firefox/Edge/Chrome */}
+        <PWAInstallBanner />
       </div>
     </ErrorBoundary>
   );

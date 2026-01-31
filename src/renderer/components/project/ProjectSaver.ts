@@ -168,6 +168,60 @@ export const deleteProjectFromIndexedDB = async (id: string): Promise<void> => {
   });
 };
 
+/**
+ * Clear all projects from IndexedDB
+ */
+export const clearAllProjectsFromIndexedDB = async (): Promise<void> => {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([IDB_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(IDB_STORE_NAME);
+    const request = store.clear();
+    
+    request.onerror = () => {
+      console.error('[IndexedDB] Failed to clear projects:', request.error);
+      reject(request.error);
+    };
+    
+    request.onsuccess = () => {
+      console.log('[IndexedDB] All projects cleared');
+      resolve();
+    };
+  });
+};
+
+/**
+ * Clear autosave data from localStorage
+ */
+export const clearAutoSaveData = (): void => {
+  try {
+    localStorage.removeItem(WEB_AUTOSAVE_KEY);
+    localStorage.removeItem('transcribe-pro-web-autosave-partial');
+    console.log('[ProjectSaver] Autosave data cleared');
+  } catch (error) {
+    console.error('[ProjectSaver] Failed to clear autosave:', error);
+  }
+};
+
+/**
+ * Get storage usage estimate
+ */
+export const getStorageUsageEstimate = async (): Promise<{ used: number; quota: number } | null> => {
+  try {
+    if ('storage' in navigator && 'estimate' in navigator.storage) {
+      const estimate = await navigator.storage.estimate();
+      return {
+        used: estimate.usage || 0,
+        quota: estimate.quota || 0
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('[ProjectSaver] Failed to get storage estimate:', error);
+    return null;
+  }
+};
+
 // ============ End IndexedDB Helper Functions ============
 
 export class ProjectSaver {

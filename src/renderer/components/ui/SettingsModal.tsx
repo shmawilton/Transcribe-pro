@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../../store/store';
+import { clearAutoSaveData, clearAllProjectsFromIndexedDB, getStorageUsageEstimate } from '../project/ProjectSaver';
 
 interface Settings {
   autoSaveEnabled: boolean;
@@ -25,6 +26,11 @@ const SettingsModal: React.FC = () => {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [availableHeight, setAvailableHeight] = useState(typeof window !== 'undefined' ? window.innerHeight - 64 - 40 : 600); // header (4rem) + margins
   const [mounted, setMounted] = useState(false);
+  
+  // Storage management state
+  const [storageUsage, setStorageUsage] = useState<{ used: number; quota: number } | null>(null);
+  const [isClearingAutosave, setIsClearingAutosave] = useState(false);
+  const [isClearingProjects, setIsClearingProjects] = useState(false);
   
   // Mount check for portal safety
   useEffect(() => {
@@ -61,8 +67,49 @@ const SettingsModal: React.FC = () => {
           console.error('Failed to parse settings:', e);
         }
       }
+      // Fetch storage usage
+      getStorageUsageEstimate().then(setStorageUsage);
     }
   }, [isOpen]);
+
+  // Format bytes to human readable
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // Clear autosave data handler
+  const handleClearAutosave = async () => {
+    if (!confirm('This will clear your auto-saved session data. Continue?')) return;
+    setIsClearingAutosave(true);
+    try {
+      clearAutoSaveData();
+      // Refresh storage estimate
+      const usage = await getStorageUsageEstimate();
+      setStorageUsage(usage);
+    } finally {
+      setIsClearingAutosave(false);
+    }
+  };
+
+  // Clear all stored projects handler
+  const handleClearAllProjects = async () => {
+    if (!confirm('This will permanently delete ALL stored projects. This action cannot be undone. Continue?')) return;
+    setIsClearingProjects(true);
+    try {
+      await clearAllProjectsFromIndexedDB();
+      // Also clear recent projects list
+      localStorage.removeItem('transcribe-pro-recent-projects');
+      // Refresh storage estimate
+      const usage = await getStorageUsageEstimate();
+      setStorageUsage(usage);
+    } finally {
+      setIsClearingProjects(false);
+    }
+  };
 
   const handleChange = (key: keyof Settings, value: any) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -452,6 +499,130 @@ const SettingsModal: React.FC = () => {
                   <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem' }}>Version: </span>
                   <span style={{ color: '#ffffff', fontSize: '0.8rem', fontWeight: '500' }}>1.0.0</span>
                 </div>
+              </div>
+            </div>
+
+            {/* Storage Section */}
+            <div>
+              <h3
+                style={{
+                  color: '#ffffff',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  marginBottom: '0.75rem',
+                  fontFamily: "'Merienda', 'Caveat', cursive",
+                }}
+              >
+                Storage
+              </h3>
+              <div
+                style={{
+                  padding: '0.75rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                }}
+              >
+                {/* Storage Usage */}
+                {storageUsage && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                      <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem' }}>Used:</span>
+                      <span style={{ color: '#ffffff', fontSize: '0.8rem', fontWeight: '500' }}>
+                        {formatBytes(storageUsage.used)} / {formatBytes(storageUsage.quota)}
+                      </span>
+                    </div>
+                    <div style={{
+                      height: '6px',
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      borderRadius: '3px',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${Math.min((storageUsage.used / storageUsage.quota) * 100, 100)}%`,
+                        background: storageUsage.used / storageUsage.quota > 0.8 ? '#DE2910' : '#006644',
+                        borderRadius: '3px',
+                        transition: 'width 0.3s ease',
+                      }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Clear Auto-save Button */}
+                <button
+                  onClick={handleClearAutosave}
+                  disabled={isClearingAutosave}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    cursor: isClearingAutosave ? 'wait' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    opacity: isClearingAutosave ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isClearingAutosave) {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                  </svg>
+                  {isClearingAutosave ? 'Clearing...' : 'Clear Auto-save Data'}
+                </button>
+
+                {/* Clear All Projects Button */}
+                <button
+                  onClick={handleClearAllProjects}
+                  disabled={isClearingProjects}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    background: 'rgba(220, 53, 69, 0.15)',
+                    border: '1px solid rgba(220, 53, 69, 0.25)',
+                    borderRadius: '8px',
+                    color: '#ff6b7a',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    cursor: isClearingProjects ? 'wait' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    opacity: isClearingProjects ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.4rem',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isClearingProjects) {
+                      e.currentTarget.style.background = 'rgba(220, 53, 69, 0.25)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(220, 53, 69, 0.15)';
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6" />
+                  </svg>
+                  {isClearingProjects ? 'Clearing...' : 'Clear All Stored Projects'}
+                </button>
               </div>
             </div>
           </div>

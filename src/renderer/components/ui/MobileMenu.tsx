@@ -25,9 +25,8 @@ const MobileMenu: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   
-  // PWA Install state
+  // PWA Install state (for "Install App" menu item; global banner is in App)
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isAppInstalled, setIsAppInstalled] = useState(false);
   
   const theme = useAppStore((state) => state.theme);
@@ -91,74 +90,32 @@ const MobileMenu: React.FC = () => {
     }
   }, [isExpanded]);
   
-  // PWA Install prompt handler - More aggressive prompting
+  // PWA: keep prompt for "Install App" menu item only; global banner is in App (PWAInstallBanner)
   useEffect(() => {
-    // Check if app is already installed (standalone mode)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
                          (window.navigator as any).standalone === true;
     if (isStandalone) {
       setIsAppInstalled(true);
       return;
     }
-    
-    const handleBeforeInstall = (e: Event) => {
+    const onPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      
-      // Check localStorage for dismissed banner
-      const dismissed = localStorage.getItem('pwa-install-dismissed');
-      const dismissedTime = dismissed ? parseInt(dismissed, 10) : 0;
-      const hoursSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60);
-      
-      // Show banner again after 2 hours if dismissed (more frequent reminders)
-      const shouldShowBanner = !dismissedTime || hoursSinceDismissed >= 2;
-      
-      // Show install banner immediately on first load, or after 1 second on subsequent loads
-      if (shouldShowBanner) {
-        const delay = !dismissedTime ? 500 : 1000;
-        setTimeout(() => {
-          setShowInstallBanner(true);
-        }, delay);
-      }
     };
-    
-    const handleAppInstalled = () => {
+    const onInstalled = () => {
       setIsAppInstalled(true);
-      setShowInstallBanner(false);
       setDeferredPrompt(null);
-      localStorage.removeItem('pwa-install-dismissed');
       showToast('App installed successfully!', 'success');
     };
-    
-    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-    window.addEventListener('appinstalled', handleAppInstalled);
-    
+    window.addEventListener('beforeinstallprompt', onPrompt);
+    window.addEventListener('appinstalled', onInstalled);
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
     };
   }, []);
-  
-  // Periodic reminder for PWA install (separate effect)
-  useEffect(() => {
-    if (isAppInstalled || !deferredPrompt) return;
-    
-    const periodicReminder = setInterval(() => {
-      // Check if banner is not currently showing and should be shown
-      const dismissed = localStorage.getItem('pwa-install-dismissed');
-      const dismissedTime = dismissed ? parseInt(dismissed, 10) : 0;
-      const hoursSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60);
-      const shouldShowBanner = !dismissedTime || hoursSinceDismissed >= 2;
-      
-      if (shouldShowBanner) {
-        setShowInstallBanner(true);
-      }
-    }, 45000); // Every 45 seconds
-    
-    return () => clearInterval(periodicReminder);
-  }, [isAppInstalled, deferredPrompt]);
-  
-  // Handle PWA install
+
+  // Handle PWA install (used by "Install App" menu item)
   const handleInstallApp = async () => {
     if (!deferredPrompt) {
       showToast('Install not available - try from browser menu', 'info');
@@ -174,15 +131,9 @@ const MobileMenu: React.FC = () => {
       }
       
       setDeferredPrompt(null);
-      setShowInstallBanner(false);
     } catch (err) {
       showToast('Install failed', 'error');
     }
-  };
-  
-  const dismissInstallBanner = () => {
-    setShowInstallBanner(false);
-    localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   };
   
   // Zoom handlers - minimum zoom is 5 (1/5 = 20% view)
@@ -772,98 +723,7 @@ const MobileMenu: React.FC = () => {
         </div>
       )}
       
-      {/* PWA Install Banner - Floating notification - LARGER for better visibility */}
-      {showInstallBanner && !isAppInstalled && (
-        <div style={{
-          position: 'fixed',
-          bottom: '90px',
-          left: '12px',
-          right: '12px',
-          background: neuBg,
-          borderRadius: '18px',
-          boxShadow: `0 10px 40px rgba(0, 0, 0, 0.35), ${neuRaised}`,
-          padding: '18px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          zIndex: 10001,
-          animation: 'slideUp 0.3s ease-out',
-        }}>
-          {/* App icon */}
-          <div style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '14px',
-            background: `linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_RED})`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-              <path d="M9 18V5l12-2v13"/>
-              <circle cx="6" cy="18" r="3"/>
-              <circle cx="18" cy="16" r="3"/>
-            </svg>
-          </div>
-          
-          {/* Text content */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ 
-              color: textColor, 
-              fontSize: '17px', 
-              fontWeight: 600, 
-              margin: 0 
-            }}>
-              Install Transcribe Pro
-            </p>
-            <p style={{ 
-              color: isLightMode ? '#718096' : 'rgba(255,255,255,0.6)', 
-              fontSize: '14px', 
-              margin: '4px 0 0 0' 
-            }}>
-              Add to home screen for quick access
-            </p>
-          </div>
-          
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: '10px', flexShrink: 0, flexDirection: 'column' }}>
-            <button
-              onClick={dismissInstallBanner}
-              style={{
-                padding: '10px 14px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: '10px',
-                color: isLightMode ? '#718096' : 'rgba(255,255,255,0.5)',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
-            >
-              Later
-            </button>
-            <button
-              onClick={handleInstallApp}
-              style={{
-                padding: '12px 20px',
-                background: KENYAN_GREEN,
-                border: 'none',
-                borderRadius: '10px',
-                color: 'white',
-                fontSize: '15px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: `0 3px 12px rgba(0, 102, 68, 0.4)`,
-                minWidth: '80px',
-              }}
-            >
-              Install
-            </button>
-          </div>
-        </div>
-      )}
-      
+      {/* PWA install is shown by App-level PWAInstallBanner (on every load, all browsers) */}
       <style>{`
         @keyframes slideDown {
           from { opacity: 0; transform: translateY(-8px); }

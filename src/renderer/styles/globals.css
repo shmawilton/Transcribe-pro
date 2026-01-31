@@ -264,8 +264,8 @@ html, body {
 }
 
 .menu-bar-container {
-  height: 4.5rem;
-  min-height: 4.5rem;
+  height: clamp(3.5rem, 5.5vh, 5rem);
+  min-height: clamp(3.25rem, 5vh, 4.5rem);
   overflow: visible;
   background: rgba(26, 26, 26, 0.6);
   backdrop-filter: blur(20px);
@@ -273,16 +273,16 @@ html, body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
-  padding: 0;
+  padding: 0 clamp(0.5rem, 1vw, 1.25rem);
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: background var(--transition-theme), box-shadow var(--transition-theme);
   position: relative;
-  z-index: 999999; /* Very high z-index to ensure dropdowns are visible */
+  z-index: 999999;
   max-width: 100vw;
   width: 100%;
   overflow-x: auto;
-  overflow-y: visible; /* Allow dropdowns to overflow vertically */
+  overflow-y: visible;
 }
 
 .menu-bar {
@@ -310,8 +310,8 @@ html, body {
   overflow: hidden;
   min-height: 0;
   background: transparent;
-  padding: var(--spacing-sm);
-  gap: var(--spacing-sm);
+  padding: clamp(0.4rem, 0.6vw, 1rem);
+  gap: clamp(0.4rem, 0.5vw, 0.75rem);
   max-width: 100vw;
   width: 100%;
 }
@@ -324,32 +324,33 @@ html, body {
   }
 }
 
+/* Desktop: waveform section scales with viewport; container can grow when marker timeline content grows */
 .waveform-section {
-  flex: 0 0 auto;
-  min-height: 230px;
-  max-height: 280px;
+  flex: 0 1 auto;
+  min-height: clamp(390px, 38vh, 520px);
+  max-height: none;
+  height: auto;
   background: var(--neu-bg-base);
   border: none;
-  border-radius: 20px;
-  padding: var(--spacing-sm);
-  overflow: hidden;
+  border-radius: clamp(16px, 1.2vw, 24px);
+  padding: clamp(0.4rem, 0.5vw, 0.75rem);
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: clamp(0.35rem, 0.4vw, 0.6rem);
   box-shadow: var(--neu-raised);
   transition: all 0.3s ease;
 }
 
 .panels-section {
-  flex: 0 0 auto;
-  min-height: 140px;
-  max-height: 180px;
+  flex: 0 1 auto;
+  min-height: clamp(140px, 18vh, 220px);
+  max-height: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-sm);
+  gap: clamp(0.4rem, 0.5vw, 0.75rem);
   padding: 0;
   background: transparent;
-  flex-shrink: 0;
 }
 
 /* Responsive: Stack panels vertically on smaller screens */
@@ -362,8 +363,9 @@ html, body {
   }
   
   .waveform-section {
-    min-height: 230px;
-    max-height: 300px;
+    min-height: 200px;
+    max-height: 500px;
+    height: clamp(200px, 34vh, 500px);
   }
 }
 
@@ -413,14 +415,21 @@ html, body {
 .panel {
   background: var(--neu-bg-base);
   border: none;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-sm);
+  border-radius: clamp(12px, 1vw, 20px);
+  padding: clamp(0.4rem, 0.5vw, 0.75rem);
   overflow-y: auto;
   overflow-x: hidden;
-  min-height: 150px;
-  max-height: 180px;
+  min-height: clamp(140px, 18vh, 220px);
+  max-height: none;
+  font-size: clamp(0.875rem, 0.9vw + 0.5rem, 1.05rem);
   box-shadow: var(--neu-raised);
   transition: all var(--transition-normal);
+}
+
+/* Marker panel (list): fluid so more markers grow the section; container grows with it */
+.panels-section > .panel:last-child {
+  min-height: clamp(140px, 18vh, 220px);
+  max-height: none;
 }
 
 .panel:hover {
@@ -912,17 +921,18 @@ button, a, [role="button"] {
 
 
 
-/* Marker Timeline Container - Neumorphic */
+/* Marker Timeline Container - Neumorphic, fluid: grows with marker content so nothing is cut off */
 .marker-timeline {
   position: relative;
   width: 100%;
-  min-height: 100px;
-  max-height: 250px;
+  min-height: 50px;
+  max-height: none;
+  flex: 0 1 auto;
   background: rgba(0, 102, 68, 0.08);
   border: none;
   border-radius: 16px;
   padding: 4px 8px;
-  overflow: hidden;
+  overflow: visible;
   z-index: 10;
   box-shadow: var(--neu-raised);
 }
@@ -967,18 +977,79 @@ button, a, [role="button"] {
   width: 100%;
   height: 100%;
   min-height: 160px;
-  max-height: 300px;
+  max-height: 200px;
 }
 
-/* Desktop waveform - increase height to show full waveform */
+/* Desktop: waveform strip + marker timeline; heights scale with viewport (vh) on larger screens */
 @media (min-width: 769px) {
+  /* First child = waveform strip (small); scales up on larger devices */
+  .waveform-section > *:first-child {
+    flex: 0 0 clamp(100px, 14vh, 220px) !important;
+    min-height: clamp(150px, 12vh, 300px) !important;
+    max-height: clamp(200px, 18vh, 200px) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  /* Marker timeline container: sizes to content so height adjusts when markers fill it */
+  .waveform-section > *:last-child {
+    flex: 0 0 auto !important;
+    min-height: clamp(90px, 12vh, 140px) !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  .waveform-section .waveform-container {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: none;
+  }
+  
+  /* Override MarkerTimeline inline maxHeight/overflow so area grows with markers */
+  .waveform-section .marker-timeline {
+    flex: 0 0 auto !important;
+    min-height: clamp(100%, 6vh, 100%) !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  
   .waveform-container {
-    min-height: 180px;
-    max-height: 350px;
+    min-height: clamp(100px, 12vh, 160px);
+    max-height: none;
   }
   
   .waveform-container canvas {
-    min-height: 180px;
+    min-height: 100%;
+  }
+
+  /* Playback panel: button and icon sizes scale with viewport on desktop */
+  .playback-panel {
+    padding: clamp(0.35rem, 0.5vw, 0.65rem) !important;
+    gap: clamp(0.25rem, 0.4vw, 0.5rem) !important;
+  }
+
+  .playback-panel button {
+    min-width: clamp(36px, 2.5vw, 52px) !important;
+    min-height: clamp(36px, 2.5vw, 52px) !important;
+    width: clamp(36px, 2.5vw, 52px) !important;
+    height: clamp(36px, 2.5vw, 52px) !important;
+    padding: clamp(0.3rem, 0.4vw, 0.5rem) !important;
+  }
+
+  .playback-panel button svg {
+    width: clamp(18px, 1.2vw, 26px) !important;
+    height: clamp(18px, 1.2vw, 26px) !important;
+  }
+
+  /* Marker timeline strip: default min-height, grows with content; font scales */
+  .marker-timeline {
+    min-height: clamp(50px, 6vh, 90px);
+    max-height: none;
+    font-size: clamp(0.75rem, 0.7vw + 0.5rem, 0.95rem);
   }
 }
 
@@ -1227,152 +1298,35 @@ button:active, .button:active {
   transform: translateY(0) scale(0.98);
 }
 
-/* Responsive Design - Compact layout for all screen sizes */
-/* Use max-height constraints instead of percentages to prevent scaling issues */
+/* Desktop fluid scaling: same arrangement, sizes scale with viewport (no fixed breakpoints) */
+/* Section heights use vh/clamp in base rules; html font-size scales rem so fonts/icons grow on larger screens */
+@media (min-width: 1025px) {
+  html {
+    font-size: clamp(14px, 0.85vw + 10px, 18px);
+  }
 
-/* Standard screens (1280px - 1920px) */
-@media (min-width: 1280px) and (max-width: 1920px) {
   .app-container {
-    padding: var(--spacing-xs);
-    max-width: 100%;
+    padding: clamp(0.25rem, 0.4vw, 0.75rem);
+    padding-bottom: clamp(20px, 2.5vh, 32px);
+    overflow: hidden; /* Menu fixed; only main-content scrolls */
   }
-  
-  .menu-bar-container {
-    padding: 0 var(--spacing-sm);
-    height: 3rem;
-    min-height: 3rem;
-  }
-  
-  .main-content {
-    padding: var(--spacing-sm);
-    gap: var(--spacing-sm);
-  }
-  
-  .waveform-section {
-    max-height: 320px;
-    padding: var(--spacing-sm);
-  }
-  
-  .panels-section {
-    max-height: 240px;
-  }
-  
-  .panel {
-    padding: var(--spacing-sm);
-    max-height: 240px;
-  }
-}
 
-/* Large screens (16+ inch laptops, 1921px - 2560px) - Keep compact */
-@media (min-width: 1921px) and (max-width: 2560px) {
-  html { font-size: 15px; } /* Slightly smaller font */
-  
-  .app-container {
-    padding: var(--spacing-sm);
-    max-width: 1600px;
-    margin: 0 auto;
-  }
-  
-  .menu-bar-container {
-    padding: 0 var(--spacing-md);
-    max-width: 1600px;
-    margin: 0 auto;
-    height: 3rem;
-    min-height: 3rem;
-  }
-  
+  /* Page scrollable so content is never cut off; menu stays fixed at top */
   .main-content {
-    padding: var(--spacing-sm);
-    gap: var(--spacing-sm);
-    max-width: 1600px;
-    margin: 0 auto;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
   }
-  
-  .waveform-section {
-    max-height: 300px;
-    padding: var(--spacing-sm);
-  }
-  
-  .panels-section {
-    max-height: 220px;
-    gap: var(--spacing-sm);
-  }
-  
-  .panel {
-    padding: var(--spacing-sm);
-    max-height: 220px;
-  }
-  
-  /* Keep buttons and icons at consistent size */
-  button, .button {
-    max-height: 44px;
-  }
-  
-  .icon-button svg {
-    max-width: 20px;
-    max-height: 20px;
-  }
-  
-  /* Marker timeline constraints */
-  .marker-timeline {
-    max-height: 150px !important;
-  }
-}
 
-/* Extra large screens (4K, >2560px) - Maintain compact design */
-@media (min-width: 2561px) {
-  html { font-size: 15px; }
-  
-  .app-container {
-    padding: var(--spacing-sm);
-    max-width: 1800px;
-    margin: 0 auto;
-  }
-  
+  /* Menu bar: taller, no scroll (stays fixed; overflow-y visible so dropdowns aren't clipped) */
   .menu-bar-container {
-    padding: 0 var(--spacing-md);
-    max-width: 1800px;
-    margin: 0 auto;
-    height: 3rem;
-    min-height: 3rem;
-  }
-  
-  .main-content {
-    padding: var(--spacing-sm);
-    gap: var(--spacing-sm);
-    max-width: 1800px;
-    margin: 0 auto;
-  }
-  
-  .waveform-section {
-    max-height: 320px;
-    padding: var(--spacing-sm);
-  }
-  
-  .panels-section {
-    max-height: 240px;
-  }
-  
-  .panel {
-    padding: var(--spacing-sm);
-    max-height: 240px;
-    font-size: 0.95rem;
-  }
-  
-  /* Prevent icons from getting too large */
-  .icon-button svg {
-    max-width: 20px;
-    max-height: 20px;
-  }
-  
-  /* Keep buttons consistent */
-  button, .button {
-    max-height: 44px;
-  }
-  
-  /* Marker timeline constraints */
-  .marker-timeline {
-    max-height: 150px !important;
+    height: clamp(4rem, 6vh, 5.5rem);
+    min-height: clamp(3.75rem, 5.5vh, 5rem);
+    flex-shrink: 0;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 }
 
@@ -1612,12 +1566,19 @@ html {
     border-radius: 12px;
   }
   
-  /* Marker Timeline */
+  /* Marker Timeline (not applied inside timeline-mobile-section; container has its own min-height) */
   .marker-timeline {
-    min-height: 80px;
-    max-height: 150px;
+    min-height: 200px;
+    max-height: 250px;
     padding: var(--spacing-xs);
     border-radius: 12px;
+  }
+
+  .mobile-panel.timeline-mobile-section .marker-timeline {
+    min-height: 225px !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   
   /* Neumorphic components - smaller on mobile */
@@ -1734,7 +1695,7 @@ html {
   }
   
   .waveform-canvas {
-    max-height: 100px;
+    max-height: 200px;
   }
   
   /* Panels - Full width stacked */
@@ -1753,12 +1714,19 @@ html {
     font-size: 12px;
   }
   
-  /* Marker Timeline - Compact */
+  /* Marker Timeline - Compact (not applied inside timeline-mobile-section; see below) */
   .marker-timeline {
     min-height: 60px;
     max-height: 100px;
     padding: 4px;
     border-radius: 10px;
+  }
+
+  .mobile-panel.timeline-mobile-section .marker-timeline {
+    min-height: 225px !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
   }
   
   /* Neumorphic components - mobile sizes */
@@ -1833,19 +1801,19 @@ html {
     height: 16px;
   }
   
-  /* Playback Panel - Compact mobile layout */
+  /* Playback Panel - larger buttons so visible on small phones (≤480px) */
   .playback-panel {
-    padding: 4px !important;
-    gap: 4px !important;
+    padding: 8px !important;
+    gap: 8px !important;
     flex-wrap: wrap;
     justify-content: center;
   }
   
   .playback-panel button {
-    width: 32px !important;
-    height: 32px !important;
-    min-width: 32px !important;
-    min-height: 32px !important;
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
   }
   
   /* Hide some elements on very small screens */
@@ -1950,6 +1918,13 @@ html {
     min-height: 50px;
     max-height: 80px;
   }
+
+  .mobile-panel.timeline-mobile-section .marker-timeline {
+    min-height: 225px !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
   
   .neu-icon-btn {
     width: 28px;
@@ -1961,11 +1936,12 @@ html {
     height: 34px;
   }
   
+  /* Playback buttons - keep visible on very small phones (≤360px) */
   .playback-panel button {
-    width: 28px !important;
-    height: 28px !important;
-    min-width: 28px !important;
-    min-height: 28px !important;
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
   }
 }
 
@@ -2074,29 +2050,29 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
  * - Playback: 70px fixed
  */
 
-/* Mobile layout container */
+/* Mobile layout container - full height, scroll lives in main-content */
 .app-container.mobile-layout {
-  padding-top: 68px; /* Space for mobile menu - increased further for larger menu */
+  padding-top: 68px; /* Space for mobile menu */
   padding-bottom: 28px; /* Space for status bar */
-  min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height for mobile browsers */
-  overflow-y: auto; /* Allow scrolling when content doesn't fit */
-  overflow-x: hidden;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden; /* Only main-content scrolls */
   display: flex;
   flex-direction: column;
 }
 
-/* Mobile main content - Allow scrolling for overflow content */
+/* Mobile main content - SCROLL CONTAINER so all panels (incl. marker panel) are reachable */
 .main-content.mobile-content {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: calc(100dvh - 96px); /* Minimum height, can grow */
-  min-height: 0; /* Critical for flexbox to shrink */
-  overflow-y: auto; /* Allow scrolling when needed */
-  overflow-x: hidden;
-  gap: 4px;
-  padding: 0 !important; /* No horizontal padding - edge to edge */
+  flex: 1 1 0;
+  min-height: 0; /* Allow shrink so scroll container gets a bounded height */
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  gap: 6px;
+  padding: 0 !important;
 }
 
 /* Mobile panels base */
@@ -2110,13 +2086,13 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   padding: 0;
 }
 
-/* Waveform section on mobile - container for waveform */
+/* Waveform section on mobile - min 100px, constant height so marker count doesn't alter it */
 .mobile-panel.waveform-mobile-section {
-  flex: 0 0 125px; /* Waveform height - increased by 15px */
-  height: 125px;
-  min-height: 125px;
-  max-height: 125px;
-  padding: 0 !important; /* No padding - waveform fills container edge to edge */
+  flex: 0 0 120px;
+  height: 120px;
+  min-height: 150px;
+  max-height: 250px;
+  padding: 5px 5px 0 5px;
   margin: 0 !important;
   overflow: hidden;
   background: transparent;
@@ -2143,38 +2119,50 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   display: block;
 }
 
-/* Timeline section on mobile - takes remaining space for stacked markers */
+/* Timeline section on mobile – container 1.5× waveform height (150px → 225px), fluid: grows with content */
 .mobile-panel.timeline-mobile-section {
-  flex: 1 1 auto; /* Take remaining space */
-  min-height: 30px; /* Reduced by 10px more */
-  padding: 0 !important; /* No horizontal padding - edge to edge */
+  flex: 0 1 auto;
+  min-height: 225px;
+  max-height: none;
+  padding: 0 !important;
+  padding-left: 5px !important;
+  padding-right: 5px !important;
   margin: 0 !important;
   background: rgba(0, 102, 68, 0.08);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
 
-/* Make sure the MarkerTimeline component fills its container */
+/* Inner wrapper – same min-height so timeline isn’t cut off; grows with content */
 .mobile-panel.timeline-mobile-section > div {
-  flex: 1 1 auto;
-  height: 100%;
-  min-height: 0;
+  flex: 1 0 auto;
+  min-height: 225px;
+  height: auto;
+  max-height: none;
   width: 100% !important;
+  overflow: visible;
 }
 
-/* Marker panel section on mobile - fixed height 180px, shows ~2.5 markers with edit form */
+/* Timeline element inside container: allow growth, never cap (overrides inline and other media rules) */
+.mobile-panel.timeline-mobile-section .marker-timeline {
+  min-height: 225px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* Marker panel section on mobile/tablet - fluid: grows with marker list so nothing is cut off */
 .mobile-panel.marker-panel-section {
-  flex: 0 0 175px; /* Fixed height for ~2.5 markers visible + edit form */
-  height: 175px;
-  min-height: 165px;
-  max-height: 185px;
-  padding: 4px !important;
-  margin: 2px 4px !important; /* Small margins on sides */
-  overflow-y: auto; /* Vertical scrollbar for more markers */
+  flex: 0 1 auto;
+  min-height: 240px;
+  padding: 6px !important;
+  margin: 4px 6px !important;
+  overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   border-radius: 8px !important;
   box-shadow: var(--neu-flat) !important;
 }
@@ -2198,31 +2186,30 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   background: rgba(0, 102, 68, 0.6);
 }
 
-/* Playback section on mobile - fixed 125px, MUST show buttons */
+/* Playback section on mobile - min-height only, page can overflow so buttons always visible */
 .mobile-panel.playback-section {
-  flex: 0 0 125px; /* Increased by 10px more */
-  height: 125px;
-  min-height: 120px;
-  max-height: 130px;
-  padding: 4px 8px !important;
+  flex: 0 0 auto !important;
+  min-height: 150px !important;
+  padding: 10px 12px !important;
   overflow: visible !important;
-  margin: 2px 4px 0 4px !important; /* Small margins on sides */
-  border-radius: 8px !important;
+  margin: 4px 6px 0 6px !important;
+  border-radius: 10px !important;
   box-shadow: var(--neu-flat) !important;
 }
 
-/* Larger playback buttons on mobile */
+/* Larger playback buttons on mobile - visible on all phone sizes */
 .mobile-panel.playback-section button {
-  min-width: 48px !important;
-  min-height: 48px !important;
-  max-width: 56px !important;
-  max-height: 56px !important;
-  padding: 8px !important;
+  min-width: 52px !important;
+  min-height: 52px !important;
+  max-width: 64px !important;
+  max-height: 64px !important;
+  padding: 10px !important;
+  flex-shrink: 0 !important;
 }
 
 .mobile-panel.playback-section button svg {
-  width: 26px !important;
-  height: 26px !important;
+  width: 28px !important;
+  height: 28px !important;
 }
 
 /* Ensure playback panel content is visible */
@@ -2234,17 +2221,125 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   justify-content: center;
 }
 
+/* ====== TABLET MODE (769px–1024px): same stacking as mobile, scaled up ====== */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-container.mobile-layout {
+    padding-top: 80px; /* Slightly more space for menu on tablet */
+    padding-bottom: 32px;
+  }
+
+  .main-content.mobile-content {
+    gap: 12px;
+    padding: 0 8px !important;
+  }
+
+  /* Waveform section – scaled up from mobile */
+  .mobile-panel.waveform-mobile-section {
+    flex: 0 0 auto;
+    min-height: 200px !important;
+    max-height: 320px !important;
+    padding: 8px 8px 0 8px !important;
+    margin: 0 8px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Timeline section – 1.5× waveform height (200px → 300px), fluid (grows with content) */
+  .mobile-panel.timeline-mobile-section {
+    flex: 0 1 auto;
+    min-height: 300px !important;
+    max-height: none !important;
+    padding: 8px 10px !important;
+    margin: 0 8px !important;
+    border-radius: 12px !important;
+    overflow: visible;
+  }
+
+  .mobile-panel.timeline-mobile-section > div {
+    min-height: 300px !important;
+    max-height: none !important;
+    height: auto;
+    overflow: visible;
+  }
+
+  .mobile-panel.timeline-mobile-section .marker-timeline {
+    min-height: 300px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Marker panel section – scaled up, fluid (grows with marker list) */
+  .mobile-panel.marker-panel-section {
+    flex: 0 1 auto;
+    min-height: 280px !important;
+    padding: 10px 12px !important;
+    margin: 6px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .mobile-panel.marker-panel-section::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .mobile-panel.marker-panel-section button {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    font-size: 1rem !important;
+    padding: 10px 14px !important;
+  }
+
+  .mobile-panel.marker-panel-section svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  /* Playback section – scaled up */
+  .mobile-panel.playback-section {
+    min-height: 200px !important;
+    padding: 14px 18px !important;
+    margin: 6px 10px 0 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .mobile-panel.playback-section button {
+    min-width: 60px !important;
+    min-height: 60px !important;
+    max-width: 76px !important;
+    max-height: 76px !important;
+    padding: 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .mobile-panel.playback-section button svg {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .mobile-panel.playback-section .playback-panel {
+    padding: 8px 10px !important;
+  }
+
+  .mobile-panel.playback-section .playback-panel > div:last-child {
+    gap: 12px !important;
+  }
+
+  .mobile-panel.playback-section .time-display {
+    font-size: 1rem !important;
+  }
+}
+
 /* Safe area insets for notched devices */
 @supports (padding-top: env(safe-area-inset-top)) {
   .app-container.mobile-layout {
-    padding-top: calc(52px + env(safe-area-inset-top));
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    padding-top: calc(68px + env(safe-area-inset-top));
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
   
   .main-content.mobile-content {
-    height: calc(100dvh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    min-height: 0;
+    flex: 1 1 0;
   }
 }
 
@@ -2265,12 +2360,20 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
     height: 100% !important;
   }
   
-  /* Marker timeline styles - fills container */
+  /* Marker timeline – default fill; timeline-mobile-section overrides below so it can grow */
   .marker-timeline {
     min-height: 100% !important;
     max-height: 100% !important;
     height: 100% !important;
     border-radius: 0 !important;
+  }
+
+  /* Inside timeline section: allow growth so markers aren’t cut off (overrides fill above) */
+  .mobile-panel.timeline-mobile-section .marker-timeline {
+    min-height: 225px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
   
   .marker-timeline svg {
@@ -2284,10 +2387,10 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
     cursor: pointer;
   }
   
-  /* Playback panel mobile - compact layout */
+  /* Playback panel mobile - enough height for buttons, content can overflow */
   .mobile-panel.playback-section .playback-panel {
-    height: 100% !important;
-    padding: 2px 4px !important;
+    min-height: 0 !important;
+    padding: 6px 8px !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: center !important;
@@ -2299,46 +2402,47 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
     flex-direction: row !important;
     align-items: center !important;
     justify-content: center !important;
-    gap: 6px !important;
+    gap: 8px !important;
     flex-wrap: nowrap !important;
     flex: 1 1 auto;
   }
   
-  /* Button sizes for mobile - larger for better touch targets */
+  /* Button sizes for mobile - larger so visible on small phones */
   .mobile-panel.playback-section button {
-    min-width: 44px !important;
-    min-height: 44px !important;
-    max-width: 52px !important;
-    max-height: 52px !important;
-    padding: 6px !important;
+    min-width: 50px !important;
+    min-height: 50px !important;
+    max-width: 60px !important;
+    max-height: 60px !important;
+    padding: 8px !important;
     flex-shrink: 0 !important;
   }
   
   /* SVG icons in playback buttons - larger */
   .mobile-panel.playback-section button svg {
-    width: 24px !important;
-    height: 24px !important;
+    width: 28px !important;
+    height: 28px !important;
   }
   
-  /* Time display compact */
+  /* Time display - readable size */
   .mobile-panel.playback-section .time-display {
-    font-size: 0.85rem !important;
+    font-size: 0.9rem !important;
   }
 }
 
 /* ====== MOBILE VISIBILITY IMPROVEMENTS ====== */
 @media (max-width: 768px) {
-  /* Make mobile layout scrollable */
+  /* Scroll container for mobile - main-content scrolls so marker panel is reachable */
   .app-container.mobile-layout {
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    min-height: 100dvh;
+    overflow: hidden !important;
+    height: 100dvh !important;
   }
   
   .main-content.mobile-content {
     overflow-y: auto !important;
     overflow-x: hidden !important;
-    min-height: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
   }
   
   /* Increase base font size on mobile */
@@ -2351,27 +2455,26 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
     line-height: 1.5 !important;
   }
   
-  /* Larger playback buttons */
+  /* Larger playback buttons - always visible on small phones */
   .mobile-panel.playback-section button {
-    min-width: 52px !important;
-    min-height: 52px !important;
-    max-width: 60px !important;
-    max-height: 60px !important;
-    padding: 10px !important;
+    min-width: 56px !important;
+    min-height: 56px !important;
+    max-width: 68px !important;
+    max-height: 68px !important;
+    padding: 12px !important;
     border-radius: 12px !important;
   }
   
   .mobile-panel.playback-section button svg {
-    width: 28px !important;
-    height: 28px !important;
+    width: 30px !important;
+    height: 30px !important;
   }
   
-  /* Increase playback panel height */
+  /* Playback panel - min-height only, no max; page can scroll so buttons always fit */
   .mobile-panel.playback-section {
-    flex: 0 0 140px !important;
-    height: 140px !important;
-    min-height: 135px !important;
-    max-height: 150px !important;
+    flex: 0 0 auto !important;
+    min-height: 160px !important;
+    padding: 12px 14px !important;
   }
   
   /* Marker panel improvements */
