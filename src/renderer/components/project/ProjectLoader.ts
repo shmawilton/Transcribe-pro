@@ -617,7 +617,7 @@ export class ProjectLoader {
       if (fileResult.filePath) {
         this.addToRecentProjects(
           fileResult.filePath,
-          projectData.audioFileName || audioFile.name
+          projectData.audioFileName || 'Project'
         );
       }
 

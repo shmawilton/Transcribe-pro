@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/store';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
-import { getProjectSaver } from '../project/ProjectSaver';
+import { getProjectSaver, StoredProject } from '../project/ProjectSaver';
 import { getProjectLoader } from '../project/ProjectLoader';
 import { showToast } from './Toast';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
@@ -55,6 +55,11 @@ const MobileMenu: React.FC = () => {
   
   // Pitch processing status
   const [isPitchProcessing, setIsPitchProcessing] = useState(false);
+
+  // My Projects (saved on device / IndexedDB)
+  const [showMyProjectsModal, setShowMyProjectsModal] = useState(false);
+  const [storedProjectsList, setStoredProjectsList] = useState<StoredProject[]>([]);
+  const [loadingStoredId, setLoadingStoredId] = useState<string | null>(null);
   
   // Subscribe to pitch processing status (same as desktop)
   useEffect(() => {
@@ -262,11 +267,57 @@ const MobileMenu: React.FC = () => {
       // On mobile, use saveToDevice for better UX (saves to IndexedDB)
       const result = await saver.saveToDevice();
       if (result.success) {
-        showToast('Project saved to device!', 'success');
+        showToast('Saved! Open from Menu → My Projects', 'success');
         setIsExpanded(false);
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to save', 'error');
+    }
+  };
+
+  const handleOpenMyProjects = async () => {
+    try {
+      const saver = getProjectSaver();
+      const list = await saver.getStoredProjects();
+      setStoredProjectsList(list);
+      setShowMyProjectsModal(true);
+    } catch (err) {
+      showToast('Could not load saved projects', 'error');
+    }
+  };
+
+  const handleLoadStoredProject = async (project: StoredProject) => {
+    if (loadingStoredId) return;
+    try {
+      setLoadingStoredId(project.id);
+      await resumeAudioContext();
+      const saver = getProjectSaver();
+      const loader = getProjectLoader();
+      saver.setCurrentProjectId(project.id);
+      const ok = await loader.loadFromStoredProject(project.projectData, loadFile);
+      setShowMyProjectsModal(false);
+      setIsExpanded(false);
+      if (ok) showToast('Project loaded', 'success');
+      else showToast('Failed to load project', 'error');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to load', 'error');
+    } finally {
+      setLoadingStoredId(null);
+    }
+  };
+
+  const formatStoredDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays} days ago`;
+      return date.toLocaleDateString();
+    } catch {
+      return dateString;
     }
   };
   
@@ -450,6 +501,7 @@ const MobileMenu: React.FC = () => {
             
             <MenuItem icon={<NewFileIcon />} label="New Project" onClick={handleNewProject} color={KENYAN_GREEN} />
             <MenuItem icon={<FolderIcon />} label="Load Project" onClick={handleLoadProject} color={KENYAN_RED} />
+            <MenuItem icon={<FolderIcon />} label="My Projects" onClick={handleOpenMyProjects} color={KENYAN_GREEN} subtitle="Saved on this device" />
             <MenuItem icon={<SaveIcon />} label="Save to Device" onClick={handleSaveProject} disabled={!isAudioLoaded} color={KENYAN_GREEN} />
             <MenuItem icon={<ExportIcon />} label="Export/Share" onClick={handleExportProject} disabled={!isAudioLoaded} subtitle="Download .tsproj file" />
           </div>
@@ -720,6 +772,128 @@ const MobileMenu: React.FC = () => {
             color={KENYAN_RED}
             subtitle="Exit application"
           />
+        </div>
+      )}
+
+      {/* My Projects modal - saved on device (IndexedDB) */}
+      {showMyProjectsModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 10001,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => !loadingStoredId && setShowMyProjectsModal(false)}
+        >
+          <div
+            style={{
+              background: neuBg,
+              borderRadius: '16px',
+              boxShadow: neuRaised,
+              padding: '16px',
+              width: '100%',
+              maxWidth: '400px',
+              maxHeight: '70vh',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span style={{ fontSize: '18px', fontWeight: 600, color: textColor }}>My Projects</span>
+              <button
+                onClick={() => !loadingStoredId && setShowMyProjectsModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '8px',
+                  cursor: loadingStoredId ? 'wait' : 'pointer',
+                  color: textColor,
+                  opacity: 0.8,
+                }}
+                aria-label="Close"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+              {storedProjectsList.length === 0 ? (
+                <p style={{ color: textColor, opacity: 0.7, fontSize: '14px', margin: '16px 0', textAlign: 'center' }}>
+                  No projects saved on this device. Save a project with &quot;Save to Device&quot; to see it here.
+                </p>
+              ) : (
+                storedProjectsList.map((project) => (
+                  <button
+                    key={project.id}
+                    onClick={() => handleLoadStoredProject(project)}
+                    disabled={loadingStoredId !== null}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      marginBottom: '8px',
+                      background: loadingStoredId === project.id ? (isLightMode ? 'rgba(0,102,68,0.12)' : 'rgba(0,102,68,0.2)') : 'transparent',
+                      border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)'}`,
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      cursor: loadingStoredId ? 'wait' : 'pointer',
+                      opacity: loadingStoredId && loadingStoredId !== project.id ? 0.5 : 1,
+                      color: textColor,
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: project.thumbnailColor || KENYAN_GREEN,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      {loadingStoredId === project.id ? (
+                        <div style={{
+                          width: '18px',
+                          height: '18px',
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTopColor: '#fff',
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite',
+                        }} />
+                      ) : (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                          <path d="M9 18V5l12-2v13"/>
+                          <circle cx="6" cy="18" r="3"/>
+                          <circle cx="18" cy="16" r="3"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {project.name}
+                      </div>
+                      <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '2px' }}>
+                        {formatStoredDate(project.updatedAt)}
+                        {project.audioFileName && ` · ${project.audioFileName.length > 18 ? project.audioFileName.slice(0, 18) + '…' : project.audioFileName}`}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
       

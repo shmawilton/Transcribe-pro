@@ -131,22 +131,30 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
     }
   ));
   
-  // Load stored projects on mount (for mobile PWA)
-  useEffect(() => {
-    const loadStoredProjects = async () => {
-      try {
-        const projects = await projectSaver.getStoredProjects();
-        setStoredProjects(projects);
-        // Auto-show stored projects section if there are any on mobile
-        if (projects.length > 0 && isMobile) {
-          setShowStoredProjects(true);
-        }
-      } catch (err) {
-        console.error('[WelcomeScreen] Failed to load stored projects:', err);
+  // Load stored projects on mount and when My Projects section is opened (for mobile PWA)
+  const refreshStoredProjects = React.useCallback(async () => {
+    try {
+      const projects = await projectSaver.getStoredProjects();
+      setStoredProjects(projects);
+      // Auto-show stored projects section if there are any on mobile
+      if (projects.length > 0 && isMobile) {
+        setShowStoredProjects(true);
       }
-    };
-    loadStoredProjects();
+    } catch (err) {
+      console.error('[WelcomeScreen] Failed to load stored projects:', err);
+    }
   }, [projectSaver, isMobile]);
+
+  useEffect(() => {
+    refreshStoredProjects();
+  }, [refreshStoredProjects]);
+
+  // When user expands My Projects, refetch so list is up to date (e.g. after saving elsewhere)
+  useEffect(() => {
+    if (showStoredProjects) {
+      projectSaver.getStoredProjects().then(setStoredProjects).catch(() => {});
+    }
+  }, [showStoredProjects, projectSaver]);
   
   // Handle loading a stored project from IndexedDB
   const handleLoadStoredProject = async (project: StoredProject) => {

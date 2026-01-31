@@ -778,6 +778,13 @@ export class ProjectSaver {
         thumbnailColor,
       };
 
+      // On mobile, request persistent storage so the browser is less likely to evict IndexedDB
+      if (typeof navigator !== 'undefined' && navigator.storage?.persist?.()) {
+        try {
+          await navigator.storage.persist();
+        } catch (_) {}
+      }
+
       await saveProjectToIndexedDB(storedProject);
       
       // Update current project ID
