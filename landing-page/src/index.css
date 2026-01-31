@@ -1,0 +1,97 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Neumorphic base */
+  --bg: #f0f0f3;
+  --bg-light: #ffffff;
+  --bg-dark: #d1d1d6;
+  
+  /* Kenyan-inspired colors */
+  --green: #006b3f;
+  --green-light: #00a86b;
+  --black: #1a1a1a;
+  --red: #c8102e;
+  
+  /* Shadows for neumorphism */
+  --shadow-light: #ffffff;
+  --shadow-dark: rgba(174, 174, 192, 0.4);
+  
+  /* Typography */
+  --text-primary: #1a1a1a;
+  --text-secondary: #5a5a5a;
+  --text-muted: #8a8a8a;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Neumorphic utilities */
+.neu-flat {
+  background: var(--bg);
+  box-shadow: 
+    6px 6px 12px var(--shadow-dark),
+    -6px -6px 12px var(--shadow-light);
+  border-radius: 20px;
+}
+
+.neu-pressed {
+  background: var(--bg);
+  box-shadow: 
+    inset 4px 4px 8px var(--shadow-dark),
+    inset -4px -4px 8px var(--shadow-light);
+  border-radius: 20px;
+}
+
+.neu-convex {
+  background: linear-gradient(145deg, #fafafa, #e6e6e9);
+  box-shadow: 
+    6px 6px 12px var(--shadow-dark),
+    -6px -6px 12px var(--shadow-light);
+  border-radius: 20px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-dark);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Selection */
+::selection {
+  background: var(--green-light);
+  color: white;
+}

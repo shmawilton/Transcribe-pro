@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Download files (add your actual binaries, don't commit large files)
+public/downloads/*.exe
+public/downloads/*.dmg
+public/downloads/*.AppImage
+public/downloads/*.deb

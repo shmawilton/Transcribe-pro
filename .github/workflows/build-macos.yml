@@ -46,10 +46,8 @@ jobs:
         run: npm run build
 
       - name: Build macOS DMG
-        run: npx electron-builder --mac
+        run: npx electron-builder --mac --publish never
         env:
-          # Optional: set for publishing to GitHub Releases (uncomment and add GH_TOKEN)
-          # GH_TOKEN: ${{ secrets.GH_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
 
       - name: Upload macOS artifacts
