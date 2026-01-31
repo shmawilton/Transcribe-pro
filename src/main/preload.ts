@@ -74,4 +74,55 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadProjectFromPath: async (filePath: string): Promise<{ success: boolean; filePath?: string; projectData?: string }> => {
     return await ipcRenderer.invoke('load-project-from-path', filePath);
   },
+  
+  // ============================================
+  // AUTO-UPDATE APIs
+  // ============================================
+  
+  // Check for updates
+  checkForUpdates: async (): Promise<{ checking: boolean }> => {
+    return await ipcRenderer.invoke('check-for-updates');
+  },
+  
+  // Download available update
+  downloadUpdate: async (): Promise<{ success: boolean; error?: string }> => {
+    return await ipcRenderer.invoke('download-update');
+  },
+  
+  // Install downloaded update and restart
+  installUpdate: async (): Promise<{ success: boolean; error?: string }> => {
+    return await ipcRenderer.invoke('install-update');
+  },
+  
+  // Get current app version
+  getAppVersion: async (): Promise<{ version: string; isPackaged: boolean; platform: string }> => {
+    return await ipcRenderer.invoke('get-app-version');
+  },
+  
+  // Get current update status
+  getUpdateStatus: async (): Promise<{
+    updateAvailable: boolean;
+    downloadedUpdate: boolean;
+    updateInfo: { version: string; releaseDate?: string; releaseNotes?: string } | null;
+    downloadProgress: { percent: number; bytesPerSecond: number; transferred: number; total: number } | null;
+  }> => {
+    return await ipcRenderer.invoke('get-update-status');
+  },
+  
+  // Open release notes in browser
+  openReleaseNotes: async (url: string): Promise<void> => {
+    return await ipcRenderer.invoke('open-release-notes', url);
+  },
+  
+  // Listen for update status events from main process
+  onUpdateStatus: (callback: (event: { status: string; data?: any }) => void) => {
+    const handler = (_event: any, payload: { status: string; data?: any }) => {
+      callback(payload);
+    };
+    ipcRenderer.on('update-status', handler);
+    // Return unsubscribe function
+    return () => {
+      ipcRenderer.removeListener('update-status', handler);
+    };
+  },
 });

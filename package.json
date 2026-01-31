@@ -7,15 +7,21 @@
     "dev": "concurrently \"npm run dev:react\" \"wait-on http://localhost:3000 && npm run dev:electron\"",
     "dev:react": "vite",
     "dev:electron": "cross-env NODE_ENV=development npm run build:electron && electron .",
+    "dev:debug": "concurrently \"npm run dev:react\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development OPEN_DEVTOOLS=1 npm run build:electron && electron .\"",
     "build": "npm run build:electron && vite build",
     "build:electron": "tsc -p tsconfig.main.json",
     "preview": "vite preview",
     "clean": "powershell -ExecutionPolicy Bypass -File ./clean-release.ps1 || rimraf release",
     "dist": "npm run clean && npm run build && electron-builder",
-    "dist:win": "npm run clean && npm run build && electron-builder --win",
+    "generate-icon": "node scripts/generate-win-icon.js",
+    "dist:win": "npm run generate-icon && npm run clean && npm run build && electron-builder --win",
     "dist:win:portable": "npm run clean && npm run build && electron-builder --win portable",
     "dist:mac": "npm run clean && npm run build && electron-builder --mac",
-    "dist:linux": "npm run clean && npm run build && electron-builder --linux"
+    "dist:linux": "npm run clean && npm run build && electron-builder --linux",
+    "publish": "npm run clean && npm run build && electron-builder --publish always",
+    "publish:win": "npm run clean && npm run build && electron-builder --win --publish always",
+    "publish:mac": "npm run clean && npm run build && electron-builder --mac --publish always",
+    "publish:linux": "npm run clean && npm run build && electron-builder --linux --publish always"
   },
   "build": {
     "appId": "com.transcribepro.app",
@@ -42,6 +48,12 @@
         "to": "public/logo.png"
       }
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "shmawilton",
+      "repo": "Transcribe-pro",
+      "releaseType": "release"
+    },
     "win": {
       "target": [
         {
@@ -99,8 +111,10 @@
     "cross-env": "^7.0.3",
     "electron": "^28.0.0",
     "electron-builder": "^26.4.0",
+    "png-to-ico": "^3.0.1",
     "postcss": "^8.4.32",
     "rimraf": "^6.1.2",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.3.6",
     "typescript": "^5.3.3",
     "vite": "^5.0.8",

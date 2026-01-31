@@ -3,6 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../../store/store';
 import { clearAutoSaveData, clearAllProjectsFromIndexedDB, getStorageUsageEstimate } from '../project/ProjectSaver';
+import { useUpdateChecker } from './UpdateNotification';
+
+// Kenyan colors
+const KENYAN_GREEN = '#006644';
 
 interface Settings {
   autoSaveEnabled: boolean;
@@ -537,33 +541,8 @@ const SettingsModal: React.FC = () => {
             </div>
             )}
 
-            {/* About Section */}
-            <div>
-              <h3
-                style={{
-                  color: '#ffffff',
-                  fontSize: '0.95rem',
-                  fontWeight: '500',
-                  marginBottom: '0.75rem',
-                  fontFamily: "'Merienda', 'Caveat', cursive",
-                }}
-              >
-                About
-              </h3>
-              <div
-                style={{
-                  padding: '0.75rem',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                }}
-              >
-                <div>
-                  <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem' }}>Version: </span>
-                  <span style={{ color: '#ffffff', fontSize: '0.8rem', fontWeight: '500' }}>1.0.0</span>
-                </div>
-              </div>
-            </div>
+            {/* About & Updates Section */}
+            <AboutAndUpdates />
 
             {/* Storage Section */}
             <div>
@@ -795,6 +774,129 @@ const SettingsModal: React.FC = () => {
   );
 
   return createPortal(modalContent, document.body);
+};
+
+// Separate component for About & Updates to use hooks
+const AboutAndUpdates: React.FC = () => {
+  const { currentVersion, isChecking, lastCheckResult, checkForUpdates, isElectron } = useUpdateChecker();
+  const [appVersion, setAppVersion] = useState('1.0.0');
+
+  // Get version from Electron if available, otherwise use package.json version
+  useEffect(() => {
+    if (isElectron && currentVersion) {
+      setAppVersion(currentVersion);
+    }
+  }, [isElectron, currentVersion]);
+
+  return (
+    <div>
+      <h3
+        style={{
+          color: '#ffffff',
+          fontSize: '0.95rem',
+          fontWeight: '500',
+          marginBottom: '0.75rem',
+          fontFamily: "'Merienda', 'Caveat', cursive",
+        }}
+      >
+        About
+      </h3>
+      <div
+        style={{
+          padding: '0.75rem',
+          background: 'rgba(255, 255, 255, 0.05)',
+          borderRadius: '10px',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.75rem',
+        }}
+      >
+        {/* Version Info */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem' }}>Version: </span>
+            <span style={{ color: '#ffffff', fontSize: '0.8rem', fontWeight: '500' }}>
+              {appVersion}
+            </span>
+          </div>
+          {lastCheckResult === 'up-to-date' && (
+            <span style={{ fontSize: '0.75rem', color: KENYAN_GREEN }}>
+              Up to date
+            </span>
+          )}
+          {lastCheckResult === 'available' && (
+            <span style={{ fontSize: '0.75rem', color: '#f59e0b' }}>
+              Update available!
+            </span>
+          )}
+        </div>
+
+        {/* Check for Updates Button (Electron only) */}
+        {isElectron && (
+          <button
+            onClick={checkForUpdates}
+            disabled={isChecking}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '8px',
+              color: '#ffffff',
+              fontSize: '0.8rem',
+              fontWeight: '500',
+              cursor: isChecking ? 'wait' : 'pointer',
+              transition: 'all 0.2s ease',
+              opacity: isChecking ? 0.6 : 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.4rem',
+            }}
+            onMouseEnter={(e) => {
+              if (!isChecking) {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+            }}
+          >
+            {isChecking ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                  <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                </svg>
+                Checking...
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 12a9 9 0 11-6.219-8.56" />
+                </svg>
+                Check for Updates
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Web version notice */}
+        {!isElectron && (
+          <p style={{ margin: 0, fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>
+            Web version always uses the latest release.
+          </p>
+        )}
+      </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
 };
 
 export default SettingsModal;

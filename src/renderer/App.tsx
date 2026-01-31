@@ -15,6 +15,7 @@ import CommandPalette from './components/ui/CommandPalette';
 import ExportModal from './components/ui/ExportModal';
 import PWAInstallBanner from './components/ui/PWAInstallBanner';
 import RestoreSessionDialog from './components/ui/RestoreSessionDialog';
+import UpdateNotification from './components/ui/UpdateNotification';
 import { useAppStore } from './store/store';
 import { useAudioEngine } from './components/audio/useAudioEngine';
 import { getProjectLoader } from './components/project/ProjectLoader';
@@ -709,6 +710,8 @@ const App: React.FC = () => {
           <ToastContainer toasts={toasts} onClose={closeToast} />
           {/* PWA install banner – shown on every load, works in Safari/Firefox/Edge/Chrome */}
           <PWAInstallBanner />
+          {/* Electron auto-update notification */}
+          <UpdateNotification />
         </div>
       </ErrorBoundary>
     );
@@ -769,6 +772,8 @@ const App: React.FC = () => {
         <ToastContainer toasts={toasts} onClose={closeToast} />
         {/* PWA install banner – shown on every load, works in Safari/Firefox/Edge/Chrome */}
         <PWAInstallBanner />
+        {/* Electron auto-update notification */}
+        <UpdateNotification />
       </div>
     </ErrorBoundary>
   );

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { spawn } from 'child_process';
 import { pathToFileURL } from 'url';
+import { autoUpdater, UpdateInfo, ProgressInfo } from 'electron-updater';
 
 // Get FFmpeg path - works with ffmpeg-static
 let ffmpegPath: string;
@@ -14,6 +15,108 @@ try {
 }
 
 let mainWindow: BrowserWindow | null = null;
+
+// ============================================
+// AUTO-UPDATER CONFIGURATION
+// ============================================
+
+// Configure auto-updater logging
+autoUpdater.logger = {
+  info: (message: any) => console.log('[AutoUpdater]', message),
+  warn: (message: any) => console.warn('[AutoUpdater]', message),
+  error: (message: any) => console.error('[AutoUpdater]', message),
+  debug: (message: any) => console.log('[AutoUpdater DEBUG]', message),
+};
+
+// Don't auto-download - let user choose
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
+
+// Track update state
+let updateAvailable = false;
+let downloadedUpdate = false;
+let updateInfo: UpdateInfo | null = null;
+let downloadProgress: ProgressInfo | null = null;
+
+// Send update events to renderer
+function sendUpdateStatus(status: string, data?: any) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', { status, data });
+  }
+}
+
+// Initialize auto-updater event handlers
+function initAutoUpdater() {
+  // Check for updates error
+  autoUpdater.on('error', (error) => {
+    console.error('[AutoUpdater] Error:', error);
+    sendUpdateStatus('error', { message: error.message });
+  });
+
+  // Update available
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    console.log('[AutoUpdater] Update available:', info.version);
+    updateAvailable = true;
+    updateInfo = info;
+    sendUpdateStatus('update-available', {
+      version: info.version,
+      releaseDate: info.releaseDate,
+      releaseNotes: info.releaseNotes,
+    });
+  });
+
+  // No update available
+  autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+    console.log('[AutoUpdater] No update available. Current version:', info.version);
+    sendUpdateStatus('update-not-available', { version: info.version });
+  });
+
+  // Download progress
+  autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+    downloadProgress = progress;
+    sendUpdateStatus('download-progress', {
+      percent: progress.percent,
+      bytesPerSecond: progress.bytesPerSecond,
+      transferred: progress.transferred,
+      total: progress.total,
+    });
+  });
+
+  // Update downloaded
+  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version);
+    downloadedUpdate = true;
+    sendUpdateStatus('update-downloaded', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+    });
+  });
+}
+
+// Check for updates (called on app start and manually)
+async function checkForUpdates(silent: boolean = false) {
+  try {
+    // Don't check in development mode
+    if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+      if (!silent) {
+        sendUpdateStatus('dev-mode', { message: 'Updates disabled in development mode' });
+      }
+      return;
+    }
+
+    console.log('[AutoUpdater] Checking for updates...');
+    if (!silent) {
+      sendUpdateStatus('checking');
+    }
+    
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    console.error('[AutoUpdater] Check failed:', error);
+    if (!silent) {
+      sendUpdateStatus('error', { message: (error as Error).message });
+    }
+  }
+}
 
 // Enable audio features for Electron
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -102,7 +205,10 @@ const createWindow = (): void => {
         }, 1000);
       });
     }, 500);
-    mainWindow.webContents.openDevTools();
+    // Only open DevTools when requested (avoids Emulation.setEmitTouchEventsForMouse console spam)
+    if (process.env.OPEN_DEVTOOLS === '1') {
+      mainWindow.webContents.openDevTools();
+    }
   } else {
     const filePath = path.join(__dirname, '../dist/index.html');
     mainWindow.loadFile(filePath);
@@ -258,6 +364,14 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 app.whenReady().then(() => {
+  // Initialize auto-updater
+  initAutoUpdater();
+  
+  // Check for updates after a short delay (don't block startup)
+  setTimeout(() => {
+    checkForUpdates(true); // Silent check on startup
+  }, 5000);
+
   // Register protocol handler for audio files
   protocol.handle('audio-file', (request) => {
     // URL format: audio-file:///C:/path/to/file.mp3 (note triple slash)
@@ -629,6 +743,68 @@ app.whenReady().then(() => {
     } catch (error) {
       throw error;
     }
+  });
+
+  // ============================================
+  // AUTO-UPDATE IPC HANDLERS
+  // ============================================
+
+  // Check for updates manually
+  ipcMain.handle('check-for-updates', async () => {
+    await checkForUpdates(false);
+    return { checking: true };
+  });
+
+  // Download update
+  ipcMain.handle('download-update', async () => {
+    if (!updateAvailable) {
+      return { success: false, error: 'No update available' };
+    }
+    try {
+      await autoUpdater.downloadUpdate();
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // Install update and restart
+  ipcMain.handle('install-update', async () => {
+    if (!downloadedUpdate) {
+      return { success: false, error: 'Update not downloaded' };
+    }
+    // Quit and install
+    autoUpdater.quitAndInstall(false, true);
+    return { success: true };
+  });
+
+  // Get current app version
+  ipcMain.handle('get-app-version', () => {
+    return {
+      version: app.getVersion(),
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+    };
+  });
+
+  // Get update status
+  ipcMain.handle('get-update-status', () => {
+    return {
+      updateAvailable,
+      downloadedUpdate,
+      updateInfo: updateInfo ? {
+        version: updateInfo.version,
+        releaseDate: updateInfo.releaseDate,
+        releaseNotes: updateInfo.releaseNotes,
+      } : null,
+      downloadProgress,
+    };
+  });
+
+  // Open release notes URL in browser
+  ipcMain.handle('open-release-notes', async (_event, url: string) => {
+    const { shell } = require('electron');
+    await shell.openExternal(url);
   });
 
   app.on('activate', () => {
