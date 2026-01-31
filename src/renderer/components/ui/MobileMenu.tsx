@@ -60,6 +60,11 @@ const MobileMenu: React.FC = () => {
   const [showMyProjectsModal, setShowMyProjectsModal] = useState(false);
   const [storedProjectsList, setStoredProjectsList] = useState<StoredProject[]>([]);
   const [loadingStoredId, setLoadingStoredId] = useState<string | null>(null);
+
+  // Save to device modal (project name + option to download .tsproj file)
+  const [showSaveToDeviceModal, setShowSaveToDeviceModal] = useState(false);
+  const [saveToDeviceProjectName, setSaveToDeviceProjectName] = useState('');
+  const [saveToDeviceBusy, setSaveToDeviceBusy] = useState(false);
   
   // Subscribe to pitch processing status (same as desktop)
   useEffect(() => {
@@ -261,18 +266,56 @@ const MobileMenu: React.FC = () => {
     }
   };
   
-  const handleSaveProject = async () => {
+  const handleOpenSaveToDeviceModal = () => {
+    const saver = getProjectSaver();
+    const current = saver.getCurrentProjectName();
+    setSaveToDeviceProjectName(current === 'Untitled Project' ? '' : current);
+    setShowSaveToDeviceModal(true);
+  };
+
+  const sanitizeFileName = (name: string): string => {
+    return name.replace(/[/\\:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim() || 'project';
+  };
+
+  const handleSaveToAppStorage = async () => {
+    const name = saveToDeviceProjectName.trim() || 'Untitled Project';
+    setSaveToDeviceBusy(true);
     try {
       const saver = getProjectSaver();
-      // On mobile, use saveToDevice for better UX (saves to IndexedDB)
-      const result = await saver.saveToDevice();
+      const result = await saver.saveToDevice(name);
       if (result.success) {
         showToast('Saved! Open from Menu → My Projects', 'success');
+        setShowSaveToDeviceModal(false);
         setIsExpanded(false);
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to save', 'error');
+    } finally {
+      setSaveToDeviceBusy(false);
     }
+  };
+
+  const handleDownloadTsprojFile = async () => {
+    const baseName = saveToDeviceProjectName.trim() || 'Untitled Project';
+    const fileName = `${sanitizeFileName(baseName)}.tsproj`;
+    setSaveToDeviceBusy(true);
+    try {
+      const saver = getProjectSaver();
+      const success = await saver.exportProject(fileName);
+      if (success) {
+        showToast('File saved. Check Downloads or shared location.', 'success');
+        setShowSaveToDeviceModal(false);
+        setIsExpanded(false);
+      }
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to download', 'error');
+    } finally {
+      setSaveToDeviceBusy(false);
+    }
+  };
+
+  const handleSaveProject = () => {
+    handleOpenSaveToDeviceModal();
   };
 
   const handleOpenMyProjects = async () => {
@@ -892,6 +935,125 @@ const MobileMenu: React.FC = () => {
                   </button>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save to device modal: project name + save to app / download .tsproj */}
+      {showSaveToDeviceModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 10001,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={() => !saveToDeviceBusy && setShowSaveToDeviceModal(false)}
+        >
+          <div
+            style={{
+              background: neuBg,
+              borderRadius: '16px',
+              boxShadow: neuRaised,
+              padding: '20px',
+              width: '100%',
+              maxWidth: '360px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '18px', fontWeight: 600, color: textColor }}>Save project</span>
+              <button
+                onClick={() => !saveToDeviceBusy && setShowSaveToDeviceModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '8px',
+                  cursor: saveToDeviceBusy ? 'wait' : 'pointer',
+                  color: textColor,
+                  opacity: 0.8,
+                }}
+                aria-label="Close"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, color: textColor, marginBottom: '8px' }}>
+                Project name
+              </label>
+              <input
+                type="text"
+                value={saveToDeviceProjectName}
+                onChange={(e) => setSaveToDeviceProjectName(e.target.value)}
+                placeholder="Untitled Project"
+                disabled={saveToDeviceBusy}
+                style={{
+                  width: '100%',
+                  padding: '12px 14px',
+                  fontSize: '16px',
+                  border: `1px solid ${isLightMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)'}`,
+                  borderRadius: '10px',
+                  background: isLightMode ? '#fff' : 'rgba(255,255,255,0.08)',
+                  color: textColor,
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={handleSaveToAppStorage}
+                disabled={saveToDeviceBusy || !isAudioLoaded}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: '#fff',
+                  background: KENYAN_GREEN,
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: saveToDeviceBusy || !isAudioLoaded ? 'not-allowed' : 'pointer',
+                  opacity: saveToDeviceBusy || !isAudioLoaded ? 0.6 : 1,
+                  touchAction: 'manipulation',
+                }}
+              >
+                {saveToDeviceBusy ? 'Saving…' : 'Save to app storage'}
+              </button>
+              <button
+                onClick={handleDownloadTsprojFile}
+                disabled={saveToDeviceBusy || !isAudioLoaded}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: KENYAN_GREEN,
+                  background: 'transparent',
+                  border: `2px solid ${KENYAN_GREEN}`,
+                  borderRadius: '12px',
+                  cursor: saveToDeviceBusy || !isAudioLoaded ? 'not-allowed' : 'pointer',
+                  opacity: saveToDeviceBusy || !isAudioLoaded ? 0.6 : 1,
+                  touchAction: 'manipulation',
+                }}
+              >
+                {saveToDeviceBusy ? 'Preparing…' : 'Download .tsproj file'}
+              </button>
+              <p style={{ fontSize: '12px', color: isLightMode ? '#666' : 'rgba(255,255,255,0.6)', margin: 0 }}>
+                Download saves the file to your device (e.g. Downloads). You can then move or share it.
+              </p>
             </div>
           </div>
         </div>
