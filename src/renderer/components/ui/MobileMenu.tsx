@@ -43,13 +43,11 @@ const MobileMenu: React.FC = () => {
   // Pitch and playback rate
   const pitch = useAppStore((state) => state.globalControls.pitch) || 0;
   const playbackRate = useAppStore((state) => state.globalControls.playbackRate) || 1;
-  const volume = useAppStore((state) => state.globalControls.volume) || 6;
   const isMuted = useAppStore((state) => state.globalControls.isMuted) || false;
   const toggleMute = useAppStore((state) => state.toggleMute);
-  const setVolumeStore = useAppStore((state) => state.setVolume);
   
   // Use audio engine's pitch method (same as desktop)
-  const { loadFile, resumeAudioContext, setPitch: setAudioPitch, setVolume: setAudioVolume } = useAudioEngine();
+  const { loadFile, resumeAudioContext, setPitch: setAudioPitch } = useAudioEngine();
   const { animateZoom } = useSmoothViewport();
   
   // Pitch processing status
@@ -189,21 +187,7 @@ const MobileMenu: React.FC = () => {
     setAudioPitch(0); // Use audio engine's setPitch
   };
   
-  // Volume handlers
-  const handleVolumeUp = () => {
-    if (!isAudioLoaded) return;
-    const newVolume = Math.min(volume + 3, 6);
-    setVolumeStore(newVolume);
-    setAudioVolume(newVolume);
-  };
-  
-  const handleVolumeDown = () => {
-    if (!isAudioLoaded) return;
-    const newVolume = Math.max(volume - 3, -60);
-    setVolumeStore(newVolume);
-    setAudioVolume(newVolume);
-  };
-  
+  // Mute toggle handler
   const handleToggleMute = () => {
     if (!isAudioLoaded) return;
     toggleMute();
@@ -214,13 +198,6 @@ const MobileMenu: React.FC = () => {
     if (value === 0) return '0%';
     const sign = value > 0 ? '+' : '';
     return `${sign}${value.toFixed(1)}%`;
-  };
-  
-  // Format volume display
-  const formatVolumeDisplay = (value: number): string => {
-    if (value <= -60) return 'Muted';
-    const sign = value > 0 ? '+' : '';
-    return `${sign}${Math.round(value)} dB`;
   };
   
   const handleNewProject = async () => {
@@ -406,10 +383,10 @@ const MobileMenu: React.FC = () => {
     }
   };
   
-  // Get safe zoom display value
-  const zoomDisplay = typeof zoomLevel === 'number' && !isNaN(zoomLevel) && isFinite(zoomLevel)
-    ? Math.round(zoomLevel * 100)
-    : 100;
+  // Get safe zoom display value - show as multiplier (e.g., "5x" means 5x zoom, showing 20% of audio)
+  const safeZoom = typeof zoomLevel === 'number' && !isNaN(zoomLevel) && isFinite(zoomLevel) ? zoomLevel : MIN_ZOOM;
+  // Format as multiplier for clarity (matches desktop behavior)
+  const zoomDisplay = safeZoom >= 10 ? `${Math.round(safeZoom)}x` : `${safeZoom.toFixed(1)}x`;
   
   // Compact button style - LARGER for better visibility
   const btnStyle = (isActive: boolean = false, isDisabled: boolean = false) => ({
@@ -520,20 +497,20 @@ const MobileMenu: React.FC = () => {
             </svg>
           </button>
           
-          {/* Zoom % display - tappable to reset */}
+          {/* Zoom display - tappable to reset */}
           <button
             onClick={handleZoomReset}
             disabled={!isAudioLoaded}
             style={{
               ...btnStyle(false, !isAudioLoaded),
               minWidth: '52px',
-              fontSize: '14px',
+              fontSize: '13px',
               fontWeight: 700,
               color: KENYAN_GREEN,
             }}
             title="Reset zoom"
           >
-            {zoomDisplay}%
+            {zoomDisplay}
           </button>
           
           {/* Zoom in */}
@@ -596,9 +573,11 @@ const MobileMenu: React.FC = () => {
             <MenuItem icon={<ExportIcon />} label="Export/Share" onClick={handleExportProject} disabled={!isAudioLoaded} subtitle="Download .tsproj file" />
           </div>
           
-          {/* Settings - opens Settings modal (Theme is inside Settings) */}
+          {/* Settings Section */}
           <Divider isLightMode={isLightMode} />
-          <MenuItem icon={<SettingsGearIcon />} label="Settings" onClick={() => { setIsSettingsModalOpen(true); setIsExpanded(false); }} color={KENYAN_GREEN} subtitle="Theme, storage & more" />
+          <div style={{ marginBottom: '4px' }}>
+            <MenuItem icon={<SettingsGearIcon />} label="Settings" onClick={() => { setIsSettingsModalOpen(true); setIsExpanded(false); }} color={KENYAN_GREEN} subtitle="Theme, storage & more" />
+          </div>
           
           {/* Audio Controls - Pitch, Volume, Mute */}
           <Divider isLightMode={isLightMode} />
@@ -669,7 +648,7 @@ const MobileMenu: React.FC = () => {
               </div>
             </div>
             
-            {/* Volume Control */}
+            {/* Mute/Unmute Toggle */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -677,63 +656,43 @@ const MobileMenu: React.FC = () => {
               padding: '10px 14px',
               gap: '10px',
             }}>
-              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Volume</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  onClick={handleVolumeDown}
-                  disabled={!isAudioLoaded || volume <= -60}
-                  style={btnStyle(false, !isAudioLoaded || volume <= -60)}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
-                <span style={{ 
-                  fontSize: '14px', 
-                  fontWeight: 600, 
-                  color: isMuted ? KENYAN_RED : textColor,
-                  minWidth: '56px',
-                  textAlign: 'center',
-                }}>
-                  {isMuted ? 'Muted' : formatVolumeDisplay(volume)}
-                </span>
-                <button
-                  onClick={handleVolumeUp}
-                  disabled={!isAudioLoaded || volume >= 6}
-                  style={btnStyle(false, !isAudioLoaded || volume >= 6)}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
-                <button
-                  onClick={handleToggleMute}
-                  disabled={!isAudioLoaded}
-                  style={{ 
-                    ...btnStyle(isMuted, !isAudioLoaded),
-                    width: 'auto',
-                    padding: '0 10px',
-                    background: isMuted ? KENYAN_RED : undefined,
-                    color: isMuted ? 'white' : textColor,
-                    minWidth: '44px',
-                  }}
-                >
-                  {isMuted ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Sound</span>
+              <button
+                onClick={handleToggleMute}
+                disabled={!isAudioLoaded}
+                style={{ 
+                  ...btnStyle(isMuted, !isAudioLoaded),
+                  width: 'auto',
+                  padding: '0 16px',
+                  height: '44px',
+                  background: isMuted ? KENYAN_RED : neuBg,
+                  color: isMuted ? 'white' : textColor,
+                  minWidth: '90px',
+                  gap: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {isMuted ? (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                       <line x1="23" y1="9" x2="17" y2="15"/>
                       <line x1="17" y1="9" x2="23" y2="15"/>
                     </svg>
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Muted</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
                       <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
                     </svg>
-                  )}
-                </button>
-              </div>
+                    <span style={{ fontSize: '14px', fontWeight: 600 }}>On</span>
+                  </>
+                )}
+              </button>
             </div>
             
             {/* Speed Display */}

@@ -88,7 +88,8 @@ const MobileControlsPanel: React.FC = () => {
     setAudioPitch(0);
   };
   
-  const zoomDisplay = Math.round(zoomLevel * 100);
+  // Format zoom as multiplier (e.g., "5.0x") instead of misleading percentage
+  const zoomDisplay = zoomLevel >= 10 ? `${Math.round(zoomLevel)}x` : `${zoomLevel.toFixed(1)}x`;
   const pitchDisplay = isPitchProcessing ? '...' : (pitch > 0 ? `+${pitch.toFixed(1)}` : pitch.toFixed(1));
   
   const btnStyle = (disabled: boolean = false) => ({
@@ -150,7 +151,7 @@ const MobileControlsPanel: React.FC = () => {
         >
           −
         </button>
-        <span style={valueStyle}>{zoomDisplay}%</span>
+        <span style={valueStyle}>{zoomDisplay}</span>
         <button
           onClick={handleZoomIn}
           disabled={!isAudioLoaded || zoomLevel >= MAX_ZOOM}

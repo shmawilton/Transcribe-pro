@@ -19,8 +19,11 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Download files (add your actual binaries, don't commit large files)
+# Download files (large binaries - don't commit)
 public/downloads/*.exe
 public/downloads/*.dmg
 public/downloads/*.AppImage
 public/downloads/*.deb
+
+# Video files (optional - can commit if small, or host externally)
+# public/videos/*.mp4

@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'TranscribePro',
         short_name: 'TranscribePro',
         description: 'Professional audio transcription made simple',
-        theme_color: '#f0f0f3',
-        background_color: '#f0f0f3',
+        theme_color: '#e8e8ec',
+        background_color: '#e8e8ec',
         display: 'standalone',
         icons: [
           {
