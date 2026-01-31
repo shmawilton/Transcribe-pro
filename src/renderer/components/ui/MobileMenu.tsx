@@ -31,7 +31,6 @@ const MobileMenu: React.FC = () => {
   
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
-  const toggleTheme = useAppStore((state) => state.toggleTheme);
   const isAudioLoaded = useAppStore((state) => state.audio.isLoaded);
   const zoomLevel = useAppStore((state) => state.zoomLevel) || 5; // Default to 5x zoom (20% view)
   const duration = useAppStore((state) => state.audio.duration) || 0;
@@ -444,28 +443,28 @@ const MobileMenu: React.FC = () => {
         gap: '4px',
       }}
     >
-      {/* Main Menu Bar - Larger for better visibility */}
+      {/* Main Menu Bar - Taller with Zoom + Save; Settings/Theme in dropdown/Settings modal */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: '8px',
-        padding: '8px 12px',
+        padding: '10px 12px',
         background: neuBg,
         borderRadius: '14px',
         boxShadow: neuRaised,
-        minHeight: '56px',
+        minHeight: '64px',
       }}>
         {/* Left: Hamburger */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           style={{
             ...btnStyle(isExpanded),
-            width: '46px',
-            height: '46px',
+            width: '48px',
+            height: '48px',
           }}
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
             {isExpanded ? (
               <>
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -481,15 +480,16 @@ const MobileMenu: React.FC = () => {
           </svg>
         </button>
         
-        {/* Center: Essential actions */}
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        {/* Center: Undo, Redo, Zoom, Save */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1, justifyContent: 'center', minWidth: 0 }}>
           {/* Undo */}
           <button
             onClick={() => canUndo() && undo()}
             disabled={!canUndo()}
             style={btnStyle(false, !canUndo())}
+            title="Undo"
           >
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
               <path fillRule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
               <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
             </svg>
@@ -500,53 +500,69 @@ const MobileMenu: React.FC = () => {
             onClick={() => canRedo() && redo()}
             disabled={!canRedo()}
             style={btnStyle(false, !canRedo())}
+            title="Redo"
           >
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
               <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
               <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966a.25.25 0 0 1 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
             </svg>
           </button>
           
-          {/* Settings - Sliders icon for clearer meaning */}
+          {/* Zoom out */}
           <button
-            onClick={() => setIsSettingsModalOpen(true)}
-            style={btnStyle()}
-            title="Settings"
+            onClick={handleZoomOut}
+            disabled={!isAudioLoaded || zoomLevel <= MIN_ZOOM}
+            style={btnStyle(false, !isAudioLoaded || zoomLevel <= MIN_ZOOM)}
+            title="Zoom out"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="4" y1="21" x2="4" y2="14" />
-              <line x1="4" y1="10" x2="4" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="12" />
-              <line x1="12" y1="8" x2="12" y2="3" />
-              <line x1="20" y1="21" x2="20" y2="16" />
-              <line x1="20" y1="12" x2="20" y2="3" />
-              <circle cx="4" cy="12" r="2" fill="currentColor" />
-              <circle cx="12" cy="10" r="2" fill="currentColor" />
-              <circle cx="20" cy="14" r="2" fill="currentColor" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+          
+          {/* Zoom % display - tappable to reset */}
+          <button
+            onClick={handleZoomReset}
+            disabled={!isAudioLoaded}
+            style={{
+              ...btnStyle(false, !isAudioLoaded),
+              minWidth: '52px',
+              fontSize: '14px',
+              fontWeight: 700,
+              color: KENYAN_GREEN,
+            }}
+            title="Reset zoom"
+          >
+            {zoomDisplay}%
+          </button>
+          
+          {/* Zoom in */}
+          <button
+            onClick={handleZoomIn}
+            disabled={!isAudioLoaded || zoomLevel >= MAX_ZOOM}
+            style={btnStyle(false, !isAudioLoaded || zoomLevel >= MAX_ZOOM)}
+            title="Zoom in"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+          
+          {/* Save */}
+          <button
+            onClick={handleSave}
+            disabled={!isAudioLoaded}
+            style={btnStyle(false, !isAudioLoaded)}
+            title="Save project"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
             </svg>
           </button>
         </div>
-        
-        {/* Right: Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          style={{
-            ...btnStyle(),
-            width: '46px',
-            height: '46px',
-          }}
-        >
-          {isLightMode ? (
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/>
-              <path d="M8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13z"/>
-            </svg>
-          )}
-        </button>
       </div>
       
       {/* Expanded Menu Panel */}
@@ -555,18 +571,18 @@ const MobileMenu: React.FC = () => {
           background: neuBg,
           borderRadius: '14px',
           boxShadow: neuRaised,
-          padding: '12px',
+          padding: '14px 16px',
           maxHeight: '75vh',
           overflowY: 'auto',
           animation: 'slideDown 0.15s ease-out',
         }}>
           {/* File Section */}
-          <div style={{ marginBottom: '10px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <div style={{ 
-              fontSize: '12px', 
+              fontSize: '13px', 
               fontWeight: 700, 
               color: KENYAN_GREEN, 
-              padding: '4px 14px',
+              padding: '6px 14px',
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}>
@@ -576,88 +592,22 @@ const MobileMenu: React.FC = () => {
             <MenuItem icon={<NewFileIcon />} label="New Project" onClick={handleNewProject} color={KENYAN_GREEN} />
             <MenuItem icon={<FolderIcon />} label="Load Project" onClick={handleLoadProject} color={KENYAN_RED} />
             <MenuItem icon={<FolderIcon />} label="My Projects" onClick={handleOpenMyProjects} color={KENYAN_GREEN} subtitle="Saved on this device" />
-            <MenuItem icon={<SaveIcon />} label="Save" onClick={handleSave} disabled={!isAudioLoaded} color={KENYAN_GREEN} subtitle="Save current project" />
             <MenuItem icon={<SaveIcon />} label="Save As" onClick={handleSaveAs} disabled={!isAudioLoaded} color={KENYAN_GREEN} subtitle="New name or download file" />
             <MenuItem icon={<ExportIcon />} label="Export/Share" onClick={handleExportProject} disabled={!isAudioLoaded} subtitle="Download .tsproj file" />
           </div>
           
-          {/* View Section - Zoom controls */}
+          {/* Settings - opens Settings modal (Theme is inside Settings) */}
           <Divider isLightMode={isLightMode} />
-          <div style={{ marginBottom: '10px' }}>
-            <div style={{ 
-              fontSize: '12px', 
-              fontWeight: 700, 
-              color: KENYAN_GREEN, 
-              padding: '4px 14px',
-              textTransform: 'uppercase',
-              letterSpacing: '1px',
-            }}>
-              View
-            </div>
-            
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between',
-              padding: '10px 14px',
-              gap: '10px',
-            }}>
-              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Zoom</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  onClick={handleZoomOut}
-                  disabled={!isAudioLoaded || zoomLevel <= MIN_ZOOM}
-                  style={btnStyle(false, !isAudioLoaded || zoomLevel <= MIN_ZOOM)}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
-                <span style={{ 
-                  fontSize: '14px', 
-                  fontWeight: 600, 
-                  color: KENYAN_GREEN,
-                  minWidth: '48px',
-                  textAlign: 'center',
-                }}>
-                  {zoomDisplay}%
-                </span>
-                <button
-                  onClick={handleZoomIn}
-                  disabled={!isAudioLoaded || zoomLevel >= MAX_ZOOM}
-                  style={btnStyle(false, !isAudioLoaded || zoomLevel >= MAX_ZOOM)}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
-                <button
-                  onClick={handleZoomReset}
-                  disabled={!isAudioLoaded}
-                  style={{ 
-                    ...btnStyle(false, !isAudioLoaded),
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    width: 'auto',
-                    padding: '0 10px',
-                    minWidth: '44px',
-                  }}
-                >
-                  1/4
-                </button>
-              </div>
-            </div>
-          </div>
+          <MenuItem icon={<SettingsGearIcon />} label="Settings" onClick={() => { setIsSettingsModalOpen(true); setIsExpanded(false); }} color={KENYAN_GREEN} subtitle="Theme, storage & more" />
           
           {/* Audio Controls - Pitch, Volume, Mute */}
           <Divider isLightMode={isLightMode} />
-          <div style={{ marginBottom: '10px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <div style={{ 
-              fontSize: '12px', 
+              fontSize: '13px', 
               fontWeight: 700, 
               color: KENYAN_GREEN, 
-              padding: '4px 14px',
+              padding: '6px 14px',
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}>
@@ -1121,20 +1071,20 @@ const MenuItem: React.FC<{
     style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '14px',
-      padding: '14px 14px',
+      gap: '16px',
+      padding: '16px 16px',
       background: 'transparent',
       border: 'none',
-      borderRadius: '10px',
+      borderRadius: '12px',
       width: '100%',
       color: color || 'inherit',
-      fontSize: '16px',
+      fontSize: '17px',
       fontWeight: 500,
       cursor: disabled ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.4 : 1,
       touchAction: 'manipulation',
       textAlign: 'left',
-      minHeight: '52px',
+      minHeight: '56px',
     }}
   >
     {icon}
@@ -1142,7 +1092,7 @@ const MenuItem: React.FC<{
       <span>{label}</span>
       {subtitle && (
         <span style={{ 
-          fontSize: '13px', 
+          fontSize: '14px', 
           opacity: 0.6, 
           fontWeight: 400,
           marginTop: '2px',
@@ -1215,6 +1165,14 @@ const CloseIcon = () => (
     <circle cx="12" cy="12" r="10"/>
     <line x1="15" y1="9" x2="9" y2="15"/>
     <line x1="9" y1="9" x2="15" y2="15"/>
+  </svg>
+);
+
+/** Gear/cog icon for Settings in dropdown */
+const SettingsGearIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
   </svg>
 );
 

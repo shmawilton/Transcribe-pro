@@ -19,6 +19,8 @@ const DEFAULT_SETTINGS: Settings = {
 const SettingsModal: React.FC = () => {
   const isOpen = useAppStore((state) => state.ui.isSettingsModalOpen);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
+  const theme = useAppStore((state) => state.theme);
+  const setTheme = useAppStore((state) => state.setTheme);
   
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [hasChanges, setHasChanges] = useState(false);
@@ -265,6 +267,67 @@ const SettingsModal: React.FC = () => {
           }}>
           {/* Left Column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Theme (Light / Dark) */}
+            <div>
+              <h3
+                style={{
+                  color: '#ffffff',
+                  fontSize: '0.95rem',
+                  fontWeight: '500',
+                  marginBottom: '0.75rem',
+                  fontFamily: "'Merienda', 'Caveat', cursive",
+                }}
+              >
+                Theme
+              </h3>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.6rem',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+              >
+                <button
+                  onClick={() => setTheme('light')}
+                  style={{
+                    flex: 1,
+                    padding: '0.6rem',
+                    borderRadius: '8px',
+                    border: theme === 'light' ? '2px solid #006644' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: theme === 'light' ? 'rgba(0, 102, 68, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                    color: '#ffffff',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  ☀️ Light
+                </button>
+                <button
+                  onClick={() => setTheme('dark')}
+                  style={{
+                    flex: 1,
+                    padding: '0.6rem',
+                    borderRadius: '8px',
+                    border: theme === 'dark' ? '2px solid #006644' : '1px solid rgba(255, 255, 255, 0.1)',
+                    background: theme === 'dark' ? 'rgba(0, 102, 68, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                    color: '#ffffff',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  🌙 Dark
+                </button>
+              </div>
+            </div>
+
             {/* Auto-Save Settings */}
             <div>
               <h3
