@@ -39,6 +39,13 @@ export function MarkerTimeline() {
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null);
   const [hasDragged, setHasDragged] = useState(false); // Track if user actually dragged
+
+  // ===== Drag-to-move marker state =====
+  const [draggingMarkerId, setDraggingMarkerId] = useState<string | null>(null);
+  const didDragRef = useRef(false);
+  const dragAnchorTimeRef = useRef(0);
+  const dragMarkerStartRef = useRef(0);
+  const dragMarkerEndRef = useRef(0);
   
   // Listen for marker creation request from MarkerPanel
   const requestMarkerCreation = useAppStore((state) => state.ui.requestMarkerCreation);
@@ -500,7 +507,7 @@ export function MarkerTimeline() {
     return markers;
   }, [duration, usableWidth, visibleDuration, viewportStart, viewportEnd, timeToPixel, containerWidth]);
   
-  // Handle SVG mouse move (for hover tooltip and drag)
+  // Handle SVG mouse move (for hover tooltip, marker drag, and creation drag)
   const handleSvgMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current) return;
     
@@ -508,20 +515,42 @@ export function MarkerTimeline() {
     const x = e.clientX - rect.left;
     const time = pixelToTime(x);
     
+    // Drag-to-move existing marker
+    if (draggingMarkerId) {
+      const deltaTime = time - dragAnchorTimeRef.current;
+      let newStart = dragMarkerStartRef.current + deltaTime;
+      let newEnd = dragMarkerEndRef.current + deltaTime;
+      const minDur = 0.5;
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = Math.min(dragMarkerEndRef.current - dragMarkerStartRef.current, duration);
+      }
+      if (newEnd > duration) {
+        newEnd = duration;
+        newStart = Math.max(0, duration - (dragMarkerEndRef.current - dragMarkerStartRef.current));
+      }
+      if (newEnd - newStart < minDur) {
+        if (newStart === 0) newEnd = minDur;
+        else newStart = newEnd - minDur;
+      }
+      try {
+        MarkerManager.updateMarker(draggingMarkerId, { start: newStart, end: newEnd });
+      } catch (_) {}
+      didDragRef.current = true;
+      return;
+    }
+    
     setHoverTime(time);
-    // Track mouse position for tooltip positioning
     setMousePosition({ x: e.clientX, y: e.clientY });
     
-    // If creating marker, update end time and mark as dragged
     if (isCreatingMarker && markerStartTime !== null) {
       const clampedTime = Math.max(0, Math.min(time, duration));
       setMarkerEndTime(clampedTime);
-      // Mark as dragged if end time differs from start time
       if (Math.abs(clampedTime - markerStartTime) > 0.1) {
         setHasDragged(true);
       }
     }
-  }, [isCreatingMarker, markerStartTime, duration, pixelToTime]);
+  }, [isCreatingMarker, markerStartTime, duration, pixelToTime, draggingMarkerId]);
   
   // Handle SVG mouse leave
   const handleSvgMouseLeave = useCallback(() => {
@@ -529,9 +558,37 @@ export function MarkerTimeline() {
     setMousePosition(null);
   }, []);
   
+  // Start dragging a marker (move it on timeline) - mouse
+  const handleMarkerRectMouseDown = useCallback((e: React.MouseEvent, marker: Marker) => {
+    e.stopPropagation();
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const anchorTime = pixelToTime(x);
+    setDraggingMarkerId(marker.id);
+    didDragRef.current = false;
+    dragAnchorTimeRef.current = anchorTime;
+    dragMarkerStartRef.current = marker.start;
+    dragMarkerEndRef.current = marker.end;
+  }, [pixelToTime]);
+
+  // Start dragging a marker - touch
+  const handleMarkerRectTouchStart = useCallback((e: React.TouchEvent, marker: Marker) => {
+    if (e.touches.length !== 1 || !svgRef.current) return;
+    e.stopPropagation();
+    const touch = e.touches[0];
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const anchorTime = pixelToTime(x);
+    setDraggingMarkerId(marker.id);
+    didDragRef.current = false;
+    dragAnchorTimeRef.current = anchorTime;
+    dragMarkerStartRef.current = marker.start;
+    dragMarkerEndRef.current = marker.end;
+  }, [pixelToTime]);
+
   // Handle SVG mouse down (start marker creation drag)
   const handleSvgMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    // Don't start if clicking on existing marker
     if ((e.target as SVGElement).closest('g[data-marker-id]')) {
       return;
     }
@@ -545,11 +602,10 @@ export function MarkerTimeline() {
     const clampedTime = Math.max(0, Math.min(time, duration));
     
     if (!isCreatingMarker) {
-      // Start creating marker on mousedown
       setIsCreatingMarker(true);
       setMarkerStartTime(clampedTime);
       setMarkerEndTime(clampedTime);
-      setHasDragged(false); // Reset drag flag
+      setHasDragged(false);
     }
   }, [isCreatingMarker, duration, pixelToTime]);
   
@@ -586,23 +642,46 @@ export function MarkerTimeline() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  // Handle SVG touch move (marker creation OR pinch-to-zoom)
+  // Handle SVG touch move (marker drag, marker creation, or pinch-to-zoom)
   const handleSvgTouchMove = useCallback((e: React.TouchEvent<SVGSVGElement>) => {
-    // Two-finger touch - pinch-to-zoom
     if (e.touches.length === 2) {
       handleTimelineTouchMove(e);
       return;
     }
     
-    // Single touch - marker creation
     if (!svgRef.current || e.touches.length !== 1) return;
     
     const touch = e.touches[0];
     const rect = svgRef.current.getBoundingClientRect();
     const x = touch.clientX - rect.left;
     const time = pixelToTime(x);
-    const clampedTime = Math.max(0, Math.min(time, duration));
     
+    // Drag-to-move existing marker (touch)
+    if (draggingMarkerId) {
+      const deltaTime = time - dragAnchorTimeRef.current;
+      let newStart = dragMarkerStartRef.current + deltaTime;
+      let newEnd = dragMarkerEndRef.current + deltaTime;
+      const minDur = 0.5;
+      if (newStart < 0) {
+        newStart = 0;
+        newEnd = Math.min(dragMarkerEndRef.current - dragMarkerStartRef.current, duration);
+      }
+      if (newEnd > duration) {
+        newEnd = duration;
+        newStart = Math.max(0, duration - (dragMarkerEndRef.current - dragMarkerStartRef.current));
+      }
+      if (newEnd - newStart < minDur) {
+        if (newStart === 0) newEnd = minDur;
+        else newStart = newEnd - minDur;
+      }
+      try {
+        MarkerManager.updateMarker(draggingMarkerId, { start: newStart, end: newEnd });
+      } catch (_) {}
+      didDragRef.current = true;
+      return;
+    }
+    
+    const clampedTime = Math.max(0, Math.min(time, duration));
     if (isCreatingMarker) {
       setMarkerEndTime(clampedTime);
       if (markerStartTime !== null && Math.abs(clampedTime - markerStartTime) > 0.3) {
@@ -611,7 +690,7 @@ export function MarkerTimeline() {
     }
     setHoverTime(clampedTime);
     setMousePosition({ x: touch.clientX, y: touch.clientY });
-  }, [isCreatingMarker, markerStartTime, duration, pixelToTime, handleTimelineTouchMove]);
+  }, [isCreatingMarker, markerStartTime, duration, pixelToTime, handleTimelineTouchMove, draggingMarkerId]);
   
   // Handle SVG touch end - Creates marker OR ends pinch-to-zoom
   const handleSvgTouchEnd = useCallback(() => {
@@ -641,36 +720,40 @@ export function MarkerTimeline() {
   }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged, formatTime, handleTimelineTouchEnd]);
 
   
-  // Handle mouse up (end marker creation) - Creates marker immediately on PC
+  // Handle mouse up / touch end (end marker creation or end drag-to-move)
   useEffect(() => {
     const handleMouseUp = () => {
+      if (draggingMarkerId) {
+        setDraggingMarkerId(null);
+        return;
+      }
       if (isCreatingMarker && markerStartTime !== null && markerEndTime !== null) {
-        // Only create if user actually dragged (not just clicked)
         if (hasDragged) {
-          // Ensure start < end
           const start = Math.min(markerStartTime, markerEndTime);
           const end = Math.max(markerStartTime, markerEndTime);
-          
-          // Minimum marker duration (0.5 seconds)
           if (end - start >= 0.5) {
             try {
-              // Use quick marker creation - auto name and color
               MarkerManager.createQuickMarker(start, end);
             } catch (error) {
             }
           }
         }
-        // Reset all creation state
         setIsCreatingMarker(false);
         setMarkerStartTime(null);
         setMarkerEndTime(null);
         setHasDragged(false);
       }
     };
-    
+    const handleTouchEnd = () => {
+      setDraggingMarkerId(null);
+    };
     window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
-  }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged, formatTime]);
+    document.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged, formatTime, draggingMarkerId]);
 
   // Disable time tooltip (no hover effects)
   const showTimeTooltip = true;
@@ -707,26 +790,20 @@ export function MarkerTimeline() {
     }
   }, [requestMarkerCreation, duration, setRequestMarkerCreation]);
   
-  // Click handler to activate marker with full functionality (speed, loop, seek)
+  // Click handler to activate marker (skip if user just finished dragging)
   const handleMarkerClick = useCallback(async (e: React.MouseEvent, markerId: string) => {
-    e.stopPropagation(); // Prevent triggering SVG click
-    
+    e.stopPropagation();
+    if (didDragRef.current) {
+      didDragRef.current = false;
+      return;
+    }
     try {
       const marker = MarkerManager.getMarker(markerId);
       if (!marker) return;
-      
-      // IMMEDIATELY seek to marker start (before activating marker)
       await seek(marker.start);
-      
-      // Then activate marker with all settings
       await MarkerManager.setActiveMarker(markerId, {
-        seekToMarker: false, // Already sought above
-        audioEngine: {
-          seek, // Available for future use
-          setLoop, // Enable looping for markers with loop=true
-          disableLoop, // Disable looping when marker is deactivated
-          // Speed is handled by useMarkerSpeedControl hook
-        },
+        seekToMarker: false,
+        audioEngine: { seek, setLoop, disableLoop },
       });
     } catch (error) {
     }
@@ -1079,13 +1156,15 @@ export function MarkerTimeline() {
                   opacity={isActive ? 0.95 : 0.7}
                   stroke={isActive ? '#FFD700' : 'rgba(255,255,255,0.3)'}
                   strokeWidth={isActive ? 2 : 1}
-                  strokeDasharray={marker.loop ? '4 2' : 'none'} // Dashed border for loop markers
+                  strokeDasharray={marker.loop ? '4 2' : 'none'}
                   rx={4}
                   ry={4}
+                  onMouseDown={(e) => handleMarkerRectMouseDown(e, marker)}
+                  onTouchStart={(e) => handleMarkerRectTouchStart(e, marker)}
                   onClick={(e) => handleMarkerClick(e, marker.id)}
                   onMouseEnter={() => setHoveredMarker(marker.id)}
                   onMouseLeave={() => setHoveredMarker(null)}
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: draggingMarkerId === marker.id ? 'grabbing' : 'grab' }}
                 />
                 
                 {/* Loop indicator icon - circular arrow (only show if marker is wide enough) */}

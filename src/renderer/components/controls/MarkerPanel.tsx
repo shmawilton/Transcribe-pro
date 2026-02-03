@@ -51,7 +51,7 @@ const MarkerPanel: React.FC = () => {
   const selectedMarkerId = useAppStore((state) => state.ui.selectedMarkerId);
   const theme = useAppStore((state) => state.theme);
   const isLightMode = theme === 'light';
-  const duration = useAppStore((state) => state.audio.duration || 0);
+  const audioDuration = useAppStore((state) => state.audio.duration || 0);
   
   // Mobile detection
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
@@ -77,6 +77,11 @@ const MarkerPanel: React.FC = () => {
     start: number;
     end: number;
   } | null>(null);
+  // Separate minutes/seconds for time editing (so user can change either within audio bounds)
+  const [startMinStr, setStartMinStr] = useState('');
+  const [startSecStr, setStartSecStr] = useState('');
+  const [endMinStr, setEndMinStr] = useState('');
+  const [endSecStr, setEndSecStr] = useState('');
 
   // TASK 14: Ref for scrolling active marker into view
   const activeMarkerRef = useRef<HTMLDivElement>(null);
@@ -181,17 +186,13 @@ const MarkerPanel: React.FC = () => {
   // TASK 15: Handle Create Marker button click
   // Creates a quick marker at current position with default 5-second duration
   const handleCreateButtonClick = useCallback(() => {
-    if (duration > 0) {
+    if (audioDuration > 0) {
       try {
-        // Create marker from current time to current time + 5 seconds (or end of audio)
         const start = currentTime;
-        const end = Math.min(currentTime + 5, duration);
-        
-        // Ensure minimum duration of 0.5 seconds
+        const end = Math.min(currentTime + 5, audioDuration);
         if (end - start >= 0.5) {
           MarkerManager.createQuickMarker(start, end);
         } else {
-          // If at end of audio, create marker ending at current position
           const altStart = Math.max(0, currentTime - 5);
           if (currentTime - altStart >= 0.5) {
             MarkerManager.createQuickMarker(altStart, currentTime);
@@ -200,14 +201,14 @@ const MarkerPanel: React.FC = () => {
       } catch (error) {
       }
     }
-  }, [duration, currentTime]);
+  }, [audioDuration, currentTime]);
 
   // TASK 15: Keyboard shortcut for marker creation (M key)
   // NOTE: M key handler is now in App.tsx to centralize keyboard shortcuts
 
   // Handle editing marker
   const handleStartEdit = useCallback((marker: Marker, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent marker activation
+    e.stopPropagation();
     setEditingMarkerId(marker.id);
     setEditFormData({
       name: marker.name,
@@ -217,12 +218,40 @@ const MarkerPanel: React.FC = () => {
       start: marker.start,
       end: marker.end,
     });
+    setStartMinStr(String(Math.floor(marker.start / 60)));
+    setStartSecStr(String(Math.floor(marker.start % 60)));
+    setEndMinStr(String(Math.floor(marker.end / 60)));
+    setEndSecStr(String(Math.floor(marker.end % 60)));
   }, []);
 
   const handleCancelEdit = useCallback(() => {
     setEditingMarkerId(null);
     setEditFormData(null);
+    setStartMinStr('');
+    setStartSecStr('');
+    setEndMinStr('');
+    setEndSecStr('');
   }, []);
+
+  // Commit time inputs to editFormData; clamps to [0, audioDuration] and ensures start < end, min duration 0.5s
+  const commitTimeInputs = useCallback(() => {
+    if (!editFormData || audioDuration <= 0) return;
+    const startMin = Math.max(0, parseInt(startMinStr, 10) || 0);
+    const startSec = Math.max(0, Math.min(59, parseInt(startSecStr, 10) || 0));
+    const endMin = Math.max(0, parseInt(endMinStr, 10) || 0);
+    const endSec = Math.max(0, Math.min(59, parseInt(endSecStr, 10) || 0));
+    let start = startMin * 60 + startSec;
+    let end = endMin * 60 + endSec;
+    start = Math.max(0, Math.min(start, audioDuration));
+    end = Math.max(0, Math.min(end, audioDuration));
+    if (start >= end) end = Math.min(start + 0.5, audioDuration);
+    if (end - start < 0.5) start = Math.max(0, end - 0.5);
+    setEditFormData({ ...editFormData, start, end });
+    setStartMinStr(String(Math.floor(start / 60)));
+    setStartSecStr(String(Math.floor(start % 60)));
+    setEndMinStr(String(Math.floor(end / 60)));
+    setEndSecStr(String(Math.floor(end % 60)));
+  }, [editFormData, audioDuration, startMinStr, startSecStr, endMinStr, endSecStr]);
 
   const handleSaveEdit = useCallback((markerId: string) => {
     if (!editFormData) return;
@@ -255,6 +284,10 @@ const MarkerPanel: React.FC = () => {
 
       setEditingMarkerId(null);
       setEditFormData(null);
+      setStartMinStr('');
+      setStartSecStr('');
+      setEndMinStr('');
+      setEndSecStr('');
     } catch (error) {
       if (error instanceof Error) {
         alert(`Cannot update marker: ${error.message}`);
@@ -407,7 +440,7 @@ const MarkerPanel: React.FC = () => {
           {/* Create Marker Button - Neumorphic */}
           <button
             onClick={handleCreateButtonClick}
-            disabled={duration <= 0}
+            disabled={audioDuration <= 0}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -416,15 +449,15 @@ const MarkerPanel: React.FC = () => {
             height: '28px',
             padding: 0,
             background: isLightMode ? '#e4ebf5' : '#1a1a1a',
-            color: duration > 0 
+            color: audioDuration > 0 
               ? '#006644'
               : (isLightMode ? '#999999' : '#666666'),
             border: 'none',
             borderRadius: '50%',
-            cursor: duration > 0 ? 'pointer' : 'not-allowed',
+            cursor: audioDuration > 0 ? 'pointer' : 'not-allowed',
             transition: 'all 0.2s ease',
-            opacity: duration > 0 ? 1 : 0.6,
-            boxShadow: duration > 0 
+            opacity: audioDuration > 0 ? 1 : 0.6,
+            boxShadow: audioDuration > 0 
               ? (isLightMode
                   ? '3px 3px 6px rgba(166, 180, 200, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.9)'
                   : '3px 3px 6px rgba(0, 0, 0, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.05)')
@@ -433,16 +466,16 @@ const MarkerPanel: React.FC = () => {
                   : 'inset 2px 2px 4px rgba(0, 0, 0, 0.5), inset -1px -1px 2px rgba(255, 255, 255, 0.03)'),
           }}
           onMouseEnter={(e) => {
-            if (duration > 0) {
+            if (audioDuration > 0) {
               e.currentTarget.style.transform = 'scale(1.05)';
             }
           }}
           onMouseLeave={(e) => {
-            if (duration > 0) {
+            if (audioDuration > 0) {
               e.currentTarget.style.transform = 'scale(1)';
             }
           }}
-          title={duration > 0 ? 'Create new marker (M)' : 'Load audio file first'}
+          title={audioDuration > 0 ? 'Create new marker (M)' : 'Load audio file first'}
         >
           <svg
             width="14"
@@ -625,62 +658,56 @@ const MarkerPanel: React.FC = () => {
                     />
                   </div>
                   
-                  {/* Row 2: Time Range */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-start' }}>
+                  {/* Row 2: Time Range - Minutes and Seconds (within loaded audio length) */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-start', flexWrap: 'wrap' }}>
                     <span style={{ color: textSecondary, fontSize: '0.7rem', minWidth: '35px' }}>Time:</span>
+                    <span style={{ color: textSecondary, fontSize: '0.65rem' }}>Start</span>
                     <input
-                      type="text"
-                      value={formatTime(editFormData.start)}
-                      onChange={(e) => {
-                        let value = e.target.value.replace(/[^\d:]/g, '');
-                        if (value.length === 2 && !value.includes(':')) value = value + ':';
-                        if (value.length <= 5) {
-                          const val = parseTimeString(value);
-                          if (val >= 0 && val < editFormData.end && val <= duration) {
-                            setEditFormData({ ...editFormData, start: val });
-                          }
-                        }
-                      }}
-                      style={{
-                        width: '55px',
-                        padding: '0.25rem 0.3rem',
-                        background: 'var(--neu-bg-base)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        color: textColor,
-                        fontSize: '0.75rem',
-                        fontFamily: 'monospace',
-                        textAlign: 'center',
-                        boxShadow: 'var(--neu-pressed)',
-                      }}
+                      type="number"
+                      min={0}
+                      max={599}
+                      value={startMinStr}
+                      onChange={(e) => setStartMinStr(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                      onBlur={commitTimeInputs}
+                      placeholder="m"
+                      style={{ width: '36px', padding: '0.25rem 0.2rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '4px', color: textColor, fontSize: '0.75rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
                       onClick={(e) => e.stopPropagation()}
                     />
-                    <span style={{ color: textSecondary, fontSize: '0.75rem' }}>—</span>
+                    <span style={{ color: textSecondary, fontSize: '0.75rem' }}>:</span>
                     <input
-                      type="text"
-                      value={formatTime(editFormData.end)}
-                      onChange={(e) => {
-                        let value = e.target.value.replace(/[^\d:]/g, '');
-                        if (value.length === 2 && !value.includes(':')) value = value + ':';
-                        if (value.length <= 5) {
-                          const val = parseTimeString(value);
-                          if (val > editFormData.start && val <= duration) {
-                            setEditFormData({ ...editFormData, end: val });
-                          }
-                        }
-                      }}
-                      style={{
-                        width: '55px',
-                        padding: '0.25rem 0.3rem',
-                        background: 'var(--neu-bg-base)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        color: textColor,
-                        fontSize: '0.75rem',
-                        fontFamily: 'monospace',
-                        textAlign: 'center',
-                        boxShadow: 'var(--neu-pressed)',
-                      }}
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={startSecStr}
+                      onChange={(e) => setStartSecStr(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                      onBlur={commitTimeInputs}
+                      placeholder="s"
+                      style={{ width: '32px', padding: '0.25rem 0.2rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '4px', color: textColor, fontSize: '0.75rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <span style={{ color: textSecondary, fontSize: '0.75rem', marginLeft: '0.2rem' }}>—</span>
+                    <span style={{ color: textSecondary, fontSize: '0.65rem' }}>End</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={599}
+                      value={endMinStr}
+                      onChange={(e) => setEndMinStr(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                      onBlur={commitTimeInputs}
+                      placeholder="m"
+                      style={{ width: '36px', padding: '0.25rem 0.2rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '4px', color: textColor, fontSize: '0.75rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <span style={{ color: textSecondary, fontSize: '0.75rem' }}>:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={endSecStr}
+                      onChange={(e) => setEndSecStr(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                      onBlur={commitTimeInputs}
+                      placeholder="s"
+                      style={{ width: '32px', padding: '0.25rem 0.2rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '4px', color: textColor, fontSize: '0.75rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
                       onClick={(e) => e.stopPropagation()}
                     />
                   </div>
@@ -886,71 +913,57 @@ const MarkerPanel: React.FC = () => {
                   </div>
                 )}
 
-                {/* Time range - editable */}
+                {/* Time range - editable Minutes : Seconds for Start and End (within audio length) */}
                 {editingMarkerId === marker.id && editFormData ? (
-                  <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
                     <input
-                      type="text"
-                      value={formatTime(editFormData.start)}
-                      onChange={(e) => {
-                        let value = e.target.value.replace(/[^\d:]/g, '');
-                        if (value.length === 2 && !value.includes(':')) {
-                          value = value + ':';
-                        }
-                        if (value.length <= 5) {
-                          const val = parseTimeString(value);
-                          if (val >= 0 && val < editFormData.end && val <= duration) {
-                            setEditFormData({ ...editFormData, start: val });
-                          }
-                        }
-                      }}
-                      placeholder="M:SS"
-                      style={{
-                        width: '55px',
-                        padding: '0.2rem 0.3rem',
-                        background: 'var(--neu-bg-base)',
-                        border: 'none',
-                        borderRadius: '3px',
-                        color: textColor,
-                        fontSize: '0.7rem',
-                        fontFamily: 'monospace',
-                        textAlign: 'center',
-                        boxShadow: 'var(--neu-pressed)',
-                      }}
+                      type="number"
+                      min={0}
+                      max={599}
+                      value={startMinStr}
+                      onChange={(e) => setStartMinStr(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                      onBlur={commitTimeInputs}
+                      placeholder="m"
+                      style={{ width: '32px', padding: '0.2rem 0.15rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '3px', color: textColor, fontSize: '0.7rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
                       onClick={(e) => e.stopPropagation()}
                     />
-                    <span style={{ color: textSecondary, fontSize: '0.7rem' }}>—</span>
+                    <span style={{ color: textSecondary, fontSize: '0.7rem' }}>:</span>
                     <input
-                      type="text"
-                      value={formatTime(editFormData.end)}
-                      onChange={(e) => {
-                        let value = e.target.value.replace(/[^\d:]/g, '');
-                        if (value.length === 2 && !value.includes(':')) {
-                          value = value + ':';
-                        }
-                        if (value.length <= 5) {
-                          const val = parseTimeString(value);
-                          if (val > editFormData.start && val <= duration) {
-                            setEditFormData({ ...editFormData, end: val });
-                          }
-                        }
-                      }}
-                      placeholder="M:SS"
-                      style={{
-                        width: '55px',
-                        padding: '0.2rem 0.3rem',
-                        background: 'var(--neu-bg-base)',
-                        border: 'none',
-                        borderRadius: '3px',
-                        color: textColor,
-                        fontSize: '0.7rem',
-                        fontFamily: 'monospace',
-                        textAlign: 'center',
-                        boxShadow: 'var(--neu-pressed)',
-                      }}
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={startSecStr}
+                      onChange={(e) => setStartSecStr(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                      onBlur={commitTimeInputs}
+                      placeholder="s"
+                      style={{ width: '28px', padding: '0.2rem 0.15rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '3px', color: textColor, fontSize: '0.7rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
                       onClick={(e) => e.stopPropagation()}
                     />
-                  </>
+                    <span style={{ color: textSecondary, fontSize: '0.65rem', marginLeft: '0.1rem' }}>—</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={599}
+                      value={endMinStr}
+                      onChange={(e) => setEndMinStr(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                      onBlur={commitTimeInputs}
+                      placeholder="m"
+                      style={{ width: '32px', padding: '0.2rem 0.15rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '3px', color: textColor, fontSize: '0.7rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <span style={{ color: textSecondary, fontSize: '0.7rem' }}>:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={endSecStr}
+                      onChange={(e) => setEndSecStr(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                      onBlur={commitTimeInputs}
+                      placeholder="s"
+                      style={{ width: '28px', padding: '0.2rem 0.15rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '3px', color: textColor, fontSize: '0.7rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: textSecondary, fontFamily: 'monospace', fontSize: '0.7rem' }}>
                     <span>{formatTime(marker.start)}</span>
