@@ -96,6 +96,11 @@ export class HowlerAudioEngine {
   private pitchCache: Map<number, { blobUrl: string; filePath: string }> = new Map();
   private speedCache: Map<number, { blobUrl: string; filePath: string }> = new Map();
 
+  // Throttle playback time store updates to reduce re-renders (was 50ms → 20/sec)
+  private lastReportedTime: number = -1;
+  private static readonly TIME_UPDATE_INTERVAL_MS = 100;   // 10/sec
+  private static readonly TIME_UPDATE_MIN_DELTA = 0.05;     // skip if change < 50ms
+
   constructor() {
     // Engine initialized
   }
@@ -180,15 +185,9 @@ export class HowlerAudioEngine {
       // Load original with Howler (no volume manipulation on load - Howler default stays)
       await this.loadHowlerFromUrl(this.originalBlobUrl);
 
-      // Decode waveform
-      await ensureFFmpegLoaded();
-      const waveformBuffer = new Uint8Array(this.originalDataArray).buffer;
-      this.audioBuffer = await this.decodeWaveform(waveformBuffer, file.name);
-      if (this.audioBuffer) {
-        useAppStore.getState().setAudioBuffer(this.audioBuffer);
-      }
-
+      // Mark loaded so UI is responsive immediately; decode waveform in background
       useAppStore.getState().setIsLoading(false);
+      this.decodeWaveformInBackground(file.name, this.duration);
 
     } catch (error) {
       useAppStore.getState().setIsLoading(false);
@@ -285,23 +284,33 @@ export class HowlerAudioEngine {
   }
 
   /**
-   * Set pitch - triggers on-demand conversion in Electron
+   * Set pitch - in Electron: instant preview via Howler rate(), then FFmpeg in background for quality
    */
   public setPitch(semitones: number): void {
-    // Clamp to ±2 semitones
     const targetPitch = Math.max(-2, Math.min(2, Math.round(semitones * 10) / 10));
-    
-    // Update store immediately for UI feedback
     useAppStore.getState().setPitch(targetPitch);
     this.targetPitch = targetPitch;
     
-    // If same pitch, nothing to do
     if (Math.abs(targetPitch - this.currentPitch) < 0.05) {
       return;
     }
 
-    // In Electron, process pitch change
-    if (isElectron && this.originalTempPath) {
+    if (isElectron && this.howl && this.originalTempPath) {
+      if (Math.abs(targetPitch) < 0.05) {
+        // Back to 0: no instant rate change; processPitchChange will load original file
+        this.processPitchChange(targetPitch);
+        return;
+      }
+      // Instant preview: apply pitch via Howler rate so user hears change immediately
+      const pitchRate = Math.pow(2, targetPitch / 12);
+      const effectiveRate = pitchRate * this.currentSpeed;
+      if (this.currentSoundId !== null && this.howl.playing(this.currentSoundId)) {
+        this.howl.rate(effectiveRate, this.currentSoundId);
+      } else {
+        this.howl.rate(effectiveRate);
+      }
+      this.currentPitch = targetPitch;
+      // FFmpeg in background; when done we switch to pitched file (rate = currentSpeed only)
       this.processPitchChange(targetPitch);
     }
   }
@@ -871,37 +880,36 @@ export class HowlerAudioEngine {
 
   private startTimeUpdate(): void {
     this.stopTimeUpdate();
+    this.lastReportedTime = -1;
     this.timeUpdateInterval = window.setInterval(() => {
       if (this.howl?.playing()) {
         const currentTime = this.getCurrentTime();
         const duration = this.getDuration();
-        
-        // Update store with current time
-        useAppStore.getState().setCurrentTime(currentTime);
-        
+        const store = useAppStore.getState();
+        // Throttle store updates: only update when changed enough to reduce re-renders
+        const delta = Math.abs(currentTime - this.lastReportedTime);
+        if (delta >= HowlerAudioEngine.TIME_UPDATE_MIN_DELTA || this.lastReportedTime < 0 || currentTime >= duration - 0.1) {
+          this.lastReportedTime = currentTime;
+          store.setCurrentTime(currentTime);
+        }
         // Check for marker loop end - jump back to start if looping
-        // Only check if we're actually looping and have valid loop bounds
         if (!this.isHandlingLoopJump && this.isLooping && this.loopEnd !== null && this.loopStart !== null) {
-          // Check if we've reached or passed the loop end
-          // Use a threshold (0.1s) to account for timing precision and ensure we catch it
           const loopEndThreshold = this.loopEnd - 0.1;
           if (currentTime >= loopEndThreshold) {
             this.handleLoopEnd().catch(() => {});
             return;
           }
         }
-        
         // Check if reached end of audio (only if not looping)
         if (!this.isLooping && currentTime >= duration - 0.05) {
-          // Handle playback end
           this.howl.stop();
           this.currentSoundId = null;
-          useAppStore.getState().setIsPlaying(false);
-          useAppStore.getState().setCurrentTime(duration);
+          store.setIsPlaying(false);
+          store.setCurrentTime(duration);
           this.stopTimeUpdate();
         }
       }
-    }, 50);
+    }, HowlerAudioEngine.TIME_UPDATE_INTERVAL_MS);
   }
 
   private stopTimeUpdate(): void {
@@ -913,14 +921,43 @@ export class HowlerAudioEngine {
 
   // === Waveform ===
 
-  private async decodeWaveform(arrayBuffer: ArrayBuffer, filename: string): Promise<AudioBuffer | null> {
+  /** Decode waveform off the main path so UI stays responsive after load. Long files use lower sample rate to avoid OOM. */
+  private decodeWaveformInBackground(filename: string, durationSeconds: number): void {
+    const data = this.originalDataArray;
+    if (!data?.length) return;
+    (async () => {
+      try {
+        await ensureFFmpegLoaded();
+        const waveformBuffer = new Uint8Array(data).buffer;
+        const buffer = await this.decodeWaveform(waveformBuffer, filename, durationSeconds);
+        if (buffer && this.howl) {
+          this.audioBuffer = buffer;
+          useAppStore.getState().setAudioBuffer(buffer);
+        }
+      } catch {
+        // Non-fatal: waveform will be missing
+      }
+    })();
+  }
+
+  private async decodeWaveform(arrayBuffer: ArrayBuffer, filename: string, durationSeconds: number = 0): Promise<AudioBuffer | null> {
     try {
       const ffmpeg = await ensureFFmpegLoaded();
       if (!ffmpeg) return null;
 
       const ext = filename.split('.').pop()?.toLowerCase() || 'mp3';
       await ffmpeg.writeFile(`wave_input.${ext}`, new Uint8Array(arrayBuffer));
-      await ffmpeg.exec(['-i', `wave_input.${ext}`, '-ac', '2', '-ar', '22050', '-sample_fmt', 's16', '-f', 'wav', 'wave_output.wav']);
+      // Use lower sample rate for long files so decoded WAV fits in memory (FFmpeg WASM / OfflineAudioContext limits)
+      let sampleRate = 22050;
+      if (durationSeconds > 3600) sampleRate = 1000;   // >1 hr: ~14M samples for 2 hr stereo
+      else if (durationSeconds > 1200) sampleRate = 2000;  // >20 min
+      else if (durationSeconds > 600) sampleRate = 8000;   // >10 min
+      // Cap decode length for very long files (e.g. 4+ hr) to avoid OOM
+      const maxDecodeSeconds = 4 * 3600; // 4 hours
+      const decodeDuration = durationSeconds > maxDecodeSeconds ? maxDecodeSeconds : undefined;
+      const args = ['-i', `wave_input.${ext}`, '-ac', '2', '-ar', String(sampleRate), '-sample_fmt', 's16', '-f', 'wav', 'wave_output.wav'];
+      if (decodeDuration != null) args.splice(2, 0, '-t', String(decodeDuration));
+      await ffmpeg.exec(args);
       
       const data = await ffmpeg.readFile('wave_output.wav');
       const uint8 = data as Uint8Array;

@@ -264,8 +264,8 @@ html, body {
 }
 
 .menu-bar-container {
-  height: clamp(3.5rem, 5.5vh, 5rem);
-  min-height: clamp(3.25rem, 5vh, 4.5rem);
+  height: clamp(3.25rem, 5vh, 4.5rem);
+  min-height: clamp(3rem, 4.5vh, 4rem);
   overflow: visible;
   background: rgba(26, 26, 26, 0.6);
   backdrop-filter: blur(20px);
@@ -992,7 +992,7 @@ button, a, [role="button"] {
     flex-direction: column !important;
   }
   
-  /* Marker timeline container: sizes to content so height adjusts when markers fill it */
+  /* Marker timeline container: sizes to content (fill only on large screens, see 1440px+) */
   .waveform-section > *:last-child {
     flex: 0 0 auto !important;
     min-height: clamp(90px, 12vh, 140px) !important;
@@ -1008,7 +1008,7 @@ button, a, [role="button"] {
     max-height: none;
   }
   
-  /* Override MarkerTimeline inline maxHeight/overflow so area grows with markers */
+  /* Marker timeline: content height on desktop; full-height fill only at 1440px+ */
   .waveform-section .marker-timeline {
     flex: 0 0 auto !important;
     min-height: clamp(100%, 6vh, 100%) !important;
@@ -1026,23 +1026,39 @@ button, a, [role="button"] {
     min-height: 100%;
   }
 
-  /* Playback panel: button and icon sizes scale with viewport on desktop */
+  /* Playback panel: buttons/icons +25%, font +10% for visibility */
   .playback-panel {
     padding: clamp(0.35rem, 0.5vw, 0.65rem) !important;
     gap: clamp(0.25rem, 0.4vw, 0.5rem) !important;
   }
 
   .playback-panel button {
-    min-width: clamp(36px, 2.5vw, 52px) !important;
-    min-height: clamp(36px, 2.5vw, 52px) !important;
-    width: clamp(36px, 2.5vw, 52px) !important;
-    height: clamp(36px, 2.5vw, 52px) !important;
+    min-width: clamp(45px, 3.1vw, 65px) !important;
+    min-height: clamp(45px, 3.1vw, 65px) !important;
+    width: clamp(45px, 3.1vw, 65px) !important;
+    height: clamp(45px, 3.1vw, 65px) !important;
     padding: clamp(0.3rem, 0.4vw, 0.5rem) !important;
   }
 
   .playback-panel button svg {
-    width: clamp(18px, 1.2vw, 26px) !important;
-    height: clamp(18px, 1.2vw, 26px) !important;
+    width: clamp(22px, 1.5vw, 32px) !important;
+    height: clamp(22px, 1.5vw, 32px) !important;
+  }
+
+  /* Marker panel + playback row: font +10%, marker panel buttons/icons +25% */
+  .panels-section .panel {
+    font-size: 1.1em !important;
+  }
+
+  .panels-section .panel button {
+    min-width: clamp(36px, 2.5vw, 48px) !important;
+    min-height: clamp(36px, 2.5vw, 48px) !important;
+  }
+
+  .panels-section .panel button svg,
+  .panels-section .panel svg {
+    width: clamp(18px, 1.2vw, 28px) !important;
+    height: clamp(18px, 1.2vw, 28px) !important;
   }
 
   /* Marker timeline strip: default min-height, grows with content; font scales */
@@ -1465,6 +1481,268 @@ html {
 
 @media (min-width: 1281px) {
   html { font-size: 16px; } /* Consistent font size for all larger screens */
+}
+
+/* ====== LARGE SCREENS: waveform -25% (give to marker timeline), smaller panels, larger playback & menu icons ====== */
+@media (min-width: 1440px) {
+  .main-content {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.5rem, 0.8vw, 1rem);
+    padding: clamp(0.5rem, 0.8vw, 1.25rem);
+  }
+
+  /* Waveform section: reduced by ~10%; the 10% is given to the bottom row */
+  .waveform-section {
+    flex: 1 1 auto;
+    min-height: clamp(378px, 40.5vh, 540px);
+    max-height: none;
+  }
+
+  /* Waveform strip: reduced so marker timeline area gets space */
+  .waveform-section > *:first-child {
+    flex: 0 0 clamp(216px, 23.4vh, 324px) !important;
+    min-height: clamp(202px, 21.6vh, 306px) !important;
+    max-height: none !important;
+  }
+
+  .waveform-section .waveform-container {
+    min-height: clamp(189px, 19.8vh, 283px) !important;
+  }
+
+  .waveform-container canvas {
+    min-height: 100% !important;
+  }
+
+  /* Bottom row: +10% height (taken from waveform section) so panel contents are visible */
+  .panels-section {
+    flex: 0 0 auto !important;
+    height: clamp(154px, 17.6vh, 220px) !important;
+    min-height: clamp(154px, 17.6vh, 220px) !important;
+    max-height: clamp(154px, 17.6vh, 220px) !important;
+    overflow: hidden;
+  }
+
+  .panel {
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: visible !important;
+    font-size: clamp(0.99rem, 0.94vw + 0.55rem, 1.21rem) !important; /* +10% font */
+  }
+
+  /* Playback panel: no scroll, icons +25% */
+  .playback-panel {
+    padding: clamp(0.4rem, 0.5vw, 0.6rem) !important;
+    gap: clamp(0.3rem, 0.4vw, 0.5rem) !important;
+    overflow: visible !important;
+  }
+
+  .playback-panel button {
+    min-width: clamp(50px, 3.5vw, 65px) !important;
+    min-height: clamp(50px, 3.5vw, 65px) !important;
+    width: clamp(50px, 3.5vw, 65px) !important;
+    height: clamp(50px, 3.5vw, 65px) !important;
+    padding: clamp(0.3rem, 0.4vw, 0.5rem) !important;
+  }
+
+  .playback-panel button svg {
+    width: clamp(25px, 1.5vw, 32px) !important;
+    height: clamp(25px, 1.5vw, 32px) !important;
+  }
+
+  /* Marker panel: buttons/icons +25% */
+  .panels-section .panel button {
+    min-width: clamp(44px, 3vw, 58px) !important;
+    min-height: clamp(44px, 3vw, 58px) !important;
+  }
+
+  .panels-section .panel button svg,
+  .panels-section .panel svg {
+    width: clamp(22px, 1.4vw, 30px) !important;
+    height: clamp(22px, 1.4vw, 30px) !important;
+  }
+
+  /* Menu bar: REDUCED height, modest font/icon sizes */
+  .menu-bar-container {
+    height: clamp(3.5rem, 5vh, 4.25rem);
+    min-height: clamp(3.25rem, 4.5vh, 4rem);
+    padding: 0 clamp(0.5rem, 1vw, 1rem);
+  }
+
+  .menu-bar-button {
+    font-size: clamp(0.9rem, 0.7vw + 0.55rem, 1.05rem);
+    padding: clamp(0.35rem, 0.45vw, 0.5rem) clamp(0.5rem, 0.75vw, 0.85rem);
+  }
+
+  .menu-bar-button svg,
+  .menu-bar button svg {
+    width: clamp(16px, 0.9vw + 12px, 20px) !important;
+    height: clamp(16px, 0.9vw + 12px, 20px) !important;
+  }
+
+  .menu-bar span {
+    font-size: clamp(0.85rem, 0.65vw + 0.5rem, 1.05rem) !important;
+  }
+
+  .menu-bar button {
+    min-width: clamp(28px, 1.6vw, 36px) !important;
+    min-height: clamp(28px, 1.6vw, 36px) !important;
+    width: auto !important;
+    height: auto !important;
+    padding: clamp(0.25rem, 0.35vw, 0.4rem) !important;
+  }
+
+  /* Marker timeline: FILL remaining height in waveform section (big screens only) */
+  .waveform-section > *:last-child {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .waveform-section .marker-timeline {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    font-size: clamp(0.85rem, 0.65vw + 0.5rem, 1.05rem);
+  }
+
+  .waveform-section .marker-timeline > div {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important; /* keep timeline at top near waveform */
+  }
+
+  /* Marker timeline SVG fills full remaining height of its container (no max-height cap) */
+  .waveform-section .marker-timeline svg {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .marker-timeline text {
+    font-size: inherit;
+  }
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: clamp(15px, 0.75vw + 15px, 20px);
+  }
+
+  .main-content {
+    gap: clamp(0.5rem, 0.8vw, 1rem);
+    padding: clamp(0.5rem, 0.8vw, 1.25rem);
+  }
+
+  /* Waveform section: reduced by ~10%; the 10% goes to the bottom row */
+  .waveform-section {
+    min-height: clamp(432px, 45vh, 450px);
+    border-radius: clamp(16px, 1vw, 24px);
+    padding: clamp(0.45rem, 0.5vw, 0.85rem);
+  }
+
+  .waveform-section > *:first-child {
+    flex: 0 0 clamp(256px, 27vh, 378px) !important;
+    min-height: clamp(243px, 25.2vh, 351px) !important;
+    max-height: none !important;
+  }
+
+  .waveform-section .waveform-container {
+    min-height: clamp(229px, 24.3vh, 337px) !important;
+  }
+
+  /* Bottom row: +10% height (from waveform section) */
+  .panels-section {
+    flex: 0 0 auto !important;
+    height: clamp(154px, 17.6vh, 242px) !important;
+    min-height: clamp(154px, 17.6vh, 242px) !important;
+    max-height: clamp(154px, 17.6vh, 242px) !important;
+    gap: clamp(0.45rem, 0.6vw, 0.85rem);
+    overflow: hidden;
+  }
+
+  .panel {
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: visible !important;
+    font-size: clamp(0.99rem, 0.55vw + 0.72rem, 1.27rem) !important; /* +10% font */
+    border-radius: clamp(12px, 0.9vw, 20px);
+    padding: clamp(0.4rem, 0.5vw, 0.85rem);
+  }
+
+  .playback-panel {
+    overflow: visible !important;
+  }
+
+  .playback-panel button {
+    min-width: clamp(52px, 3.5vw, 70px) !important;
+    min-height: clamp(52px, 3.5vw, 70px) !important;
+    width: clamp(52px, 3.5vw, 70px) !important;
+    height: clamp(52px, 3.5vw, 70px) !important;
+  }
+
+  .playback-panel button svg {
+    width: clamp(27px, 1.6vw, 35px) !important;
+    height: clamp(27px, 1.6vw, 35px) !important;
+  }
+
+  .panels-section .panel button {
+    min-width: clamp(48px, 3.2vw, 62px) !important;
+    min-height: clamp(48px, 3.2vw, 62px) !important;
+  }
+
+  .panels-section .panel button svg,
+  .panels-section .panel svg {
+    width: clamp(24px, 1.5vw, 32px) !important;
+    height: clamp(24px, 1.5vw, 32px) !important;
+  }
+
+  /* Menu bar: reduced height */
+  .menu-bar-container {
+    height: clamp(3.75rem, 5.5vh, 4.5rem);
+    min-height: clamp(3.5rem, 5vh, 4.25rem);
+    padding: 0 clamp(0.6rem, 1vw, 1.25rem);
+  }
+
+  .menu-bar-button {
+    font-size: clamp(0.9rem, 0.5vw + 0.65rem, 1.1rem);
+    padding: clamp(0.35rem, 0.5vw, 0.55rem) clamp(0.55rem, 0.8vw, 1rem);
+  }
+
+  .menu-bar-button svg,
+  .menu-bar button svg {
+    width: clamp(17px, 0.85vw + 14px, 22px) !important;
+    height: clamp(17px, 0.85vw + 14px, 22px) !important;
+  }
+
+  .menu-bar span {
+    font-size: clamp(0.9rem, 0.5vw + 0.6rem, 1.1rem) !important;
+  }
+
+  .menu-bar button {
+    min-width: clamp(30px, 1.8vw, 40px) !important;
+    min-height: clamp(30px, 1.8vw, 40px) !important;
+    padding: clamp(0.28rem, 0.4vw, 0.45rem) !important;
+  }
+
+  .marker-timeline {
+    min-height: clamp(140px, 15vh, 220px) !important;
+    font-size: clamp(0.9rem, 0.5vw + 0.6rem, 1.1rem);
+  }
+
+  /* Marker timeline container fills remaining height; no max-height so SVG can fill it */
+  .waveform-section > *:last-child {
+    min-height: 0 !important;
+    max-height: none !important;
+  }
 }
 
 /* Additional compact layout utilities */

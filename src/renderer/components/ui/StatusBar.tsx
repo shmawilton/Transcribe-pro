@@ -1,4 +1,4 @@
-// StatusBar.tsx - Status bar component showing file info, markers count, zoom level
+// StatusBar.tsx - Status bar: file info, save status, markers count (time/zoom in playback & menu)
 import React from 'react';
 import { useAppStore } from '../../store/store';
 
@@ -11,7 +11,6 @@ const StatusBar: React.FC = () => {
   const isLightMode = theme === 'light';
   const audio = useAppStore((state) => state.audio);
   const markers = useAppStore((state) => state.markers);
-  const zoomLevel = useAppStore((state) => state.ui.zoomLevel);
   const currentTime = useAppStore((state) => state.audio.currentTime);
   const duration = useAppStore((state) => state.audio.duration);
   const projectLastChangeAt = useAppStore((state) => state.projectLastChangeAt);
@@ -138,7 +137,7 @@ const StatusBar: React.FC = () => {
           : '0 -2px 10px rgba(0, 0, 0, 0.3)',
       }}
     >
-      {/* Left side - File info */}
+      {/* Left side - File info only (time/zoom shown in playback panel and menu bar) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ color: textColor, opacity: 0.7 }}>📄</span>
@@ -151,14 +150,6 @@ const StatusBar: React.FC = () => {
             </span>
           )}
         </div>
-        {audio.isLoaded && duration > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ color: textColor, opacity: 0.7 }}>⏱️</span>
-            <span style={{ color: textColor }}>
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Center - Save status */}
@@ -192,26 +183,8 @@ const StatusBar: React.FC = () => {
         );
       })()}
 
-      {/* Right side - Stats */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ color: KENYAN_GREEN, opacity: 0.7 }}>
-            <path d="M2.5 0A2.5 2.5 0 0 0 0 2.5v11A2.5 2.5 0 0 0 2.5 16h11a2.5 2.5 0 0 0 2.5-2.5v-11A2.5 2.5 0 0 0 13.5 0h-11ZM1 2.5A1.5 1.5 0 0 1 2.5 1h11A1.5 1.5 0 0 1 15 2.5v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 13.5v-11Z"/>
-            <path d="M5 4.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-5a.5.5 0 0 1-.5-.5v-7Z"/>
-          </svg>
-          <span style={{ color: KENYAN_GREEN, fontWeight: '600' }}>
-            {markersCount} {markersCount === 1 ? 'marker' : 'markers'}
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ color: textColor, opacity: 0.7 }}>
-            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-          </svg>
-          <span style={{ color: textColor, fontWeight: '500' }}>
-            {zoomLevel.toFixed(1)}x
-          </span>
-        </div>
-      </div>
+      {/* Right side: empty so save status stays centered (markers count shown in Markers panel) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', minWidth: '80px' }} />
     </div>
   );
 };

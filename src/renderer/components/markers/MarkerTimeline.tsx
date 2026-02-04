@@ -14,6 +14,7 @@ const TIME_GRID_HEIGHT = 35; // Increased height for time grid
 const MIN_MARKER_AREA_HEIGHT = 100; // Minimum height with good padding
 const MAX_OVERLAPPING_MARKERS = 5; // Support up to 5 overlapping markers
 const MAX_MARKER_AREA_HEIGHT = TIME_GRID_HEIGHT + (MAX_OVERLAPPING_MARKERS * (MARKER_HEIGHT + MARKER_GAP)) + 20; // Height for 5 markers + padding
+const EDGE_HIT_PX = 12; // pixels from left/right edge of marker to start resize (crop) instead of move
 // Padding varies by device - minimal on mobile for edge-to-edge display
 const getTimeLabelPadding = (isMobile: boolean) => isMobile ? 8 : 50;
 
@@ -46,6 +47,10 @@ export function MarkerTimeline() {
   const dragAnchorTimeRef = useRef(0);
   const dragMarkerStartRef = useRef(0);
   const dragMarkerEndRef = useRef(0);
+
+  // ===== Resize marker (crop in/out) by dragging left or right edge =====
+  const [resizingMarkerId, setResizingMarkerId] = useState<string | null>(null);
+  const [resizeEdge, setResizeEdge] = useState<'start' | 'end' | null>(null);
   
   // Listen for marker creation request from MarkerPanel
   const requestMarkerCreation = useAppStore((state) => state.ui.requestMarkerCreation);
@@ -507,14 +512,39 @@ export function MarkerTimeline() {
     return markers;
   }, [duration, usableWidth, visibleDuration, viewportStart, viewportEnd, timeToPixel, containerWidth]);
   
-  // Handle SVG mouse move (for hover tooltip, marker drag, and creation drag)
+  // Handle SVG mouse move (for hover tooltip, marker drag, resize, and creation drag)
   const handleSvgMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current) return;
     
     const rect = svgRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const xPx = e.clientX - rect.left;
+    const scale = rect.width / svgWidth;
+    const x = scale !== 0 ? xPx / scale : xPx; // viewBox space for pixelToTime
     const time = pixelToTime(x);
-    
+    const minDur = 0.5;
+
+    // Resize marker (crop in/out) by dragging left or right edge
+    if (resizingMarkerId && resizeEdge) {
+      const marker = markers.find((m) => m.id === resizingMarkerId);
+      if (marker) {
+        if (resizeEdge === 'start') {
+          let newStart = Math.max(0, Math.min(time, marker.end - minDur));
+          if (marker.end - newStart < minDur) newStart = marker.end - minDur;
+          try {
+            MarkerManager.updateMarker(resizingMarkerId, { start: newStart, end: marker.end });
+          } catch (_) {}
+        } else {
+          let newEnd = Math.min(duration, Math.max(time, marker.start + minDur));
+          if (newEnd - marker.start < minDur) newEnd = marker.start + minDur;
+          try {
+            MarkerManager.updateMarker(resizingMarkerId, { start: marker.start, end: newEnd });
+          } catch (_) {}
+        }
+        didDragRef.current = true;
+      }
+      return;
+    }
+
     // Drag-to-move existing marker
     if (draggingMarkerId) {
       const deltaTime = time - dragAnchorTimeRef.current;
@@ -550,7 +580,7 @@ export function MarkerTimeline() {
         setHasDragged(true);
       }
     }
-  }, [isCreatingMarker, markerStartTime, duration, pixelToTime, draggingMarkerId]);
+  }, [isCreatingMarker, markerStartTime, duration, pixelToTime, draggingMarkerId, resizingMarkerId, resizeEdge, markers, svgWidth]);
   
   // Handle SVG mouse leave
   const handleSvgMouseLeave = useCallback(() => {
@@ -558,34 +588,71 @@ export function MarkerTimeline() {
     setMousePosition(null);
   }, []);
   
-  // Start dragging a marker (move it on timeline) - mouse
+  // Start dragging a marker: move (body) or resize/crop (left/right edge) - mouse
   const handleMarkerRectMouseDown = useCallback((e: React.MouseEvent, marker: Marker) => {
     e.stopPropagation();
     if (!svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const anchorTime = pixelToTime(x);
-    setDraggingMarkerId(marker.id);
+    const xPx = e.clientX - rect.left;
+    // Convert to same coordinate space as dimensions (viewBox); SVG may be scaled
+    const scale = rect.width / svgWidth;
+    const x = scale !== 0 ? xPx / scale : xPx;
+    const edgeHit = scale !== 0 ? EDGE_HIT_PX / scale : EDGE_HIT_PX; // edge hit in viewBox units
+    const dimensions = getMarkerDimensions(marker);
+    const hitLeft = x < dimensions.x + edgeHit;
+    const hitRight = x > dimensions.x + dimensions.width - edgeHit;
+    if (hitLeft) {
+      setResizingMarkerId(marker.id);
+      setResizeEdge('start');
+      setDraggingMarkerId(null);
+    } else if (hitRight) {
+      setResizingMarkerId(marker.id);
+      setResizeEdge('end');
+      setDraggingMarkerId(null);
+    } else {
+      setResizingMarkerId(null);
+      setResizeEdge(null);
+      const anchorTime = pixelToTime(x);
+      setDraggingMarkerId(marker.id);
+      dragAnchorTimeRef.current = anchorTime;
+      dragMarkerStartRef.current = marker.start;
+      dragMarkerEndRef.current = marker.end;
+    }
     didDragRef.current = false;
-    dragAnchorTimeRef.current = anchorTime;
-    dragMarkerStartRef.current = marker.start;
-    dragMarkerEndRef.current = marker.end;
-  }, [pixelToTime]);
+  }, [pixelToTime, getMarkerDimensions, svgWidth]);
 
-  // Start dragging a marker - touch
+  // Start dragging a marker: move or resize (left/right edge) - touch
   const handleMarkerRectTouchStart = useCallback((e: React.TouchEvent, marker: Marker) => {
     if (e.touches.length !== 1 || !svgRef.current) return;
     e.stopPropagation();
     const touch = e.touches[0];
     const rect = svgRef.current.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const anchorTime = pixelToTime(x);
-    setDraggingMarkerId(marker.id);
+    const xPx = touch.clientX - rect.left;
+    const scale = rect.width / svgWidth;
+    const x = scale !== 0 ? xPx / scale : xPx;
+    const edgeHit = scale !== 0 ? EDGE_HIT_PX / scale : EDGE_HIT_PX;
+    const dimensions = getMarkerDimensions(marker);
+    const hitLeft = x < dimensions.x + edgeHit;
+    const hitRight = x > dimensions.x + dimensions.width - edgeHit;
+    if (hitLeft) {
+      setResizingMarkerId(marker.id);
+      setResizeEdge('start');
+      setDraggingMarkerId(null);
+    } else if (hitRight) {
+      setResizingMarkerId(marker.id);
+      setResizeEdge('end');
+      setDraggingMarkerId(null);
+    } else {
+      setResizingMarkerId(null);
+      setResizeEdge(null);
+      const anchorTime = pixelToTime(x);
+      setDraggingMarkerId(marker.id);
+      dragAnchorTimeRef.current = anchorTime;
+      dragMarkerStartRef.current = marker.start;
+      dragMarkerEndRef.current = marker.end;
+    }
     didDragRef.current = false;
-    dragAnchorTimeRef.current = anchorTime;
-    dragMarkerStartRef.current = marker.start;
-    dragMarkerEndRef.current = marker.end;
-  }, [pixelToTime]);
+  }, [pixelToTime, getMarkerDimensions, svgWidth]);
 
   // Handle SVG mouse down (start marker creation drag)
   const handleSvgMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -653,9 +720,34 @@ export function MarkerTimeline() {
     
     const touch = e.touches[0];
     const rect = svgRef.current.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
+    const xPx = touch.clientX - rect.left;
+    const scale = rect.width / svgWidth;
+    const x = scale !== 0 ? xPx / scale : xPx;
     const time = pixelToTime(x);
-    
+    const minDur = 0.5;
+
+    // Resize marker (crop in/out) by dragging left or right edge - touch
+    if (resizingMarkerId && resizeEdge) {
+      const marker = markers.find((m) => m.id === resizingMarkerId);
+      if (marker) {
+        if (resizeEdge === 'start') {
+          let newStart = Math.max(0, Math.min(time, marker.end - minDur));
+          if (marker.end - newStart < minDur) newStart = marker.end - minDur;
+          try {
+            MarkerManager.updateMarker(resizingMarkerId, { start: newStart, end: marker.end });
+          } catch (_) {}
+        } else {
+          let newEnd = Math.min(duration, Math.max(time, marker.start + minDur));
+          if (newEnd - marker.start < minDur) newEnd = marker.start + minDur;
+          try {
+            MarkerManager.updateMarker(resizingMarkerId, { start: marker.start, end: newEnd });
+          } catch (_) {}
+        }
+        didDragRef.current = true;
+      }
+      return;
+    }
+
     // Drag-to-move existing marker (touch)
     if (draggingMarkerId) {
       const deltaTime = time - dragAnchorTimeRef.current;
@@ -690,7 +782,7 @@ export function MarkerTimeline() {
     }
     setHoverTime(clampedTime);
     setMousePosition({ x: touch.clientX, y: touch.clientY });
-  }, [isCreatingMarker, markerStartTime, duration, pixelToTime, handleTimelineTouchMove, draggingMarkerId]);
+  }, [isCreatingMarker, markerStartTime, duration, pixelToTime, handleTimelineTouchMove, draggingMarkerId, resizingMarkerId, resizeEdge, markers, svgWidth]);
   
   // Handle SVG touch end - Creates marker OR ends pinch-to-zoom
   const handleSvgTouchEnd = useCallback(() => {
@@ -720,9 +812,14 @@ export function MarkerTimeline() {
   }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged, formatTime, handleTimelineTouchEnd]);
 
   
-  // Handle mouse up / touch end (end marker creation or end drag-to-move)
+  // Handle mouse up / touch end (end resize, drag-to-move, or marker creation)
   useEffect(() => {
     const handleMouseUp = () => {
+      if (resizingMarkerId) {
+        setResizingMarkerId(null);
+        setResizeEdge(null);
+        return;
+      }
       if (draggingMarkerId) {
         setDraggingMarkerId(null);
         return;
@@ -745,15 +842,24 @@ export function MarkerTimeline() {
       }
     };
     const handleTouchEnd = () => {
+      setResizingMarkerId(null);
+      setResizeEdge(null);
       setDraggingMarkerId(null);
     };
-    window.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('touchend', handleTouchEnd);
-    return () => {
-      window.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('touchend', handleTouchEnd);
+    const endResizeOrDrag = () => {
+      setResizingMarkerId(null);
+      setResizeEdge(null);
+      setDraggingMarkerId(null);
     };
-  }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged, formatTime, draggingMarkerId]);
+    window.addEventListener('mouseup', handleMouseUp, { capture: true });
+    window.addEventListener('pointerup', endResizeOrDrag, { capture: true });
+    document.addEventListener('touchend', handleTouchEnd, { capture: true });
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp, { capture: true });
+      window.removeEventListener('pointerup', endResizeOrDrag, { capture: true });
+      document.removeEventListener('touchend', handleTouchEnd, { capture: true });
+    };
+  }, [isCreatingMarker, markerStartTime, markerEndTime, hasDragged, formatTime, draggingMarkerId, resizingMarkerId]);
 
   // Disable time tooltip (no hover effects)
   const showTimeTooltip = true;
@@ -1004,6 +1110,8 @@ export function MarkerTimeline() {
           ref={svgRef}
           width={svgWidth}
           height={Math.min(svgHeight, TIME_GRID_HEIGHT + MAX_MARKER_AREA_HEIGHT)}
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          preserveAspectRatio="xMidYMin meet"
           style={{ 
             display: 'block', 
             cursor: isCreatingMarker ? 'crosshair' : 'default',
@@ -1164,8 +1272,41 @@ export function MarkerTimeline() {
                   onClick={(e) => handleMarkerClick(e, marker.id)}
                   onMouseEnter={() => setHoveredMarker(marker.id)}
                   onMouseLeave={() => setHoveredMarker(null)}
-                  style={{ cursor: draggingMarkerId === marker.id ? 'grabbing' : 'grab' }}
+                  style={{
+                    cursor:
+                      resizingMarkerId === marker.id
+                        ? 'ew-resize'
+                        : draggingMarkerId === marker.id
+                          ? 'grabbing'
+                          : 'grab',
+                  }}
                 />
+                {/* Left edge: crop start (drag to trim/crop in from left) */}
+                {dimensions.width > EDGE_HIT_PX * 2 && (
+                  <rect
+                    x={dimensions.x}
+                    y={y}
+                    width={EDGE_HIT_PX}
+                    height={MARKER_HEIGHT}
+                    fill="transparent"
+                    onMouseDown={(e) => handleMarkerRectMouseDown(e, marker)}
+                    onTouchStart={(e) => handleMarkerRectTouchStart(e, marker)}
+                    style={{ cursor: 'ew-resize' }}
+                  />
+                )}
+                {/* Right edge: crop end (drag to trim/crop in from right) */}
+                {dimensions.width > EDGE_HIT_PX * 2 && (
+                  <rect
+                    x={dimensions.x + dimensions.width - EDGE_HIT_PX}
+                    y={y}
+                    width={EDGE_HIT_PX}
+                    height={MARKER_HEIGHT}
+                    fill="transparent"
+                    onMouseDown={(e) => handleMarkerRectMouseDown(e, marker)}
+                    onTouchStart={(e) => handleMarkerRectTouchStart(e, marker)}
+                    style={{ cursor: 'ew-resize' }}
+                  />
+                )}
                 
                 {/* Loop indicator icon - circular arrow (only show if marker is wide enough) */}
                 {marker.loop && dimensions.width > 30 && (
