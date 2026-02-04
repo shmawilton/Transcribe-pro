@@ -7,6 +7,8 @@ import { useAppStore } from '../../store/store';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 
+// Electron: keep html5: true to avoid blank screen (Web Audio mode can cause renderer issues).
+
 // FFmpeg WASM for waveform only
 let globalFFmpeg: FFmpeg | null = null;
 let ffmpegLoadPromise: Promise<void> | null = null;
@@ -85,6 +87,10 @@ export class HowlerAudioEngine {
   private loopEnd: number | null = null;
   private isLooping: boolean = false;
   private isHandlingLoopJump: boolean = false;
+
+  // Electron-only: Web Audio chain to boost HTML5 audio output (keeps html5: true, avoids blank screen)
+  private electronBoostCtx: AudioContext | null = null;
+  private electronBoostGain: GainNode | null = null;
 
   // Pitch cache for faster switching
   private pitchCache: Map<number, { blobUrl: string; filePath: string }> = new Map();
@@ -171,14 +177,8 @@ export class HowlerAudioEngine {
         );
       }
 
-      // Load original with Howler
+      // Load original with Howler (no volume manipulation on load - Howler default stays)
       await this.loadHowlerFromUrl(this.originalBlobUrl);
-
-      // Set volume to +6 dB (maximum volume) when audio loads - CRITICAL
-      const storeVolume = useAppStore.getState().globalControls.volume;
-      const isMuted = useAppStore.getState().globalControls.isMuted;
-      const targetVolume = isMuted ? -60 : (storeVolume !== undefined ? storeVolume : 6);
-      this.setVolume(targetVolume);
 
       // Decode waveform
       await ensureFFmpegLoaded();
@@ -204,8 +204,9 @@ export class HowlerAudioEngine {
       const newHowl = new Howl({
         src: [url],
         format: ['mp3'],
+        // html5: true in Electron avoids blank screen (Web Audio mode can break renderer)
         html5: true,
-          preload: true,
+        preload: true,
           onload: () => {
             clearTimeout(timeout);
           
@@ -262,12 +263,11 @@ export class HowlerAudioEngine {
             }
           } else {
             // Speed is already applied above to the specific sound ID
-            // Also ensure it's set on the main instance for future plays
             if (this.currentSpeed !== 1.0) {
               newHowl.rate(this.currentSpeed);
             }
           }
-            
+          
             resolve();
           },
         onloaderror: (_, err) => {
@@ -430,61 +430,19 @@ export class HowlerAudioEngine {
 
   // === Standard playback methods ===
 
-  /**
-   * Fade volume smoothly
-   */
-  private async fadeVolume(targetDb: number, durationMs: number = 30): Promise<void> {
-    if (!this.howl) return;
-    
-    const currentDb = useAppStore.getState().globalControls.volume;
-    const startDb = currentDb;
-    const diff = targetDb - startDb;
-    
-    if (Math.abs(diff) < 0.1) {
-      // Already at target, just set it
-      this.setVolume(targetDb);
-      return;
-    }
-    
-    const steps = Math.max(3, Math.floor(durationMs / 5)); // Update every 5ms
-    const stepDuration = durationMs / steps;
-    
-    for (let i = 0; i <= steps; i++) {
-      const progress = i / steps;
-      const currentDb = startDb + (diff * progress);
-      this.setVolume(currentDb);
-      await new Promise(resolve => setTimeout(resolve, stepDuration));
-    }
-    
-    // Ensure final value is exact
-    this.setVolume(targetDb);
-  }
-
   public async play(): Promise<void> {
     if (!this.howl) throw new Error('No audio');
     
-    // Get target volume
-    const targetVolume = useAppStore.getState().globalControls.volume;
-    const isMuted = useAppStore.getState().globalControls.isMuted;
-    const targetDb = isMuted ? -60 : targetVolume;
-    
-    // Start at low volume for fade in
-    this.setVolume(Math.max(-40, targetDb - 20));
-    
-    // Start playback
+    // Start playback (no volume manipulation - Howler default stays)
     this.currentSoundId = this.howl.play() as number;
     
     // CRITICAL: Apply current speed immediately after starting playback
-    // This ensures marker speeds are applied correctly
     if (this.currentSpeed !== 1.0 && this.currentSoundId !== null) {
       this.howl.rate(this.currentSpeed, this.currentSoundId);
     }
     
     useAppStore.getState().setIsPlaying(true);
     this.startTimeUpdate();
-    
-    // Fade in to target volume (30ms)
-    this.fadeVolume(targetDb, 30).catch(() => {});
   }
 
   public pause(): void {
@@ -501,15 +459,7 @@ export class HowlerAudioEngine {
   public async stop(): Promise<void> {
     if (!this.howl) return;
 
-    // Get current volume for fade out
-    const currentDb = useAppStore.getState().globalControls.volume;
-    const isMuted = useAppStore.getState().globalControls.isMuted;
-    const startDb = isMuted ? -60 : currentDb;
-    
-    // Fade out to silence (30ms)
-    await this.fadeVolume(-60, 30);
-    
-    // Stop playback
+    // Stop playback (no volume fade)
     this.howl.stop();
     this.currentSoundId = null;
     useAppStore.getState().setIsPlaying(false);
@@ -526,11 +476,6 @@ export class HowlerAudioEngine {
       const DEFAULT_ZOOM_STOP = 5; // Show 20% (1/5) of audio
       useAppStore.getState().setViewport(0, duration / DEFAULT_ZOOM_STOP);
       useAppStore.getState().setZoomLevel(DEFAULT_ZOOM_STOP);
-    }
-    
-    // Restore volume after fade out
-    if (!isMuted) {
-      this.setVolume(currentDb);
     }
     
     this.stopTimeUpdate();
@@ -602,33 +547,17 @@ export class HowlerAudioEngine {
   public setVolume(db: number): void {
     if (!this.howl) return;
     
-    // Clamp dB to valid range (-60 to +6)
     const clampedDb = Math.max(-60, Math.min(6, db));
-    
-    // For Electron/Howler with HTML5 Audio:
-    // HTML5 Audio only supports 0.0 to 1.0 volume range
-    // Use proper dB to linear conversion, but normalize to 0-1 range
-    // Treat +6 dB as the reference (1.0), so 0 dB = 0.5, -6 dB = 0.25, etc.
-    // This gives more headroom at lower volumes while ensuring max loudness at +6 dB
     
     if (clampedDb <= -60) {
       this.howl.volume(0);
       return;
     }
     
-    // Convert dB to linear: linear = 10^(dB/20)
-    // At +6 dB: 10^(6/20) = ~1.995
-    // At 0 dB: 10^(0/20) = 1.0
-    // At -6 dB: 10^(-6/20) = ~0.5
-    // At -60 dB: 10^(-60/20) = ~0.001
-    
-    // Calculate the linear value relative to +6 dB (our max)
     const linear = Math.pow(10, clampedDb / 20);
-    const maxLinear = Math.pow(10, 6 / 20); // ~1.995 (value at +6 dB)
-    
-    // Normalize so +6 dB = 1.0 and scale down from there
+    const maxLinear = Math.pow(10, 6 / 20);
     const normalizedVolume = linear / maxLinear;
-    
+    // HTML5 Audio (used in Electron for stability) only supports 0–1
     this.howl.volume(Math.max(0, Math.min(1, normalizedVolume)));
   }
 

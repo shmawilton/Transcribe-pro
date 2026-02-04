@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol, net, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, net, dialog, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -211,6 +211,68 @@ const createWindow = (): void => {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // Application menu: View > Zoom and DevTools (so user can zoom in/out/reset and open DevTools)
+  const isMac = process.platform === 'darwin';
+  const zoomIn = (): void => {
+    const w = BrowserWindow.getFocusedWindow();
+    if (w?.webContents) {
+      const level = w.webContents.getZoomLevel();
+      w.webContents.setZoomLevel(Math.min(level + 1, 3));
+    }
+  };
+  const zoomOut = (): void => {
+    const w = BrowserWindow.getFocusedWindow();
+    if (w?.webContents) {
+      const level = w.webContents.getZoomLevel();
+      w.webContents.setZoomLevel(Math.max(level - 1, -3));
+    }
+  };
+  const zoomReset = (): void => {
+    const w = BrowserWindow.getFocusedWindow();
+    if (w?.webContents) w.webContents.setZoomLevel(0);
+  };
+  const toggleDevTools = (): void => {
+    const w = BrowserWindow.getFocusedWindow();
+    if (w?.webContents) {
+      if (w.webContents.isDevToolsOpened()) {
+        w.webContents.closeDevTools();
+      } else {
+        w.webContents.openDevTools();
+      }
+    }
+  };
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(isMac ? [{ role: 'appMenu' as const }] : []),
+    {
+      label: 'File',
+      submenu: [
+        isMac ? { role: 'close' as const } : { role: 'quit' as const },
+      ],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Zoom In', accelerator: 'CommandOrControl+Plus', click: zoomIn },
+        { label: 'Zoom Out', accelerator: 'CommandOrControl+-', click: zoomOut },
+        { label: 'Reset Zoom', accelerator: 'CommandOrControl+0', click: zoomReset },
+        { type: 'separator' as const },
+        { label: 'Toggle Developer Tools', accelerator: 'F12', click: toggleDevTools },
+        { label: 'Toggle Developer Tools', accelerator: 'CommandOrControl+Shift+I', click: toggleDevTools, visible: false },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' as const },
+        { role: 'zoom' as const },
+        ...(isMac ? [{ role: 'front' as const }] : [{ role: 'close' as const }]),
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 };
 
 /**
