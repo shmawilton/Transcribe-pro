@@ -11,6 +11,25 @@ Summary of performance optimizations and what to avoid so the app stays responsi
   - Interval increased from 50 ms to **100 ms** (10 updates/sec).
   - Store is updated only when `currentTime` changes by at least **0.05 s** (avoids redundant updates when time hasn’t moved meaningfully).
 - **File:** `src/renderer/components/audio/HowlerAudioEngine.ts`.
+- **Update:** Interval further increased to **150 ms** (~6.7/sec) and min delta to **0.1 s** for fewer re-renders.
+
+### 4. Store selectors (useShallow)
+
+- **Issue:** Components that subscribe to `state.audio` (e.g. StatusBar) re-render on every store update because `state.audio` is a new object reference whenever any audio field changes.
+- **Change:** Use `useShallow` from `zustand/react/shallow` and select only the fields needed (e.g. `currentTime`, `duration`, `file`). Re-renders only when those values actually change.
+- **File:** `src/renderer/components/ui/StatusBar.tsx`.
+
+### 5. Project load poll (slower interval)
+
+- **Issue:** After loading a project, audio load completion was polled every 100 ms, adding CPU wakeups.
+- **Change:** Poll interval increased to **250 ms**; max attempts reduced so total wait remains ~10 s.
+- **File:** `src/renderer/components/project/ProjectLoader.ts`.
+
+### 6. Storage and performance check (Settings)
+
+- **Storage:** In Settings → Storage, the app shows **localStorage** size (KB) and browser quota/usage so you can see how much space the app uses and whether it decreases after clearing data.
+- **Performance:** A "Run quick performance check" button runs a lightweight benchmark; result in ms is shown (lower is better). Use before/after optimizations to compare.
+- **Files:** `src/renderer/utils/storagePerf.ts`, `src/renderer/components/ui/SettingsModal.tsx`.
 
 ### 2. Pitch shifting – instant preview (Electron)
 

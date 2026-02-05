@@ -522,12 +522,21 @@ const Waveform: React.FC = () => {
     ctx.fillRect(0, 0, width, height);
 
     if (!bufferToUse) {
-      // Draw placeholder when no audio is loaded
-      ctx.fillStyle = '#E85A4A'; // Kenyan red light
+      const storeStateForPlaceholder = useAppStore.getState();
+      const hasAudio = storeStateForPlaceholder.audio.isLoaded && storeStateForPlaceholder.audio.duration > 0;
       ctx.font = '16px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('No audio loaded', width / 2, height / 2);
+      if (hasAudio) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.fillText('Building waveform…', width / 2, height / 2);
+        ctx.font = '12px Inter, sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fillText('Longer files take a moment', width / 2, height / 2 + 22);
+      } else {
+        ctx.fillStyle = '#E85A4A';
+        ctx.fillText('No audio loaded', width / 2, height / 2);
+      }
       return;
     }
 

@@ -120,6 +120,7 @@ const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+
   // Track if auto-restore is pending (failed due to audio context)
   const [pendingRestore, setPendingRestore] = React.useState(false);
   

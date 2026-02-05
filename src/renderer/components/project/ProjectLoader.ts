@@ -251,21 +251,20 @@ export class ProjectLoader {
     const DEFAULT_ZOOM = 5;
     store.setZoomLevel(DEFAULT_ZOOM);
 
-    // Poll for audio load completion then reset viewport to 20% view
+    // Poll for audio load completion then reset viewport to 20% view (250ms to reduce CPU)
     let attempts = 0;
-    const maxAttempts = 100;
+    const maxAttempts = 40;  // 40 * 250ms = 10s max
     const checkAudioLoaded = setInterval(() => {
       attempts++;
       const audioStore = useAppStore.getState();
       if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
         clearInterval(checkAudioLoaded);
-        // Reset viewport to show first 20% of audio (zoom level 5)
         const duration = audioStore.audio.duration;
         audioStore.setViewport(0, duration / DEFAULT_ZOOM);
       } else if (attempts >= maxAttempts) {
         clearInterval(checkAudioLoaded);
       }
-    }, 100);
+    }, 250);
 
     if (!opts?.silent) this.notify('Project loaded successfully!', 'success');
     return true;
@@ -621,21 +620,20 @@ export class ProjectLoader {
       const DEFAULT_ZOOM_2 = 5;
       store.setZoomLevel(DEFAULT_ZOOM_2);
       
-      // Poll for audio load completion then reset viewport to 20% view
+      // Poll for audio load completion then reset viewport (250ms to reduce CPU)
       let attempts = 0;
-      const maxAttempts = 100;
+      const maxAttempts = 40;
       const checkAudioLoaded = setInterval(() => {
         attempts++;
         const audioStore = useAppStore.getState();
         if (audioStore.audio.isLoaded && audioStore.audio.duration > 0) {
           clearInterval(checkAudioLoaded);
-          // Reset viewport to show first 20% of audio (zoom level 5)
           const duration = audioStore.audio.duration;
           audioStore.setViewport(0, duration / DEFAULT_ZOOM_2);
         } else if (attempts >= maxAttempts) {
           clearInterval(checkAudioLoaded);
         }
-      }, 100);
+      }, 250);
 
       // Update project name
       if (this.onProjectNameChange) {

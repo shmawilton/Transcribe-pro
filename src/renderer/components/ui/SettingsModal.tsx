@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useAppStore } from '../../store/store';
 import { clearAutoSaveData, clearAllProjectsFromIndexedDB, getStorageUsageEstimate } from '../project/ProjectSaver';
 import { useUpdateChecker } from './UpdateNotification';
+import { getLocalStorageSizeKB, runQuickPerfCheck } from '../../utils/storagePerf';
 
 // Kenyan colors
 const KENYAN_GREEN = '#006644';
@@ -35,6 +36,8 @@ const SettingsModal: React.FC = () => {
   
   // Storage management state
   const [storageUsage, setStorageUsage] = useState<{ used: number; quota: number } | null>(null);
+  const [localStorageKB, setLocalStorageKB] = useState<number>(0);
+  const [perfCheckMs, setPerfCheckMs] = useState<number | null>(null);
   const [isClearingAutosave, setIsClearingAutosave] = useState(false);
   const [isClearingProjects, setIsClearingProjects] = useState(false);
   
@@ -72,8 +75,9 @@ const SettingsModal: React.FC = () => {
         } catch (e) {
         }
       }
-      // Fetch storage usage
       getStorageUsageEstimate().then(setStorageUsage);
+      setLocalStorageKB(getLocalStorageSizeKB());
+      setPerfCheckMs(null);
     }
   }, [isOpen]);
 
@@ -92,9 +96,9 @@ const SettingsModal: React.FC = () => {
     setIsClearingAutosave(true);
     try {
       clearAutoSaveData();
-      // Refresh storage estimate
       const usage = await getStorageUsageEstimate();
       setStorageUsage(usage);
+      setLocalStorageKB(getLocalStorageSizeKB());
     } finally {
       setIsClearingAutosave(false);
     }
@@ -111,9 +115,14 @@ const SettingsModal: React.FC = () => {
       // Refresh storage estimate
       const usage = await getStorageUsageEstimate();
       setStorageUsage(usage);
+      setLocalStorageKB(getLocalStorageSizeKB());
     } finally {
       setIsClearingProjects(false);
     }
+  };
+
+  const handleRunPerfCheck = () => {
+    setPerfCheckMs(runQuickPerfCheck());
   };
 
   const handleChange = (key: keyof Settings, value: any) => {
@@ -567,7 +576,13 @@ const SettingsModal: React.FC = () => {
                   gap: '0.75rem',
                 }}
               >
-                {/* Storage Usage */}
+                {/* localStorage size */}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem' }}>localStorage:</span>
+                  <span style={{ color: '#ffffff', fontSize: '0.8rem', fontWeight: '500' }}>{localStorageKB} KB</span>
+                </div>
+
+                {/* Storage Usage (quota/usage when available) */}
                 {storageUsage && (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
@@ -592,6 +607,30 @@ const SettingsModal: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Performance check (quick feedback after optimizations) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={handleRunPerfCheck}
+                    style={{
+                      padding: '0.35rem 0.6rem',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Run quick performance check
+                  </button>
+                  {perfCheckMs !== null && (
+                    <span style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '0.8rem' }}>
+                      Result: {perfCheckMs} ms (lower is better)
+                    </span>
+                  )}
+                </div>
 
                 {/* Clear Auto-save Button */}
                 <button

@@ -1,21 +1,27 @@
 // StatusBar.tsx - Status bar: file info, save status, markers count (time/zoom in playback & menu)
 import React from 'react';
 import { useAppStore } from '../../store/store';
+import { useShallow } from 'zustand/react/shallow';
 
 const KENYAN_GREEN = '#006644';
 const KENYAN_RED = '#DE2910';
 const HANDWRITTEN_FONT = "'Merienda', 'Caveat', cursive";
 
 const StatusBar: React.FC = () => {
-  const theme = useAppStore((state) => state.theme);
+  const { theme, currentTime, duration, file, isLoaded, markersCount, projectLastChangeAt, lastAutoSaveAt, lastManualSaveAt } = useAppStore(
+    useShallow((s) => ({
+      theme: s.theme,
+      currentTime: s.audio.currentTime,
+      duration: s.audio.duration,
+      file: s.audio.file,
+      isLoaded: s.audio.isLoaded,
+      markersCount: s.markers.length,
+      projectLastChangeAt: s.projectLastChangeAt,
+      lastAutoSaveAt: s.lastAutoSaveAt,
+      lastManualSaveAt: s.lastManualSaveAt,
+    }))
+  );
   const isLightMode = theme === 'light';
-  const audio = useAppStore((state) => state.audio);
-  const markers = useAppStore((state) => state.markers);
-  const currentTime = useAppStore((state) => state.audio.currentTime);
-  const duration = useAppStore((state) => state.audio.duration);
-  const projectLastChangeAt = useAppStore((state) => state.projectLastChangeAt);
-  const lastAutoSaveAt = useAppStore((state) => state.lastAutoSaveAt);
-  const lastManualSaveAt = useAppStore((state) => state.lastManualSaveAt);
 
   const textColor = isLightMode ? '#1a1a1a' : '#ffffff';
   const bgColor = isLightMode 
@@ -40,9 +46,8 @@ const StatusBar: React.FC = () => {
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
   };
 
-  const fileSize = audio.file?.size || 0;
-  const fileName = audio.file?.name || 'No file loaded';
-  const markersCount = markers.length;
+  const fileSize = file?.size || 0;
+  const fileName = file?.name || 'No file loaded';
 
   // Check if mobile
   const [isMobile, setIsMobile] = React.useState(window.innerWidth <= 768);
@@ -55,7 +60,7 @@ const StatusBar: React.FC = () => {
 
   // Mobile: Show only essential info
   if (isMobile) {
-    const hasUnsavedChanges = audio.isLoaded && projectLastChangeAt > Math.max(lastAutoSaveAt, lastManualSaveAt);
+    const hasUnsavedChanges = !!file && projectLastChangeAt > Math.max(lastAutoSaveAt, lastManualSaveAt);
     const statusColor = hasUnsavedChanges ? KENYAN_RED : KENYAN_GREEN;
     
     return (
@@ -153,7 +158,7 @@ const StatusBar: React.FC = () => {
       </div>
 
       {/* Center - Save status */}
-      {audio.isLoaded && (() => {
+      {isLoaded && (() => {
         const hasUnsavedChanges = projectLastChangeAt > Math.max(lastAutoSaveAt, lastManualSaveAt);
         const statusColor = hasUnsavedChanges ? KENYAN_RED : KENYAN_GREEN;
         const statusText = hasUnsavedChanges ? 'Unsaved changes' : 'Saved';

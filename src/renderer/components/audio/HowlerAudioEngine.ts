@@ -62,6 +62,8 @@ export class HowlerAudioEngine {
   
   // Pitch processing state
   private originalTempPath: string | null = null;
+  /** Electron: promise that resolves when temp file is written (deferred so load is as fast as web). */
+  private originalTempPathPromise: Promise<string | null> | null = null;
   private originalDataArray: number[] = [];
   private originalBlobUrl: string | null = null;
   private currentPitchedBlobUrl: string | null = null;
@@ -96,10 +98,10 @@ export class HowlerAudioEngine {
   private pitchCache: Map<number, { blobUrl: string; filePath: string }> = new Map();
   private speedCache: Map<number, { blobUrl: string; filePath: string }> = new Map();
 
-  // Throttle playback time store updates to reduce re-renders (was 50ms → 20/sec)
+  // Throttle playback time store updates to reduce re-renders (fewer UI updates = less lag)
   private lastReportedTime: number = -1;
-  private static readonly TIME_UPDATE_INTERVAL_MS = 100;   // 10/sec
-  private static readonly TIME_UPDATE_MIN_DELTA = 0.05;     // skip if change < 50ms
+  private static readonly TIME_UPDATE_INTERVAL_MS = 200;   // ~5/sec (reduce UI churn)
+  private static readonly TIME_UPDATE_MIN_DELTA = 0.15;    // skip if change < 150ms
 
   constructor() {
     // Engine initialized
@@ -127,6 +129,7 @@ export class HowlerAudioEngine {
     if (this.currentSpeededBlobUrl) URL.revokeObjectURL(this.currentSpeededBlobUrl);
     
     this.originalTempPath = null;
+    this.originalTempPathPromise = null;
     this.originalBlobUrl = null;
     this.currentPitchedBlobUrl = null;
     this.currentPitchedFilePath = null;
@@ -174,22 +177,31 @@ export class HowlerAudioEngine {
       const originalBlob = new Blob([new Uint8Array(this.originalDataArray)], { type: 'audio/mpeg' });
       this.originalBlobUrl = URL.createObjectURL(originalBlob);
 
-      // Save to temp file for later pitch processing (Electron only)
-      if (isElectron && window.electronAPI?.saveTempAudio) {
-        this.originalTempPath = await window.electronAPI.saveTempAudio(
-          this.originalDataArray,
-          file.name
-        );
-      }
-
-      // Load original with Howler (no volume manipulation on load - Howler default stays)
+      // Load Howler first (same as web) so Electron load feels as fast as web.
+      // We now keep audio.isLoading = true until the waveform buffer is ready,
+      // so the main screen only appears once the waveform can be drawn.
       await this.loadHowlerFromUrl(this.originalBlobUrl);
 
-      // Mark loaded so UI is responsive immediately; decode waveform in background
-      useAppStore.getState().setIsLoading(false);
+      // Decode waveform in background; when finished, setAudioBuffer() will
+      // mark audio.isLoaded = true and audio.isLoading = false.
       this.decodeWaveformInBackground(file.name, this.duration);
 
+      // Electron: save temp file in background for pitch/speed processing (don't block load)
+      if (isElectron && window.electronAPI?.saveTempAudio) {
+        const data = this.originalDataArray;
+        const name = file.name;
+        this.originalTempPathPromise = (async () => {
+          try {
+            this.originalTempPath = await window.electronAPI.saveTempAudio(data, name);
+            return this.originalTempPath;
+          } catch {
+            return null;
+          }
+        })();
+      }
+
     } catch (error) {
+      // On failure, clear loading state so UI can recover.
       useAppStore.getState().setIsLoading(false);
       this.unloadCurrentAudio();
       throw error;
@@ -295,7 +307,7 @@ export class HowlerAudioEngine {
       return;
     }
 
-    if (isElectron && this.howl && this.originalTempPath) {
+    if (isElectron && this.howl) {
       if (Math.abs(targetPitch) < 0.05) {
         // Back to 0: no instant rate change; processPitchChange will load original file
         this.processPitchChange(targetPitch);
@@ -382,10 +394,18 @@ export class HowlerAudioEngine {
         this.currentPitchedFilePath = null;
       }
 
+      // Ensure original temp path is ready (may still be writing in background after load)
+      if (!this.originalTempPath && this.originalTempPathPromise) {
+        this.originalTempPath = await this.originalTempPathPromise;
+      }
       // Determine input file: use speeded file if speed is not 1.0, otherwise use original
-      const inputFile = (this.currentSpeed !== 1.0 && this.currentSpeededFilePath) 
-        ? this.currentSpeededFilePath 
-        : this.originalTempPath!;
+      const inputFile = (this.currentSpeed !== 1.0 && this.currentSpeededFilePath)
+        ? this.currentSpeededFilePath
+        : this.originalTempPath;
+      if (!inputFile) {
+        this.isProcessingPitch = false;
+        return;
+      }
 
       // Call native FFmpeg
       const pitchedPath = await window.electronAPI.pitchShiftFile(inputFile, targetPitch);
@@ -695,10 +715,18 @@ export class HowlerAudioEngine {
         return;
       }
 
+      // Ensure original temp path is ready (may still be writing in background after load)
+      if (!this.originalTempPath && this.originalTempPathPromise) {
+        this.originalTempPath = await this.originalTempPathPromise;
+      }
       // Determine input file: use pitched file if pitch is not 0, otherwise use original
-      const inputFile = (this.currentPitch !== 0 && this.currentPitchedFilePath) 
-        ? this.currentPitchedFilePath 
-        : this.originalTempPath!;
+      const inputFile = (this.currentPitch !== 0 && this.currentPitchedFilePath)
+        ? this.currentPitchedFilePath
+        : this.originalTempPath;
+      if (!inputFile) {
+        this.isProcessingSpeed = false;
+        return;
+      }
 
       // Call native FFmpeg for time-stretching
       const speededPath = await window.electronAPI.timeStretchFile(inputFile, targetSpeed);
@@ -935,7 +963,12 @@ export class HowlerAudioEngine {
           useAppStore.getState().setAudioBuffer(buffer);
         }
       } catch {
-        // Non-fatal: waveform will be missing
+        // Non-fatal: waveform will be missing – but clear loading so the UI isn't stuck
+        try {
+          useAppStore.getState().setIsLoading(false);
+        } catch {
+          // ignore
+        }
       }
     })();
   }
@@ -947,13 +980,15 @@ export class HowlerAudioEngine {
 
       const ext = filename.split('.').pop()?.toLowerCase() || 'mp3';
       await ffmpeg.writeFile(`wave_input.${ext}`, new Uint8Array(arrayBuffer));
-      // Use lower sample rate for long files so decoded WAV fits in memory (FFmpeg WASM / OfflineAudioContext limits)
+      // Use lower sample rates for long files so decode finishes faster and fits in memory
       let sampleRate = 22050;
-      if (durationSeconds > 3600) sampleRate = 1000;   // >1 hr: ~14M samples for 2 hr stereo
-      else if (durationSeconds > 1200) sampleRate = 2000;  // >20 min
-      else if (durationSeconds > 600) sampleRate = 8000;   // >10 min
-      // Cap decode length for very long files (e.g. 4+ hr) to avoid OOM
-      const maxDecodeSeconds = 4 * 3600; // 4 hours
+      if (durationSeconds > 3600) sampleRate = 1000;      // >1 hr
+      else if (durationSeconds > 1800) sampleRate = 1500; // >30 min
+      else if (durationSeconds > 1200) sampleRate = 2000; // >20 min
+      else if (durationSeconds > 600) sampleRate = 4000;  // >10 min (was 8000; 4000 = faster)
+      else if (durationSeconds > 300) sampleRate = 8000;  // >5 min
+      // Cap decode length so waveform appears sooner for very long files (full audio still plays)
+      const maxDecodeSeconds = 2 * 3600; // 2 hours max for waveform (was 4 hr)
       const decodeDuration = durationSeconds > maxDecodeSeconds ? maxDecodeSeconds : undefined;
       const args = ['-i', `wave_input.${ext}`, '-ac', '2', '-ar', String(sampleRate), '-sample_fmt', 's16', '-f', 'wav', 'wave_output.wav'];
       if (decodeDuration != null) args.splice(2, 0, '-t', String(decodeDuration));
