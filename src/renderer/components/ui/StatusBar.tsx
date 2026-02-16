@@ -86,7 +86,7 @@ const StatusBar: React.FC = () => {
         }}
       >
         {/* Save status indicator */}
-        {audio.isLoaded && (
+        {isLoaded && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <div
               style={{
@@ -104,7 +104,7 @@ const StatusBar: React.FC = () => {
         )}
         
         {/* Time */}
-        {audio.isLoaded && duration > 0 && (
+        {isLoaded && duration > 0 && (
           <span style={{ color: textColor }}>
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
