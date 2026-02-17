@@ -94,6 +94,25 @@ export class AudioEngine {
   }
 
   /**
+   * Pitch change (semitones) caused by playbackRate - when speed changes, pitch changes.
+   * Formula: 12 * log2(speed). At 1.5x speed, pitch goes up ~7 semitones.
+   */
+  private getPitchFromSpeed(): number {
+    if (Math.abs(this.currentPlaybackRate - 1.0) < 0.01) return 0;
+    return 12 * Math.log2(this.currentPlaybackRate);
+  }
+
+  /**
+   * Apply combined pitch: user pitch minus speed-induced pitch change.
+   * This keeps perceived pitch constant when changing speed (audio normalization).
+   */
+  private applyPitchCompensation(): void {
+    if (!this.pitchShift) return;
+    const pitchFromSpeed = this.getPitchFromSpeed();
+    this.pitchShift.pitch = this.currentPitch - pitchFromSpeed;
+  }
+
+  /**
    * Initialize Tone.js effect nodes
    * Create these early - they can exist before audio loads
    */
@@ -200,9 +219,10 @@ export class AudioEngine {
             this.playerLoaded = true;
             playerDuration = this.player!.buffer.duration;
             
-            // Connect Player to PitchShift
+            // Connect Player to PitchShift and apply pitch/speed compensation
             if (this.pitchShift) {
               this.player!.connect(this.pitchShift);
+              this.applyPitchCompensation();
             }
             resolve();
           },
@@ -431,10 +451,16 @@ export class AudioEngine {
       // Get current position from store (where we paused)
       const startPosition = useAppStore.getState().audio.currentTime || 0;
       
-      // Apply playback rate from store (in case it was changed while paused)
-      const storedPlaybackRate = useAppStore.getState().globalControls.playbackRate;
+      // Apply playback rate and pitch from store (in case changed while paused)
+      const store = useAppStore.getState();
+      const storedPlaybackRate = store.globalControls.playbackRate;
+      const storedPitch = store.globalControls.pitch;
       if (storedPlaybackRate && storedPlaybackRate !== this.currentPlaybackRate) {
         this.setPlaybackRate(storedPlaybackRate);
+      }
+      if (storedPitch !== undefined && Math.abs(storedPitch - this.currentPitch) > 0.01) {
+        this.currentPitch = storedPitch;
+        this.applyPitchCompensation();
       }
       
       // Get target volume for fade in (Spotify-like smooth start)
@@ -728,18 +754,19 @@ export class AudioEngine {
   }
 
   /**
-   * Set playback rate (speed) - independent of pitch
-   * Tone.js automatically maintains pitch when changing playback rate
+   * Set playback rate (speed) - pitch is maintained via PitchShift compensation.
+   * playbackRate changes both speed and pitch; we compensate with PitchShift so perceived pitch stays constant.
    */
   public setPlaybackRate(rate: number): void {
     const clampedRate = Math.max(0.25, Math.min(4.0, rate));
     this.currentPlaybackRate = clampedRate;
 
     if (this.player) {
-      // Tone.js Player's playbackRate property maintains pitch automatically
-      // The PitchShift node compensates for speed changes
       this.player.playbackRate = clampedRate;
     }
+
+    // Compensate for speed-induced pitch change so pitch stays constant (audio normalization)
+    this.applyPitchCompensation();
 
     // Update store
     useAppStore.getState().setPlaybackRate(clampedRate);
@@ -835,9 +862,8 @@ export class AudioEngine {
         });
       }
 
-      // Apply pitch change smoothly - Tone.js PitchShift supports real-time changes
-      // This does NOT stop playback - pitch changes smoothly during playback
-      this.pitchShift.pitch = clampedPitch;
+      // Apply pitch with speed compensation (user pitch - pitch from speed = constant perceived pitch)
+      this.applyPitchCompensation();
     } catch (error) {
     }
 
