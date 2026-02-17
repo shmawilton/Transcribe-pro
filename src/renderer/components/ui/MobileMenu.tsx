@@ -193,11 +193,12 @@ const MobileMenu: React.FC = () => {
     toggleMute();
   };
   
-  // Format pitch display like desktop
+  // Format pitch display (100% = 1 semitone)
   const formatPitchDisplay = (value: number): string => {
     if (value === 0) return '0%';
-    const sign = value > 0 ? '+' : '';
-    return `${sign}${value.toFixed(1)}%`;
+    const pct = Math.round(value * 100);
+    const sign = pct > 0 ? '+' : '';
+    return `${sign}${pct}%`;
   };
   
   const handleNewProject = async () => {

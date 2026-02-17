@@ -10,6 +10,7 @@
     "dev:debug": "concurrently \"npm run dev:react\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development OPEN_DEVTOOLS=1 npm run build:electron && electron .\"",
     "build": "npm run build:electron && vite build",
     "build:electron": "tsc -p tsconfig.main.json",
+    "build:web": "vite build",
     "preview": "vite preview",
     "clean": "powershell -ExecutionPolicy Bypass -File ./clean-release.ps1 || rimraf release",
     "dist": "npm run clean && npm run build && electron-builder",

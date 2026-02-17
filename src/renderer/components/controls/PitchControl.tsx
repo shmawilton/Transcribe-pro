@@ -51,14 +51,15 @@ export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAud
     onPitchChange(0);
   };
 
-  // Format pitch display
+  // Format pitch display: 100% = 1 semitone (for music that's off by a fraction of a semitone)
   const formatPitch = (value: number): string => {
     if (value === 0) return '0%';
+    const pct = Math.round(value * 100);
     const sign = value > 0 ? '+' : '';
-    return `${sign}${value.toFixed(1)}%`;
+    return `${sign}${pct}%`;
   };
 
-  // Handle direct input
+  // Handle direct input - user types percentage (e.g. 50 = 0.5 semitones, 100 = 1 semitone)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
   };
@@ -67,7 +68,9 @@ export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAud
     setIsEditing(false);
     const numValue = parseFloat(inputValue);
     if (!isNaN(numValue)) {
-      const clampedValue = Math.max(-2, Math.min(2, Math.round(numValue * 10) / 10));
+      // Input is percentage: 100 = 1 semitone, 50 = 0.5 semitones. Max ±200% = ±2 semitones
+      const semitones = numValue / 100;
+      const clampedValue = Math.max(-2, Math.min(2, Math.round(semitones * 10) / 10));
       onPitchChange(clampedValue);
       setInputValue('');
     } else {
@@ -87,7 +90,7 @@ export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAud
   const handleValueClick = () => {
     if (!isAudioLoaded || isProcessing) return;
     setIsEditing(true);
-    setInputValue(pitch.toString());
+    setInputValue((pitch * 100).toString()); // Show percentage for editing (100 = 1 semitone)
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
@@ -107,17 +110,17 @@ export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAud
       {/* Label */}
       <div style={{
         display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        fontSize: '12px',
-        fontWeight: 600,
-        color: isLightMode ? '#1a1a1a' : '#FFFFFF',
+        flexDirection: 'column',
+        gap: '2px',
         marginBottom: '4px',
       }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={pitchColor} strokeWidth="2" strokeLinecap="round">
-          <path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3M3 12h18"/>
-        </svg>
-        <span>Pitch Adjustment</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: isLightMode ? '#1a1a1a' : '#FFFFFF' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={pitchColor} strokeWidth="2" strokeLinecap="round">
+            <path d="M12 3v18M9 6l3-3 3 3M9 18l3 3 3-3M3 12h18"/>
+          </svg>
+          <span>Pitch Adjustment</span>
+        </div>
+        <span style={{ fontSize: '10px', fontWeight: 400, opacity: 0.7 }}>100% = 1 semitone · max ±200%</span>
       </div>
       {/* Main pitch control - similar to zoom */}
       <div
@@ -349,9 +352,9 @@ export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAud
                   : 'rgba(255, 255, 255, 0.1)';
               }
             }}
-            title={`Set pitch to ${preset > 0 ? '+' : ''}${preset}%`}
+            title={`Set pitch to ${preset > 0 ? '+' : ''}${preset * 100}% (${preset} semitone${Math.abs(preset) !== 1 ? 's' : ''})`}
           >
-            {preset === 0 ? '0%' : (preset > 0 ? `+${preset}%` : `${preset}%`)}
+            {preset === 0 ? '0%' : (preset > 0 ? `+${preset * 100}%` : `${preset * 100}%`)}
           </button>
         ))}
       </div>

@@ -96,24 +96,16 @@ const PlaybackPanel: React.FC = () => {
 
   const handlePlay = async () => {
     try {
-      // Safety check: ensure audio is loaded before attempting to play
-      if (!isAudioLoaded) {
-        return;
-      }
-      
-      await resumeAudioContext();
-      
-      // If a marker is active, seek to marker start before playing
+      if (!isAudioLoaded) return;
+      // Fire resume in background - don't block UI (Electron: no-op; web: unlocks AudioContext)
+      const resumePromise = resumeAudioContext();
       const store = useAppStore.getState();
       const selectedMarkerId = store.ui.selectedMarkerId;
       if (selectedMarkerId) {
         const marker = MarkerManager.getMarker(selectedMarkerId);
-        if (marker) {
-          // Seek to marker start before playing
-          await seek(marker.start);
-        }
+        if (marker) await seek(marker.start);
       }
-      
+      await resumePromise;
       await play();
     } catch (err) {
     }
@@ -194,7 +186,7 @@ const PlaybackPanel: React.FC = () => {
       : (isLightMode 
           ? '6px 6px 12px rgba(163, 177, 198, 0.5), -6px -6px 12px rgba(255, 255, 255, 0.8)'
           : '6px 6px 12px rgba(0, 0, 0, 0.4), -4px -4px 10px rgba(50, 50, 50, 0.2)'),
-    transition: 'all 0.25s ease',
+    transition: 'transform 0.06s ease, box-shadow 0.1s ease, color 0.1s ease',
     cursor: isDisabled ? 'not-allowed' : 'pointer',
     opacity: isDisabled ? 0.5 : 1,
     color: isActive ? KENYAN_GREEN : color,
@@ -217,7 +209,7 @@ const PlaybackPanel: React.FC = () => {
       boxShadow: isLightMode
         ? '6px 6px 12px rgba(166, 180, 200, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.9)'
         : '6px 6px 12px rgba(0, 0, 0, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.05)',
-      transition: 'all 0.3s ease',
+      transition: 'transform 0.08s ease, box-shadow 0.12s ease',
       overflowY: 'visible',
       overflowX: 'hidden',
       position: 'relative',
@@ -281,7 +273,7 @@ const PlaybackPanel: React.FC = () => {
             ? `0 0 10px ${KENYAN_GREEN}80, 0 0 20px ${KENYAN_GREEN}40`
             : 'none',
           animation: isPlaying ? 'textGlow 2s ease-in-out infinite' : 'none',
-          transition: 'all 0.3s ease'
+          transition: 'color 0.12s ease, opacity 0.12s ease'
         }}>
           {audio.file?.name || 'No audio loaded'}
         </div>

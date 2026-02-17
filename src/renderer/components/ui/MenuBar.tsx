@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppStore } from '../../store/store';
 import { useAudioEngine } from '../audio/useAudioEngine';
+import { MarkerManager } from '../markers/MarkerManager';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
 import PitchControl from '../controls/PitchControl';
 import AudioEffectsPanel from '../audio/AudioEffectsPanel';
@@ -343,7 +344,7 @@ const MenuBar: React.FC = () => {
   const duration = useAppStore((state) => state.audio.duration);
   
   // Audio engine
-  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, resetPitch, getOriginalFilePath } = useAudioEngine();
+  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, resetPitch, getOriginalFilePath, seek, setLoop, disableLoop } = useAudioEngine();
   
   // Project reset
   const resetProject = useAppStore((state) => state.resetProject);
@@ -404,6 +405,9 @@ const MenuBar: React.FC = () => {
   // Get mute state from store
   const isMuted = useAppStore((state) => state.globalControls.isMuted);
   const toggleMute = useAppStore((state) => state.toggleMute);
+  
+  // Marker navigation - only when a marker is active
+  const selectedMarkerId = useAppStore((state) => state.ui.selectedMarkerId);
   
   // Sync pitch with store
   useEffect(() => {
@@ -1236,6 +1240,95 @@ const MenuBar: React.FC = () => {
           </svg>
         </button>
       </div>
+
+      {/* Marker Navigation - Only visible when a marker is active (high-contrast, pronounced) */}
+      {selectedMarkerId && (() => {
+        const activeMarker = MarkerManager.getActiveMarker();
+        const prevMarker = MarkerManager.getPreviousMarker();
+        const nextMarker = MarkerManager.getNextMarker();
+        // Amber/gold accent - highly visible on both light and dark themes
+        const MARKER_ACCENT = '#D97706';
+        const handleMarkerNav = async (marker: { id: string } | null) => {
+          if (!marker) return;
+          await MarkerManager.setActiveMarker(marker.id, {
+            seekToMarker: true,
+            audioEngine: { seek, setLoop, disableLoop },
+          });
+        };
+        const navBtn = (onClick: () => void, title: string, icon: React.ReactNode, disabled?: boolean) => (
+          <button
+            key={title}
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            disabled={disabled}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '38px', height: '38px', padding: 0,
+              background: disabled ? (isLightMode ? '#e5e5e5' : '#333') : (isLightMode ? 'rgba(217, 119, 6, 0.2)' : 'rgba(217, 119, 6, 0.35)'),
+              color: disabled ? (isLightMode ? '#999' : '#666') : MARKER_ACCENT,
+              border: `3px solid ${disabled ? (isLightMode ? '#ccc' : '#555') : MARKER_ACCENT}`,
+              borderRadius: '10px',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              opacity: disabled ? 0.5 : 1,
+              boxShadow: disabled ? 'none' : (isLightMode ? '0 3px 12px rgba(217, 119, 6, 0.4)' : '0 3px 16px rgba(217, 119, 6, 0.5)'),
+              transition: 'all 0.2s ease',
+            }}
+            title={title}
+            onMouseEnter={(e) => {
+              if (!disabled) {
+                e.currentTarget.style.background = isLightMode ? 'rgba(217, 119, 6, 0.3)' : 'rgba(217, 119, 6, 0.5)';
+                e.currentTarget.style.transform = 'scale(1.12)';
+                e.currentTarget.style.boxShadow = isLightMode ? '0 4px 16px rgba(217, 119, 6, 0.5)' : '0 4px 20px rgba(217, 119, 6, 0.6)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = disabled ? (isLightMode ? '#e5e5e5' : '#333') : (isLightMode ? 'rgba(217, 119, 6, 0.2)' : 'rgba(217, 119, 6, 0.35)');
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = disabled ? 'none' : (isLightMode ? '0 3px 12px rgba(217, 119, 6, 0.4)' : '0 3px 16px rgba(217, 119, 6, 0.5)');
+            }}
+          >
+            {icon}
+          </button>
+        );
+        return (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 14px',
+              background: isLightMode ? 'rgba(217, 119, 6, 0.15)' : 'rgba(217, 119, 6, 0.25)',
+              borderRadius: '12px',
+              border: `3px solid ${MARKER_ACCENT}`,
+              boxShadow: isLightMode ? '0 4px 16px rgba(217, 119, 6, 0.3)' : '0 4px 20px rgba(217, 119, 6, 0.4)',
+            }}
+            title="Marker navigation"
+          >
+            <span style={{ fontSize: '13px', fontWeight: 700, color: MARKER_ACCENT, marginRight: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Markers</span>
+            {navBtn(
+              () => activeMarker && seek(activeMarker.start),
+              'Go to marker start',
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            )}
+            {navBtn(
+              () => activeMarker && seek(activeMarker.end),
+              'Go to marker end',
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            )}
+            {navBtn(
+              () => prevMarker && handleMarkerNav(prevMarker),
+              'Previous marker',
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
+              !prevMarker
+            )}
+            {navBtn(
+              () => nextMarker && handleMarkerNav(nextMarker),
+              'Next marker',
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+              !nextMarker
+            )}
+          </div>
+        );
+      })()}
 
       {/* Mute/Unmute Toggle Button */}
       <div style={{ position: 'relative' }}>

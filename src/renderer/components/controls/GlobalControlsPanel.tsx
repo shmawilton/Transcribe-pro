@@ -111,12 +111,12 @@ const GlobalControlsPanel: React.FC = () => {
     handlePitchChange(0);
   };
 
-  // Get pitch display text
+  // Get pitch display text (percentage: 100% = 1 semitone)
   const getPitchDisplayText = (value: number): string => {
     if (value === 0) return 'Original';
-    const sign = value > 0 ? '+' : '';
-    const unit = Math.abs(value) === 1 ? 'semitone' : 'semitones';
-    return `${sign}${value} ${unit}`;
+    const pct = Math.round(value * 100);
+    const sign = pct > 0 ? '+' : '';
+    return `${sign}${pct}%`;
   };
 
   // Get pitch color based on value
@@ -271,6 +271,7 @@ const GlobalControlsPanel: React.FC = () => {
             }}>
               Pitch Shift
             </span>
+            <span style={{ fontSize: '0.75rem', opacity: 0.7, marginLeft: '0.25rem' }}>(100% = 1 semitone, ±200% max)</span>
           </div>
           
           {/* Reset Button */}
@@ -327,9 +328,9 @@ const GlobalControlsPanel: React.FC = () => {
           alignItems: 'center',
           gap: '0.6rem'
         }}>
-          {/* Down Button */}
+          {/* Down Button - 0.1 semitone (10%) per click for fine tuning */}
           <button
-            onClick={() => handlePitchStep(-1)}
+            onClick={() => handlePitchStep(-0.1)}
             disabled={!isAudioLoaded || pitch <= -2}
             style={glassButtonStyle(false, !isAudioLoaded || pitch <= -2)}
             onMouseEnter={(e) => {
@@ -342,7 +343,7 @@ const GlobalControlsPanel: React.FC = () => {
               e.currentTarget.style.transform = 'scale(1)';
               e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
             }}
-            title="Lower pitch by 1 semitone"
+            title="Lower pitch by 10% (0.1 semitone)"
           >
             <ArrowDownIcon color={KENYAN_RED} />
           </button>
@@ -352,7 +353,7 @@ const GlobalControlsPanel: React.FC = () => {
             type="range"
             min="-2"
             max="2"
-            step="1"
+            step="0.1"
             value={pitch}
             onChange={(e) => handlePitchChange(parseFloat(e.target.value))}
             disabled={!isAudioLoaded}
@@ -374,9 +375,9 @@ const GlobalControlsPanel: React.FC = () => {
             }}
           />
 
-          {/* Up Button */}
+          {/* Up Button - 0.1 semitone (10%) per click for fine tuning */}
           <button
-            onClick={() => handlePitchStep(1)}
+            onClick={() => handlePitchStep(0.1)}
             disabled={!isAudioLoaded || pitch >= 2}
             style={glassButtonStyle(false, !isAudioLoaded || pitch >= 2)}
             onMouseEnter={(e) => {
@@ -389,7 +390,7 @@ const GlobalControlsPanel: React.FC = () => {
               e.currentTarget.style.transform = 'scale(1)';
               e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
             }}
-            title="Raise pitch by 1 semitone"
+            title="Raise pitch by 10% (0.1 semitone)"
           >
             <ArrowUpIcon color={KENYAN_GREEN} />
           </button>
@@ -423,28 +424,13 @@ const GlobalControlsPanel: React.FC = () => {
                 }
               }}
             >
-              {value === 0 ? '0' : (value > 0 ? `+${value}` : value)}
+              {value === 0 ? '0%' : (value > 0 ? `+${value * 100}%` : `${value * 100}%`)}
             </button>
           ))}
         </div>
       </div>
 
 
-      {/* Not available in Electron notice */}
-      {typeof window !== 'undefined' && ((window as any).electronAPI || 
-        (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron)) && (
-        <div style={{
-          fontSize: '0.75rem',
-          color: textColor,
-          opacity: 0.5,
-          textAlign: 'center',
-          fontStyle: 'italic',
-          position: 'relative',
-          zIndex: 1
-        }}>
-          Note: Pitch control uses Tone.js (browser mode)
-        </div>
-      )}
 
       {/* CSS Animations */}
       <style>{`

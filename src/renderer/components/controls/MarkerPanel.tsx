@@ -7,6 +7,7 @@ import { MarkerManager, PRESET_COLORS } from '../markers/MarkerManager';
 import { Marker } from '../../types/types';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { useMarkerSpeedControl } from '../markers/useMarkerSpeedControl';
+import { FirstTimeTooltip } from '../ui/FirstTimeTooltip';
 
 /**
  * Format time as MM:SS for display
@@ -131,8 +132,8 @@ const MarkerPanel: React.FC = () => {
   const itemHoverBg = isLightMode ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.1)';
   const selectedBg = isLightMode ? 'rgba(0, 102, 68, 0.15)' : 'rgba(0, 102, 68, 0.25)';
   
-  // Active marker border color (neutral, no gold/yellow)
-  const activeBorderColor = isLightMode ? '#006644' : '#00AA66';
+  // Active marker border color - amber for high visibility (not green)
+  const MARKER_ACCENT = '#D97706';
 
   // TASK 13: Click handler to activate marker
   // Clicking anywhere on a marker list item makes it the active marker
@@ -383,43 +384,117 @@ const MarkerPanel: React.FC = () => {
           Markers ({sortedMarkers.length})
         </div>
 
-        {/* Button group: Create and Deactivate */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {/* General Deactivate Button - Only visible when a marker is active */}
+        {/* Button group: Navigation arrows (when active) + Create + Deactivate */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          {/* Marker navigation - only when a marker is active (pronounced, amber for visibility) */}
+          {selectedMarkerId && (() => {
+            const activeMarker = MarkerManager.getActiveMarker();
+            const prevMarker = MarkerManager.getPreviousMarker();
+            const nextMarker = MarkerManager.getNextMarker();
+            const navBtn = (onClick: () => void, title: string, guideText: string, tooltipId: string, icon: React.ReactNode, disabled?: boolean) => (
+              <FirstTimeTooltip key={tooltipId} id={tooltipId} guideText={guideText} disabled={disabled} isLightMode={isLightMode}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onClick(); }}
+                  disabled={disabled}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: '34px', height: '34px', padding: 0,
+                    background: disabled ? (isLightMode ? '#e8e8e8' : '#2a2a2a') : (isLightMode ? 'rgba(217, 119, 6, 0.2)' : 'rgba(217, 119, 6, 0.3)'),
+                    color: disabled ? (isLightMode ? '#999' : '#666') : MARKER_ACCENT,
+                    border: `2px solid ${disabled ? (isLightMode ? '#ccc' : '#555') : MARKER_ACCENT}`,
+                    borderRadius: '8px',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    opacity: disabled ? 0.5 : 1,
+                    boxShadow: disabled ? 'none' : (isLightMode ? '0 2px 8px rgba(217, 119, 6, 0.35)' : '0 2px 10px rgba(217, 119, 6, 0.4)'),
+                    transition: 'all 0.2s ease',
+                  }}
+                  title={title}
+                  onMouseEnter={(e) => {
+                    if (!disabled) {
+                      e.currentTarget.style.transform = 'scale(1.1)';
+                      e.currentTarget.style.boxShadow = isLightMode ? '0 3px 12px rgba(217, 119, 6, 0.45)' : '0 3px 14px rgba(217, 119, 6, 0.5)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)';
+                    e.currentTarget.style.boxShadow = disabled ? 'none' : (isLightMode ? '0 2px 8px rgba(217, 119, 6, 0.35)' : '0 2px 10px rgba(217, 119, 6, 0.4)');
+                  }}
+                >
+                  {icon}
+                </button>
+              </FirstTimeTooltip>
+            );
+            return (
+              <>
+                {navBtn(
+                  () => activeMarker && seek(activeMarker.start),
+                  'Go to marker start',
+                  'Jump to the start of this marker',
+                  'marker_nav_start',
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                )}
+                {navBtn(
+                  () => activeMarker && seek(activeMarker.end),
+                  'Go to marker end',
+                  'Jump to the end of this marker',
+                  'marker_nav_end',
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                )}
+                {navBtn(
+                  () => prevMarker && handleMarkerClick(prevMarker),
+                  'Previous marker',
+                  'Go to the previous marker in the list',
+                  'marker_nav_prev',
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
+                  !prevMarker
+                )}
+                {navBtn(
+                  () => nextMarker && handleMarkerClick(nextMarker),
+                  'Next marker',
+                  'Go to the next marker in the list',
+                  'marker_nav_next',
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+                  !nextMarker
+                )}
+              </>
+            );
+          })()}
+          {/* Deactivate Button - Only visible when a marker is active */}
           {selectedMarkerId && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeactivateMarker();
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '28px',
-                height: '28px',
-                padding: 0,
-                background: isLightMode ? '#e4ebf5' : '#1a1a1a',
-                color: isLightMode ? '#000000' : '#FFFFFF',
-                border: 'none',
-                borderRadius: '50%',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: isLightMode
-                  ? '3px 3px 6px rgba(166, 180, 200, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.9)'
-                  : '3px 3px 6px rgba(0, 0, 0, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.05)',
-                opacity: 1,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.color = '#FF4444';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.color = isLightMode ? '#000000' : '#FFFFFF';
-              }}
-              title="Deactivate marker (return to normal speed)"
-            >
+            <FirstTimeTooltip id="marker_nav_deactivate" guideText="Deactivate to return to normal speed" isLightMode={isLightMode}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeactivateMarker();
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '28px',
+                  height: '28px',
+                  padding: 0,
+                  background: isLightMode ? '#e4ebf5' : '#1a1a1a',
+                  color: isLightMode ? '#000000' : '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: isLightMode
+                    ? '3px 3px 6px rgba(166, 180, 200, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.9)'
+                    : '3px 3px 6px rgba(0, 0, 0, 0.5), -2px -2px 4px rgba(255, 255, 255, 0.05)',
+                  opacity: 1,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.color = '#FF4444';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.color = isLightMode ? '#000000' : '#FFFFFF';
+                }}
+                title="Deactivate marker (return to normal speed)"
+              >
               <svg
                 width="18"
                 height="18"
@@ -435,6 +510,7 @@ const MarkerPanel: React.FC = () => {
                 <line x1="8" y1="12" x2="16" y2="12" />
               </svg>
             </button>
+            </FirstTimeTooltip>
           )}
 
           {/* Create Marker Button - Neumorphic */}
@@ -1177,6 +1253,59 @@ const MarkerPanel: React.FC = () => {
                   }}>
                     {editingMarkerId !== marker.id && (
                       <>
+                        {/* Navigation arrows - only when marker is active */}
+                        {isSelected && (
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); seek(marker.start); }}
+                              style={{
+                                width: isMobile ? '22px' : '24px', height: isMobile ? '22px' : '24px', minWidth: isMobile ? '22px' : '24px', padding: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'transparent', border: `1px solid ${borderColor}`, borderRadius: '4px',
+                                color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
+                              }}
+                              title="Go to marker start"
+                            >
+                              <svg width={isMobile ? "10" : "12"} height={isMobile ? "10" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); seek(marker.end); }}
+                              style={{
+                                width: isMobile ? '22px' : '24px', height: isMobile ? '22px' : '24px', minWidth: isMobile ? '22px' : '24px', padding: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'transparent', border: `1px solid ${borderColor}`, borderRadius: '4px',
+                                color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
+                              }}
+                              title="Go to marker end"
+                            >
+                              <svg width={isMobile ? "10" : "12"} height={isMobile ? "10" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); const prev = MarkerManager.getPreviousMarker(); prev && handleMarkerClick(prev); }}
+                              style={{
+                                width: isMobile ? '22px' : '24px', height: isMobile ? '22px' : '24px', minWidth: isMobile ? '22px' : '24px', padding: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'transparent', border: `1px solid ${borderColor}`, borderRadius: '4px',
+                                color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
+                              }}
+                              title="Previous marker"
+                            >
+                              <svg width={isMobile ? "10" : "12"} height={isMobile ? "10" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); const next = MarkerManager.getNextMarker(); next && handleMarkerClick(next); }}
+                              style={{
+                                width: isMobile ? '22px' : '24px', height: isMobile ? '22px' : '24px', minWidth: isMobile ? '22px' : '24px', padding: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'transparent', border: `1px solid ${borderColor}`, borderRadius: '4px',
+                                color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
+                              }}
+                              title="Next marker"
+                            >
+                              <svg width={isMobile ? "10" : "12"} height={isMobile ? "10" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                          </>
+                        )}
                         {/* Deactivate button - only visible when marker is active */}
                         {isSelected && (
                           <button

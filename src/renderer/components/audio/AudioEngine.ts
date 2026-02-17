@@ -99,10 +99,10 @@ export class AudioEngine {
    */
   private initializeToneNodes(): void {
     try {
-      // Create PitchShift node with initial value of 0 semitones
+      // Create PitchShift node - larger windowSize reduces distortion on pitch change
       this.pitchShift = new Tone.PitchShift({
         pitch: 0,
-        windowSize: 0.1,
+        windowSize: 0.2,
         delayTime: 0,
         feedback: 0
       });
@@ -437,14 +437,14 @@ export class AudioEngine {
         this.setPlaybackRate(storedPlaybackRate);
       }
       
-      // Get target volume for fade in
+      // Get target volume for fade in (Spotify-like smooth start)
       const targetVolume = useAppStore.getState().globalControls.volume;
       const isMuted = useAppStore.getState().globalControls.isMuted;
       const targetDb = isMuted ? -60 : targetVolume;
       
-      // Set initial volume low for fade in
+      // Start from silence to prevent clicks
       if (this.volumeNode) {
-        this.volumeNode.volume.value = Math.max(-40, targetDb - 20);
+        this.volumeNode.volume.value = -60;
       }
       
       // Record playback start info for time tracking
@@ -460,9 +460,9 @@ export class AudioEngine {
       // Start position tracking using Tone.Transport
       this.startPositionTracking();
       
-      // Fade in to target volume (30ms)
+      // Fade in to target volume (80ms - Spotify-like)
       if (this.volumeNode) {
-        this.volumeNode.volume.rampTo(targetDb, 0.03); // 30ms = 0.03s
+        this.volumeNode.volume.rampTo(targetDb, 0.08);
       }
 
     } catch (error) {
@@ -473,8 +473,8 @@ export class AudioEngine {
   }
 
   /**
-   * Pause audio playback
-   * Note: Tone.Player doesn't have native pause, so we stop and remember position
+   * Pause audio playback with fade out (Spotify-like)
+   * Note: Tone.Player doesn't have native pause, so we fade then stop
    */
   public pause(): void {
     if (!this.isPlaying || !this.player) {
@@ -482,22 +482,24 @@ export class AudioEngine {
     }
 
     try {
-      // Calculate and save current position
       const currentTime = this.getCurrentTime();
+      const currentDb = useAppStore.getState().globalControls.isMuted ? -60 : useAppStore.getState().globalControls.volume;
       
-      // Stop the player
-      this.player.stop();
-
-      this.isPlaying = false;
-      useAppStore.getState().setIsPlaying(false);
-      
-      // Save the position so we can resume from here
-      useAppStore.getState().setCurrentTime(currentTime);
-
-      // Stop position tracking
-      this.stopPositionTracking();
-
-
+      // Fade out over 80ms then stop (prevents clicks)
+      if (this.volumeNode) {
+        this.volumeNode.volume.rampTo(-60, 0.08);
+      }
+      setTimeout(() => {
+        if (!this.player) return;
+        this.player.stop();
+        this.isPlaying = false;
+        useAppStore.getState().setIsPlaying(false);
+        useAppStore.getState().setCurrentTime(currentTime);
+        this.stopPositionTracking();
+        if (this.volumeNode) {
+          this.volumeNode.volume.value = currentDb;
+        }
+      }, 85);
     } catch (error) {
     }
   }
@@ -512,11 +514,10 @@ export class AudioEngine {
       const isMuted = useAppStore.getState().globalControls.isMuted;
       const startDb = isMuted ? -60 : currentDb;
       
-      // Fade out to silence (30ms)
+      // Fade out to silence (80ms - Spotify-like)
       if (this.volumeNode) {
-        this.volumeNode.volume.rampTo(-60, 0.03); // 30ms = 0.03s
-        // Wait for fade to complete
-        await new Promise(resolve => setTimeout(resolve, 35)); // Slightly longer to ensure fade completes
+        this.volumeNode.volume.rampTo(-60, 0.08);
+        await new Promise(resolve => setTimeout(resolve, 90));
       }
       
       if (this.player && this.player.state === 'started') {

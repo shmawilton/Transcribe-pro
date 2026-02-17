@@ -11,6 +11,7 @@ interface AppStore {
   setAudioBuffer: (buffer: AudioBuffer) => void;
   clearAudioBuffer: () => void;
   setIsLoading: (isLoading: boolean) => void;
+  setAudioReadyForPlayback: () => void; // Show main UI + enable play as soon as Howler loads (waveform decodes in background)
 
   // Markers State
   markers: Marker[];
@@ -141,6 +142,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   setIsLoading: (isLoading) => {
     set((state) => ({ audio: { ...state.audio, isLoading } }));
+  },
+  setAudioReadyForPlayback: () => {
+    set((state) => ({ audio: { ...state.audio, isLoaded: true, isLoading: false } }));
   },
   clearAudioBuffer: () =>
     set((state) => ({
