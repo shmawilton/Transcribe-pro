@@ -54,10 +54,10 @@ const MarkerPanel: React.FC = () => {
   const isLightMode = theme === 'light';
   const audioDuration = useAppStore((state) => state.audio.duration || 0);
   
-  // Mobile detection
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  // Mobile/tablet detection - matches App.tsx (≤1024 = mobile layout)
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    const handleResize = () => setIsMobile(window.innerWidth <= 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -361,13 +361,15 @@ const MarkerPanel: React.FC = () => {
           : '6px 6px 12px rgba(0, 0, 0, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.05)',
       }}
     >
-      {/* Header - Neumorphic */}
+      {/* Header - Neumorphic; on mobile/tablet: wrap buttons for better fit */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
           justifyContent: 'space-between',
-          padding: '0.5rem 0.75rem',
+          gap: isMobile ? '0.5rem' : 0,
+          padding: isMobile ? '0.5rem 0.6rem' : '0.5rem 0.75rem',
           background: isLightMode ? '#e4ebf5' : '#1a1a1a',
           borderBottom: isLightMode 
             ? '1px solid rgba(166, 180, 200, 0.3)' 
@@ -377,20 +379,28 @@ const MarkerPanel: React.FC = () => {
         <div
           style={{
             color: textColor,
-            fontSize: '0.85rem',
+            fontSize: isMobile ? '0.9rem' : '0.85rem',
             fontWeight: '600',
+            flexShrink: 0,
           }}
         >
           Markers ({sortedMarkers.length})
         </div>
 
-        {/* Button group: Navigation arrows (when active) + Create + Deactivate */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+        {/* Button group: Navigation arrows (when active) + Create + Deactivate - wrap on mobile */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: isMobile ? '0.4rem' : '0.35rem',
+          flexWrap: 'wrap',
+          justifyContent: isMobile ? 'flex-end' : 'flex-start',
+        }}>
           {/* Marker navigation - only when a marker is active (pronounced, amber for visibility) */}
           {selectedMarkerId && (() => {
             const activeMarker = MarkerManager.getActiveMarker();
             const prevMarker = MarkerManager.getPreviousMarker();
             const nextMarker = MarkerManager.getNextMarker();
+            const btnSize = isMobile ? 40 : 34;
             const navBtn = (onClick: () => void, title: string, guideText: string, tooltipId: string, icon: React.ReactNode, disabled?: boolean) => (
               <FirstTimeTooltip key={tooltipId} id={tooltipId} guideText={guideText} disabled={disabled} isLightMode={isLightMode}>
                 <button
@@ -398,7 +408,8 @@ const MarkerPanel: React.FC = () => {
                   disabled={disabled}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    width: '34px', height: '34px', padding: 0,
+                    width: `${btnSize}px`, height: `${btnSize}px`, padding: 0,
+                    touchAction: 'manipulation',
                     background: disabled ? (isLightMode ? '#e8e8e8' : '#2a2a2a') : (isLightMode ? 'rgba(217, 119, 6, 0.2)' : 'rgba(217, 119, 6, 0.3)'),
                     color: disabled ? (isLightMode ? '#999' : '#666') : MARKER_ACCENT,
                     border: `2px solid ${disabled ? (isLightMode ? '#ccc' : '#555') : MARKER_ACCENT}`,
@@ -471,8 +482,9 @@ const MarkerPanel: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '28px',
-                  height: '28px',
+                  width: isMobile ? '36px' : '28px',
+                  height: isMobile ? '36px' : '28px',
+                  touchAction: 'manipulation',
                   padding: 0,
                   background: isLightMode ? '#e4ebf5' : '#1a1a1a',
                   color: isLightMode ? '#000000' : '#FFFFFF',
@@ -521,8 +533,9 @@ const MarkerPanel: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '28px',
-            height: '28px',
+            width: isMobile ? '36px' : '28px',
+            height: isMobile ? '36px' : '28px',
+            touchAction: 'manipulation',
             padding: 0,
             background: isLightMode ? '#e4ebf5' : '#1a1a1a',
             color: audioDuration > 0 
@@ -1253,56 +1266,56 @@ const MarkerPanel: React.FC = () => {
                   }}>
                     {editingMarkerId !== marker.id && (
                       <>
-                        {/* Navigation arrows - only when marker is active */}
+                        {/* Navigation arrows - only when marker is active; larger on mobile for touch */}
                         {isSelected && (
                           <>
                             <button
                               onClick={(e) => { e.stopPropagation(); seek(marker.start); }}
                               style={{
-                                width: isMobile ? '22px' : '24px', height: isMobile ? '22px' : '24px', minWidth: isMobile ? '22px' : '24px', padding: 0,
+                                width: isMobile ? '32px' : '24px', height: isMobile ? '32px' : '24px', minWidth: isMobile ? '32px' : '24px', padding: 0,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'transparent', border: `1px solid ${borderColor}`, borderRadius: '4px',
+                                background: isMobile ? (isLightMode ? 'rgba(0,102,68,0.1)' : 'rgba(0,170,102,0.15)') : 'transparent', border: `1px solid ${borderColor}`, borderRadius: '6px',
                                 color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
                               }}
                               title="Go to marker start"
                             >
-                              <svg width={isMobile ? "10" : "12"} height={isMobile ? "10" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                              <svg width={isMobile ? "14" : "12"} height={isMobile ? "14" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); seek(marker.end); }}
                               style={{
-                                width: isMobile ? '22px' : '24px', height: isMobile ? '22px' : '24px', minWidth: isMobile ? '22px' : '24px', padding: 0,
+                                width: isMobile ? '32px' : '24px', height: isMobile ? '32px' : '24px', minWidth: isMobile ? '32px' : '24px', padding: 0,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'transparent', border: `1px solid ${borderColor}`, borderRadius: '4px',
+                                background: isMobile ? (isLightMode ? 'rgba(0,102,68,0.1)' : 'rgba(0,170,102,0.15)') : 'transparent', border: `1px solid ${borderColor}`, borderRadius: '6px',
                                 color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
                               }}
                               title="Go to marker end"
                             >
-                              <svg width={isMobile ? "10" : "12"} height={isMobile ? "10" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                              <svg width={isMobile ? "14" : "12"} height={isMobile ? "14" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); const prev = MarkerManager.getPreviousMarker(); prev && handleMarkerClick(prev); }}
                               style={{
-                                width: isMobile ? '22px' : '24px', height: isMobile ? '22px' : '24px', minWidth: isMobile ? '22px' : '24px', padding: 0,
+                                width: isMobile ? '32px' : '24px', height: isMobile ? '32px' : '24px', minWidth: isMobile ? '32px' : '24px', padding: 0,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'transparent', border: `1px solid ${borderColor}`, borderRadius: '4px',
+                                background: isMobile ? (isLightMode ? 'rgba(0,102,68,0.1)' : 'rgba(0,170,102,0.15)') : 'transparent', border: `1px solid ${borderColor}`, borderRadius: '6px',
                                 color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
                               }}
                               title="Previous marker"
                             >
-                              <svg width={isMobile ? "10" : "12"} height={isMobile ? "10" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                              <svg width={isMobile ? "14" : "12"} height={isMobile ? "14" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); const next = MarkerManager.getNextMarker(); next && handleMarkerClick(next); }}
                               style={{
-                                width: isMobile ? '22px' : '24px', height: isMobile ? '22px' : '24px', minWidth: isMobile ? '22px' : '24px', padding: 0,
+                                width: isMobile ? '32px' : '24px', height: isMobile ? '32px' : '24px', minWidth: isMobile ? '32px' : '24px', padding: 0,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: 'transparent', border: `1px solid ${borderColor}`, borderRadius: '4px',
+                                background: isMobile ? (isLightMode ? 'rgba(0,102,68,0.1)' : 'rgba(0,170,102,0.15)') : 'transparent', border: `1px solid ${borderColor}`, borderRadius: '6px',
                                 color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
                               }}
                               title="Next marker"
                             >
-                              <svg width={isMobile ? "10" : "12"} height={isMobile ? "10" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                              <svg width={isMobile ? "14" : "12"} height={isMobile ? "14" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                             </button>
                           </>
                         )}
@@ -1314,9 +1327,9 @@ const MarkerPanel: React.FC = () => {
                               handleDeactivateMarker();
                             }}
                             style={{
-                              width: isMobile ? '22px' : '24px',
-                              height: isMobile ? '22px' : '24px',
-                              minWidth: isMobile ? '22px' : '24px',
+                              width: isMobile ? '32px' : '24px',
+                              height: isMobile ? '32px' : '24px',
+                              minWidth: isMobile ? '32px' : '24px',
                               padding: 0,
                               display: 'flex',
                               alignItems: 'center',
@@ -1333,8 +1346,8 @@ const MarkerPanel: React.FC = () => {
                             title="Deactivate marker"
                           >
                             <svg
-                              width={isMobile ? "12" : "14"}
-                              height={isMobile ? "12" : "14"}
+                              width={isMobile ? "14" : "14"}
+                              height={isMobile ? "14" : "14"}
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"

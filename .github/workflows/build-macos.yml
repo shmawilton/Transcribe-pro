@@ -56,3 +56,5 @@ jobs:
           name: macos-build
           path: release/
           if-no-files-found: error
+          # Reduce storage usage - artifacts expire after 7 days (helps avoid quota limits)
+          retention-days: 7

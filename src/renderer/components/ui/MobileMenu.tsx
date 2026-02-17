@@ -193,9 +193,9 @@ const MobileMenu: React.FC = () => {
     toggleMute();
   };
   
-  // Format pitch display (100% = 1 semitone)
+  // Format pitch display (100% = 1 semitone) - matches GlobalControlsPanel "Original" for 0
   const formatPitchDisplay = (value: number): string => {
-    if (value === 0) return '0%';
+    if (value === 0) return 'Original';
     const pct = Math.round(value * 100);
     const sign = pct > 0 ? '+' : '';
     return `${sign}${pct}%`;
@@ -594,42 +594,48 @@ const MobileMenu: React.FC = () => {
               Audio
             </div>
             
-            {/* Pitch Control */}
+            {/* Pitch Control - Up/Down arrows + normalization display (matches GlobalControlsPanel) */}
             <div style={{ 
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
               padding: '10px 14px',
               gap: '10px',
+              flexWrap: 'wrap',
             }}>
               <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Pitch</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                {/* Down arrow - lower pitch */}
                 <button
                   onClick={handlePitchDown}
                   disabled={!isAudioLoaded || isPitchProcessing || pitch <= -2}
                   style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch <= -2)}
+                  title="Lower pitch"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="5" y1="12" x2="19" y2="12" />
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 5v14" />
+                    <path d="M19 12l-7 7-7-7" />
                   </svg>
                 </button>
                 <span style={{ 
-                  fontSize: '14px', 
-                  fontWeight: 600, 
+                  fontSize: '15px', 
+                  fontWeight: 700, 
                   color: pitch !== 0 ? (pitch > 0 ? KENYAN_GREEN : KENYAN_RED) : textColor,
-                  minWidth: '56px',
+                  minWidth: '72px',
                   textAlign: 'center',
                 }}>
                   {isPitchProcessing ? '...' : formatPitchDisplay(pitch)}
                 </span>
+                {/* Up arrow - raise pitch */}
                 <button
                   onClick={handlePitchUp}
                   disabled={!isAudioLoaded || isPitchProcessing || pitch >= 2}
                   style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch >= 2)}
+                  title="Raise pitch"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 19V5" />
+                    <path d="M5 12l7-7 7 7" />
                   </svg>
                 </button>
                 <button
