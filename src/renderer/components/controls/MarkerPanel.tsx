@@ -657,8 +657,8 @@ const MarkerPanel: React.FC = () => {
                 alignItems: 'center',
                 flexWrap: isMobile ? 'wrap' : 'nowrap',
                 gap: isMobile ? '0.4rem' : '0.75rem',
-                padding: isMobile ? '0.4rem 0.5rem' : '0.75rem 1rem',
-                marginBottom: isMobile ? '0.25rem' : '0.5rem',
+                padding: isMobile ? '0.6rem 0.65rem' : '0.75rem 1rem',
+                marginBottom: isMobile ? '0.4rem' : '0.5rem',
                 // Active marker highlighting - Neumorphic
                 background: 'var(--neu-bg-base)',
                 border: 'none',
@@ -926,14 +926,110 @@ const MarkerPanel: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              ) : isMobile ? (
+              /* Mobile/Tablet: Stacked card layout - no per-marker arrows (use header instead) */
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                gap: '0.5rem',
+                width: '100%',
+              }}>
+                {/* Row 1: Color + Name + Edit + Delete */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                  <div
+                    style={{
+                      width: '12px',
+                      height: '12px',
+                      borderRadius: '50%',
+                      background: marker.color || '#FF4444',
+                      border: `1px solid ${isLightMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.3)'}`,
+                      flexShrink: 0,
+                      boxShadow: isSelected ? `0 0 4px ${marker.color || '#FF4444'}60` : 'none',
+                    }}
+                  />
+                  <div
+                    style={{
+                      color: textColor,
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                    title={marker.name}
+                  >
+                    {marker.name}
+                  </div>
+                  <button
+                    onClick={(e) => handleStartEdit(marker, e)}
+                    style={{
+                      padding: '0.35rem 0.6rem',
+                      background: 'var(--neu-bg-base)',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: textSecondary,
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      boxShadow: 'var(--neu-pressed)',
+                      touchAction: 'manipulation',
+                    }}
+                    title="Edit marker"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteMarker(marker, e)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: textSecondary,
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
+                    }}
+                    title={`Delete marker "${marker.name}"`}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <line x1="10" y1="11" x2="10" y2="17" />
+                      <line x1="14" y1="11" x2="14" y2="17" />
+                    </svg>
+                  </button>
+                </div>
+                {/* Row 2: Time range + Speed + Loop */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <div style={{ color: textSecondary, fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    {formatTime(marker.start)} — {formatTime(marker.end)}
+                  </div>
+                  <span style={{ color: textSecondary, fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    {markerSpeed.toFixed(1)}x
+                  </span>
+                  {hasLoop && (
+                    <span style={{ color: '#00AA00', fontSize: '0.75rem', display: 'flex', alignItems: 'center' }} title="Loop enabled">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+                        <path fillRule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+                      </svg>
+                    </span>
+                  )}
+                </div>
+              </div>
               ) : (
-              /* Desktop/Non-edit mode - Compact horizontal layout */
+              /* Desktop: Compact horizontal layout with per-marker arrows */
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                gap: isMobile ? '0.3rem' : '0.5rem', 
-                fontSize: isMobile ? '0.65rem' : '0.75rem',
-                flex: isMobile ? '1 1 100%' : '0 0 auto',
+                gap: '0.5rem', 
+                fontSize: '0.75rem',
+                flex: '0 0 auto',
                 minWidth: 0,
               }}>
                 {/* Color indicator - clickable when editing to cycle colors */}
