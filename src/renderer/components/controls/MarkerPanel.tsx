@@ -2,6 +2,7 @@
 // Marker management panel (List + Editor)
 
 import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppStore } from '../../store/store';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { MarkerManager, PRESET_COLORS } from '../markers/MarkerManager';
@@ -56,6 +57,16 @@ const MarkerPanel: React.FC = () => {
   const audioDuration = useAppStore((state) => state.audio.duration || 0);
   
   const isMobile = useIsMobile();
+
+  // Mobile/tablet detection for edit popup (like speed popup)
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const isTablet = windowWidth >= 768 && windowWidth <= 1024;
+  const isMobileOrTablet = isMobile || isTablet;
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // TASK 13: Get AudioEngine methods for applying marker settings
   const { setSpeed, seek, setLoop, disableLoop } = useAudioEngine();
@@ -694,8 +705,8 @@ const MarkerPanel: React.FC = () => {
                 }
               }}
             >
-              {/* Mobile Edit Mode - Multi-row vertical layout */}
-              {isMobile && editingMarkerId === marker.id && editFormData ? (
+              {/* Mobile Edit Mode - inline only on desktop; mobile/tablet use popup below */}
+              {isMobile && editingMarkerId === marker.id && editFormData && !isMobileOrTablet ? (
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -1517,8 +1528,281 @@ const MarkerPanel: React.FC = () => {
         })}
       </div>
 
+      {/* Marker Edit Popup - mobile/tablet only (like speed popup) */}
+      {isMobileOrTablet && editingMarkerId && editFormData && (() => {
+        const marker = sortedMarkers.find((m) => m.id === editingMarkerId);
+        if (!marker) return null;
+        const popupPadding = isMobile ? 20 : 18;
+        const popupWidth = isMobile ? Math.min(340, window.innerWidth - 32) : Math.min(320, window.innerWidth - 40);
+        const popupContent = (
+          <div
+            style={{
+              padding: popupPadding,
+              width: popupWidth,
+              maxWidth: 'calc(100vw - 24px)',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              boxSizing: 'border-box',
+              background: isLightMode ? 'rgba(228, 235, 245, 0.98)' : 'rgba(26, 26, 26, 0.98)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: isLightMode ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: isMobile ? 16 : 14,
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              animation: 'fadeInScale 0.2s ease-out',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: textColor, marginBottom: 4 }}>
+              Edit Marker
+            </div>
+            {/* Color + Name */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const currentIndex = PRESET_COLORS.indexOf(editFormData.color as typeof PRESET_COLORS[number]);
+                  const nextIndex = (currentIndex + 1) % PRESET_COLORS.length;
+                  setEditFormData({ ...editFormData, color: PRESET_COLORS[nextIndex] });
+                }}
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: editFormData.color,
+                  border: `2px solid ${isLightMode ? '#006644' : '#00AA66'}`,
+                  flexShrink: 0,
+                  cursor: 'pointer',
+                }}
+                title="Tap to change color"
+              />
+              <input
+                type="text"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                placeholder="Marker name"
+                style={{
+                  flex: 1,
+                  padding: '12px 14px',
+                  background: 'var(--neu-bg-base)',
+                  border: `2px solid ${isLightMode ? '#006644' : '#00AA66'}`,
+                  borderRadius: 8,
+                  color: textColor,
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  boxShadow: 'var(--neu-pressed)',
+                }}
+              />
+            </div>
+            {/* Time Range */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ color: textSecondary, fontSize: '0.8rem', fontWeight: 600 }}>Time Range</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ color: textSecondary, fontSize: '0.75rem' }}>Start</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={599}
+                  value={startMinStr}
+                  onChange={(e) => setStartMinStr(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                  onBlur={commitTimeInputs}
+                  placeholder="m"
+                  style={{ width: 44, padding: '10px 8px', background: 'var(--neu-bg-base)', border: 'none', borderRadius: 6, color: textColor, fontSize: '0.9rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                />
+                <span style={{ color: textSecondary, fontSize: '0.85rem' }}>:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={startSecStr}
+                  onChange={(e) => setStartSecStr(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  onBlur={commitTimeInputs}
+                  placeholder="s"
+                  style={{ width: 40, padding: '10px 8px', background: 'var(--neu-bg-base)', border: 'none', borderRadius: 6, color: textColor, fontSize: '0.9rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                />
+                <span style={{ color: textSecondary, marginLeft: 4 }}>—</span>
+                <span style={{ color: textSecondary, fontSize: '0.75rem' }}>End</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={599}
+                  value={endMinStr}
+                  onChange={(e) => setEndMinStr(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                  onBlur={commitTimeInputs}
+                  placeholder="m"
+                  style={{ width: 44, padding: '10px 8px', background: 'var(--neu-bg-base)', border: 'none', borderRadius: 6, color: textColor, fontSize: '0.9rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                />
+                <span style={{ color: textSecondary, fontSize: '0.85rem' }}>:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={endSecStr}
+                  onChange={(e) => setEndSecStr(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  onBlur={commitTimeInputs}
+                  placeholder="s"
+                  style={{ width: 40, padding: '10px 8px', background: 'var(--neu-bg-base)', border: 'none', borderRadius: 6, color: textColor, fontSize: '0.9rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                />
+              </div>
+            </div>
+            {/* Speed + Loop */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ color: textSecondary, fontSize: '0.85rem', fontWeight: 600 }}>Speed:</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newSpeed = Math.max(0.3, editFormData.speed - 0.1);
+                    setEditFormData({ ...editFormData, speed: Math.round(newSpeed * 10) / 10 });
+                  }}
+                  disabled={editFormData.speed <= 0.3}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: isLightMode ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)',
+                    border: `1px solid ${borderColor}`,
+                    borderRadius: 8,
+                    color: editFormData.speed <= 0.3 ? textSecondary : textColor,
+                    cursor: editFormData.speed <= 0.3 ? 'not-allowed' : 'pointer',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                  }}
+                >−</button>
+                <span style={{ color: textColor, fontFamily: 'monospace', fontSize: '1rem', fontWeight: 700, minWidth: 48, textAlign: 'center' }}>
+                  {editFormData.speed.toFixed(1)}x
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newSpeed = Math.min(4.0, editFormData.speed + 0.1);
+                    setEditFormData({ ...editFormData, speed: Math.round(newSpeed * 10) / 10 });
+                  }}
+                  disabled={editFormData.speed >= 4.0}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: isLightMode ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)',
+                    border: `1px solid ${borderColor}`,
+                    borderRadius: 8,
+                    color: editFormData.speed >= 4.0 ? textSecondary : textColor,
+                    cursor: editFormData.speed >= 4.0 ? 'not-allowed' : 'pointer',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                  }}
+                >+</button>
+              </div>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  color: textColor,
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={editFormData.loop}
+                  onChange={(e) => setEditFormData({ ...editFormData, loop: e.target.checked })}
+                  style={{
+                    width: 20,
+                    height: 20,
+                    cursor: 'pointer',
+                    accentColor: isLightMode ? '#006644' : '#00AA66',
+                  }}
+                />
+                <span style={{ color: editFormData.loop ? '#00AA00' : textSecondary, fontWeight: 600 }}>Loop</span>
+              </label>
+            </div>
+            {/* Save / Cancel */}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 8 }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCancelEdit();
+                }}
+                style={{
+                  padding: '12px 20px',
+                  background: 'var(--neu-bg-base)',
+                  border: 'none',
+                  borderRadius: 10,
+                  color: textColor,
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--neu-pressed)',
+                  touchAction: 'manipulation',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSaveEdit(marker.id);
+                }}
+                style={{
+                  padding: '12px 20px',
+                  background: isLightMode ? '#006644' : '#00AA66',
+                  border: 'none',
+                  borderRadius: 10,
+                  color: '#FFFFFF',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: 'var(--neu-pressed)',
+                  touchAction: 'manipulation',
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        );
+        return createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.5)',
+              backdropFilter: 'blur(2px)',
+              zIndex: 10000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+              boxSizing: 'border-box',
+            }}
+            onClick={() => handleCancelEdit()}
+          >
+            {popupContent}
+          </div>,
+          document.body
+        );
+      })()}
+
       {/* TASK 20: Custom Scrollbar Styling */}
       <style>{`
+        @keyframes fadeInScale {
+          from { opacity: 0; transform: scale(0.95) translateY(4px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
         .marker-list-container::-webkit-scrollbar {
           width: 8px;
         }
