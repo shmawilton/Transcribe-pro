@@ -169,7 +169,7 @@ const MarkerPanel: React.FC = () => {
   // Handle deactivate marker with smooth animation
   const handleDeactivateMarker = useCallback(() => {
     // Add smooth transition by animating the deactivation
-    const markerPanel = document.querySelector('.marker-panel');
+    const markerPanel = document.querySelector('.marker-panel') as HTMLElement | null;
     if (markerPanel) {
       markerPanel.style.transition = 'all 0.3s ease';
     }
@@ -327,6 +327,20 @@ const MarkerPanel: React.FC = () => {
     }
   }, [editingMarkerId]);
 
+  // Toggle loop on marker - one click, no need to open Edit
+  const handleToggleLoop = useCallback((marker: Marker, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newLoop = !marker.loop;
+    MarkerManager.updateMarker(marker.id, { loop: newLoop });
+    if (marker.id === selectedMarkerId) {
+      if (newLoop) {
+        setLoop(marker.start, marker.end);
+      } else {
+        disableLoop();
+      }
+    }
+  }, [selectedMarkerId, setLoop, disableLoop]);
+
   // Keyboard shortcut: Delete key to delete active marker
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -401,16 +415,16 @@ const MarkerPanel: React.FC = () => {
           flexWrap: 'wrap',
           justifyContent: isMobile ? 'flex-end' : 'flex-start',
         }}>
-          {/* Marker navigation - only when a marker is active (pronounced, amber for visibility) */}
-          {selectedMarkerId && (() => {
-            const activeMarker = MarkerManager.getActiveMarker();
+          {/* Marker navigation - show when markers exist (navigate even without selection) */}
+          {sortedMarkers.length > 0 && (() => {
             const prevMarker = MarkerManager.getPreviousMarker();
             const nextMarker = MarkerManager.getNextMarker();
             const btnSize = isMobile ? 40 : 34;
             const navBtn = (onClick: () => void, title: string, guideText: string, tooltipId: string, icon: React.ReactNode, disabled?: boolean) => (
               <FirstTimeTooltip key={tooltipId} id={tooltipId} guideText={guideText} disabled={disabled} isLightMode={isLightMode}>
                 <button
-                  onClick={(e) => { e.stopPropagation(); onClick(); }}
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
                   disabled={disabled}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -444,21 +458,7 @@ const MarkerPanel: React.FC = () => {
             return (
               <>
                 {navBtn(
-                  () => activeMarker && seek(activeMarker.start),
-                  'Go to marker start',
-                  'Jump to the start of this marker',
-                  'marker_nav_start',
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                )}
-                {navBtn(
-                  () => activeMarker && seek(activeMarker.end),
-                  'Go to marker end',
-                  'Jump to the end of this marker',
-                  'marker_nav_end',
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                )}
-                {navBtn(
-                  () => prevMarker && handleMarkerClick(prevMarker),
+                  () => { if (prevMarker) handleMarkerClick(prevMarker); },
                   'Previous marker',
                   'Go to the previous marker in the list',
                   'marker_nav_prev',
@@ -466,7 +466,7 @@ const MarkerPanel: React.FC = () => {
                   !prevMarker
                 )}
                 {navBtn(
-                  () => nextMarker && handleMarkerClick(nextMarker),
+                  () => { if (nextMarker) handleMarkerClick(nextMarker); },
                   'Next marker',
                   'Go to the next marker in the list',
                   'marker_nav_next',
@@ -1018,14 +1018,23 @@ const MarkerPanel: React.FC = () => {
                   <span style={{ color: textSecondary, fontFamily: 'monospace', fontSize: '0.8rem' }}>
                     {markerSpeed.toFixed(1)}x
                   </span>
-                  {hasLoop && (
-                    <span style={{ color: '#00AA00', fontSize: '0.75rem', display: 'flex', alignItems: 'center' }} title="Loop enabled">
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
-                        <path fillRule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
-                      </svg>
-                    </span>
-                  )}
+                  <button
+                    onClick={(e) => handleToggleLoop(marker, e)}
+                    style={{
+                      padding: '0.15rem',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: hasLoop ? '#00AA00' : (isLightMode ? '#CC4444' : '#FF6666'),
+                    }}
+                    title={hasLoop ? 'Loop enabled (click to disable)' : 'Loop disabled (click to enable)'}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
               ) : (
@@ -1307,14 +1316,23 @@ const MarkerPanel: React.FC = () => {
                     </span>
                   </label>
                 ) : (
-                  hasLoop && (
-                    <div style={{ color: '#00AA00', fontSize: '0.7rem', display: 'flex', alignItems: 'center' }} title="Loop enabled">
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
-                        <path fillRule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
-                      </svg>
-                    </div>
-                  )
+                  <button
+                    onClick={(e) => handleToggleLoop(marker, e)}
+                    style={{
+                      padding: '0.15rem',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      color: hasLoop ? '#00AA00' : (isLightMode ? '#CC4444' : '#FF6666'),
+                    }}
+                    title={hasLoop ? 'Loop enabled (click to disable)' : 'Loop disabled (click to enable)'}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                    </svg>
+                  </button>
                 )}
 
                 {/* Edit/Save buttons and Delete button */}
@@ -1372,31 +1390,8 @@ const MarkerPanel: React.FC = () => {
                         {isSelected && (
                           <>
                             <button
-                              onClick={(e) => { e.stopPropagation(); seek(marker.start); }}
-                              style={{
-                                width: isMobile ? '32px' : '24px', height: isMobile ? '32px' : '24px', minWidth: isMobile ? '32px' : '24px', padding: 0,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: isMobile ? (isLightMode ? 'rgba(0,102,68,0.1)' : 'rgba(0,170,102,0.15)') : 'transparent', border: `1px solid ${borderColor}`, borderRadius: '6px',
-                                color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
-                              }}
-                              title="Go to marker start"
-                            >
-                              <svg width={isMobile ? "14" : "12"} height={isMobile ? "14" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); seek(marker.end); }}
-                              style={{
-                                width: isMobile ? '32px' : '24px', height: isMobile ? '32px' : '24px', minWidth: isMobile ? '32px' : '24px', padding: 0,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                background: isMobile ? (isLightMode ? 'rgba(0,102,68,0.1)' : 'rgba(0,170,102,0.15)') : 'transparent', border: `1px solid ${borderColor}`, borderRadius: '6px',
-                                color: isLightMode ? '#006644' : '#00AA66', cursor: 'pointer', touchAction: 'manipulation',
-                              }}
-                              title="Go to marker end"
-                            >
-                              <svg width={isMobile ? "14" : "12"} height={isMobile ? "14" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); const prev = MarkerManager.getPreviousMarker(); prev && handleMarkerClick(prev); }}
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); const prev = MarkerManager.getPreviousMarker(); prev && handleMarkerClick(prev); }}
                               style={{
                                 width: isMobile ? '32px' : '24px', height: isMobile ? '32px' : '24px', minWidth: isMobile ? '32px' : '24px', padding: 0,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1408,7 +1403,8 @@ const MarkerPanel: React.FC = () => {
                               <svg width={isMobile ? "14" : "12"} height={isMobile ? "14" : "12"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="15 18 9 12 15 6"/></svg>
                             </button>
                             <button
-                              onClick={(e) => { e.stopPropagation(); const next = MarkerManager.getNextMarker(); next && handleMarkerClick(next); }}
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); const next = MarkerManager.getNextMarker(); next && handleMarkerClick(next); }}
                               style={{
                                 width: isMobile ? '32px' : '24px', height: isMobile ? '32px' : '24px', minWidth: isMobile ? '32px' : '24px', padding: 0,
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',

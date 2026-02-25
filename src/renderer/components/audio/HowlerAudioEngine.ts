@@ -5,6 +5,7 @@ import { Howl } from 'howler';
 import * as Tone from 'tone';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { useAppStore } from '../../store/store';
+import { getDefaultZoomLevel } from '../../utils/defaultZoom';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 
@@ -198,7 +199,7 @@ export class HowlerAudioEngine {
         const name = file.name;
         this.originalTempPathPromise = (async () => {
           try {
-            this.originalTempPath = await window.electronAPI.saveTempAudio(data, name);
+            this.originalTempPath = await window.electronAPI!.saveTempAudio(data, name);
             return this.originalTempPath;
           } catch {
             return null;
@@ -271,7 +272,7 @@ export class HowlerAudioEngine {
           // Update store only on initial load (not on pitch switch)
           // Do NOT call setAudioReadyForPlayback - we wait for waveform before showing UI
           if (!preserveState) {
-            const DEFAULT_ZOOM = 5; // Show 20% (1/5) of audio initially
+            const DEFAULT_ZOOM = getDefaultZoomLevel();
             useAppStore.getState().setDuration(this.duration);
             useAppStore.getState().setViewport(0, this.duration / DEFAULT_ZOOM);
             useAppStore.getState().setZoomLevel(DEFAULT_ZOOM);
@@ -338,8 +339,8 @@ export class HowlerAudioEngine {
         pitch: this.currentPitch,
         windowSize: 0.03, // Smaller = more instant response (0.2 was ~200ms delay)
       });
-      this.mediaElementSource.connect(this.tonePitchShift.input);
-      this.tonePitchShift.connect(ctx.destination);
+      this.mediaElementSource.connect(this.tonePitchShift.input as unknown as AudioNode);
+      (this.tonePitchShift as any).connect(ctx.destination);
     } catch (e) {
       this.disposePitchShiftRouting();
     }
@@ -649,7 +650,7 @@ export class HowlerAudioEngine {
       this.howl.seek(0);
       const duration = this.getDuration();
       if (duration > 0) {
-        const DEFAULT_ZOOM_STOP = 5;
+        const DEFAULT_ZOOM_STOP = getDefaultZoomLevel();
         useAppStore.getState().setViewport(0, duration / DEFAULT_ZOOM_STOP);
         useAppStore.getState().setZoomLevel(DEFAULT_ZOOM_STOP);
       }
@@ -1098,7 +1099,7 @@ export class HowlerAudioEngine {
   /** Decode waveform and set store - blocks until done. Match web: everything ready before showing UI. */
   private async decodeWaveformAndSetBuffer(filename: string, durationSeconds: number): Promise<void> {
     if (!this.howl) return;
-    const DEFAULT_ZOOM = 5;
+    const DEFAULT_ZOOM = getDefaultZoomLevel();
     const store = useAppStore.getState();
     try {
       if (this.originalDataArray?.length) {
@@ -1111,8 +1112,8 @@ export class HowlerAudioEngine {
       store.setDuration(this.duration);
       store.setViewport(0, this.duration / DEFAULT_ZOOM);
       store.setZoomLevel(DEFAULT_ZOOM);
-      store.setAudioBuffer(this.audioBuffer ?? null);
-      if (!this.audioBuffer) store.setAudioReadyForPlayback();
+      if (this.audioBuffer) store.setAudioBuffer(this.audioBuffer);
+      else store.setAudioReadyForPlayback();
       // Prime AudioContext for first play (user gesture from file picker still valid)
       await this.resumeAudioContext();
     } catch {

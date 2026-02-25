@@ -40,8 +40,8 @@ const HelpModal: React.FC = () => {
           {[
             { key: 'Space', desc: 'Play/Pause audio playback' },
             { key: 'Escape', desc: 'Stop playback' },
-            { key: '←', desc: 'Skip backward 5 seconds' },
-            { key: '→', desc: 'Skip forward 5 seconds' },
+            { key: 'Left / A', desc: 'Previous marker' },
+            { key: 'Right / D', desc: 'Next marker' },
             { key: '↑', desc: 'Increase volume (+10%)' },
             { key: '↓', desc: 'Decrease volume (-10%)' },
           ].map((shortcut, idx) => (
@@ -113,7 +113,7 @@ const HelpModal: React.FC = () => {
         {
           step: 3,
           title: 'Play and Listen',
-          description: 'Press Space to play/pause. Use arrow keys (← →) to skip 5 seconds. Adjust volume with ↑ ↓ keys or the volume control button.',
+          description: 'Press Space to play/pause. Use arrow keys (← →) to navigate between markers. Adjust volume with ↑ ↓ keys or the volume control button.',
           icon: '▶️',
         },
         {
@@ -458,3 +458,4 @@ const HelpModal: React.FC = () => {
 };
 
 export default HelpModal;
+

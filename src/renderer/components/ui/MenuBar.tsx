@@ -344,7 +344,7 @@ const MenuBar: React.FC = () => {
   const duration = useAppStore((state) => state.audio.duration);
   
   // Audio engine
-  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, resetPitch, getOriginalFilePath, seek, setLoop, disableLoop } = useAudioEngine();
+  const { loadFile, stop, unloadAudio, isAudioLoaded, resumeAudioContext, setPitch: setAudioPitch, resetPitch, getOriginalFilePath, seek, setLoop, disableLoop, setVolume: setAudioVolume } = useAudioEngine();
   
   // Project reset
   const resetProject = useAppStore((state) => state.resetProject);
@@ -402,9 +402,11 @@ const MenuBar: React.FC = () => {
   const storedPitch = useAppStore((state) => state.globalControls.pitch);
   const storePitch = useAppStore((state) => state.setPitch);
   
-  // Get mute state from store
+  // Get mute state and volume from store
   const isMuted = useAppStore((state) => state.globalControls.isMuted);
   const toggleMute = useAppStore((state) => state.toggleMute);
+  const volume = useAppStore((state) => state.globalControls.volume) ?? 6;
+  const setVolumeStore = useAppStore((state) => state.setVolume);
   
   // Marker navigation - only when a marker is active
   const selectedMarkerId = useAppStore((state) => state.ui.selectedMarkerId);
@@ -648,10 +650,11 @@ const MenuBar: React.FC = () => {
   // Smooth viewport animation hook
   const { animateZoom } = useSmoothViewport();
 
-  // Zoom handlers with smooth animations
+  // Zoom handlers with smooth animations (max 50x for fine detail)
+  const MAX_ZOOM = 50;
   const handleZoomIn = () => {
     if (duration <= 0) return;
-    const newZoom = Math.min(zoomLevel * 1.5, 8);
+    const newZoom = Math.min(zoomLevel * 1.5, MAX_ZOOM);
     animateZoom(newZoom, currentTime, { duration: 250, easing: 'easeOutCubic' });
     setOpenMenu(null);
   };
@@ -673,7 +676,7 @@ const MenuBar: React.FC = () => {
   
   // Simple zoom colors - white and green only
   const zoomColor = KENYAN_GREEN;
-  const zoomPercent = ((zoomLevel - 1) / 7) * 100;
+  const zoomPercent = ((zoomLevel - 1) / (MAX_ZOOM - 1)) * 100;
 
   // Handle pitch change (continuous, supports fractional values like 0.6)
   const handlePitchChange = (newPitch: number) => {
@@ -692,6 +695,22 @@ const MenuBar: React.FC = () => {
   // Handle mute toggle
   const handleMuteToggle = () => {
     toggleMute();
+  };
+
+  // Volume: -60 to +6 dB. Slider 0-100 maps to -60..6
+  const volumePercent = Math.round(((volume + 60) / 66) * 100);
+  const handleVolumeChange = (newDb: number) => {
+    const clamped = Math.max(-60, Math.min(6, newDb));
+    setVolumeStore(clamped);
+    setAudioVolume?.(clamped);
+  };
+  const handleVolumeSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const pct = Number(e.target.value);
+    const db = (pct / 100) * 66 - 60;
+    handleVolumeChange(db);
+  };
+  const handleVolumeStep = (step: number) => {
+    handleVolumeChange(volume + step);
   };
 
   // Get pitch color
@@ -1202,26 +1221,26 @@ const MenuBar: React.FC = () => {
         {/* Compact Zoom In */}
         <button
           onClick={handleZoomIn}
-          disabled={zoomLevel >= 8}
+          disabled={zoomLevel >= MAX_ZOOM}
           style={{
             background: 'transparent',
             border: 'none',
-            color: zoomLevel >= 8
+            color: zoomLevel >= MAX_ZOOM
               ? (isLightMode ? '#ccc' : '#666')
               : (isLightMode ? '#1a1a1a' : '#FFFFFF'),
             padding: '2px',
             borderRadius: '6px',
-            cursor: zoomLevel >= 8 ? 'not-allowed' : 'pointer',
+            cursor: zoomLevel >= MAX_ZOOM ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.2s ease',
-            opacity: zoomLevel >= 8 ? 0.3 : 1,
+            opacity: zoomLevel >= MAX_ZOOM ? 0.3 : 1,
             width: '20px',
             height: '20px',
           }}
           onMouseEnter={(e) => {
-            if (zoomLevel < 8) {
+            if (zoomLevel < MAX_ZOOM) {
               e.currentTarget.style.background = isLightMode 
                 ? 'rgba(0, 0, 0, 0.08)'
                 : 'rgba(255, 255, 255, 0.15)';
@@ -1305,16 +1324,6 @@ const MenuBar: React.FC = () => {
           >
             <span style={{ fontSize: '13px', fontWeight: 700, color: MARKER_ACCENT, marginRight: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Markers</span>
             {navBtn(
-              () => activeMarker && seek(activeMarker.start),
-              'Go to marker start',
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            )}
-            {navBtn(
-              () => activeMarker && seek(activeMarker.end),
-              'Go to marker end',
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            )}
-            {navBtn(
               () => prevMarker && handleMarkerNav(prevMarker),
               'Previous marker',
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
@@ -1329,6 +1338,87 @@ const MenuBar: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* Volume controls: slider + up/down + mute */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: '8px',
+        padding: '4px 10px',
+        borderRadius: '12px',
+        background: isLightMode ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.05)',
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', color: isLightMode ? '#666' : '#aaa' }} title="Volume">
+          {isMuted ? <MuteIcon /> : <UnmuteIcon />}
+        </span>
+        <button
+          type="button"
+          onClick={() => handleVolumeStep(-7)}
+          disabled={!isAudioLoaded || volume <= -60}
+          title="Decrease volume"
+          style={{
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: '6px',
+            color: isLightMode ? '#666' : '#aaa',
+            cursor: isAudioLoaded && volume > -60 ? 'pointer' : 'not-allowed',
+            opacity: isAudioLoaded && volume > -60 ? 1 : 0.4,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>
+        </button>
+        <input
+          type="range"
+          className="volume-slider"
+          min={0}
+          max={100}
+          value={volumePercent}
+          onChange={handleVolumeSlider}
+          disabled={!isAudioLoaded}
+          title={`Volume ${volumePercent}%`}
+          style={{
+            width: '90px',
+            height: '8px',
+            WebkitAppearance: 'none',
+            appearance: 'none',
+            background: 'transparent',
+            cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+            opacity: isAudioLoaded ? 1 : 0.5,
+            '--volume-percent': `${volumePercent}%`,
+            '--volume-filled': KENYAN_GREEN,
+            '--volume-track': isLightMode ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.15)',
+          } as React.CSSProperties}
+        />
+        <button
+          type="button"
+          onClick={() => handleVolumeStep(7)}
+          disabled={!isAudioLoaded || volume >= 6}
+          title="Increase volume"
+          style={{
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            borderRadius: '6px',
+            color: isLightMode ? '#666' : '#aaa',
+            cursor: isAudioLoaded && volume < 6 ? 'pointer' : 'not-allowed',
+            opacity: isAudioLoaded && volume < 6 ? 1 : 0.4,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+        </button>
+        <span style={{ fontSize: '11px', fontWeight: 600, minWidth: '28px', color: isLightMode ? '#555' : '#999' }}>
+          {volumePercent}%
+        </span>
+      </div>
 
       {/* Mute/Unmute Toggle Button */}
       <div style={{ position: 'relative' }}>
@@ -1851,6 +1941,55 @@ const MenuBar: React.FC = () => {
           background: ${isLightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
           box-shadow: none;
           cursor: not-allowed;
+        }
+        
+        /* Volume Slider - Track & Thumb */
+        .volume-slider::-webkit-slider-runnable-track {
+          height: 8px;
+          border-radius: 4px;
+          background: linear-gradient(to right, var(--volume-filled) 0%, var(--volume-filled) var(--volume-percent), var(--volume-track) var(--volume-percent), var(--volume-track) 100%);
+          transition: background 0.15s ease;
+        }
+        .volume-slider::-moz-range-track {
+          height: 8px;
+          border-radius: 4px;
+          background: linear-gradient(to right, var(--volume-filled) 0%, var(--volume-filled) var(--volume-percent), var(--volume-track) var(--volume-percent), var(--volume-track) 100%);
+          transition: background 0.15s ease;
+        }
+        .volume-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_GREEN}CC);
+          cursor: pointer;
+          border: 2px solid ${isLightMode ? '#FFFFFF' : '#1a1a1a'};
+          box-shadow: 0 0 10px ${KENYAN_GREEN}80, 0 2px 6px rgba(0,0,0,0.3);
+          transition: all 0.2s ease;
+          margin-top: -5px;
+        }
+        .volume-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.15);
+          box-shadow: 0 0 15px ${KENYAN_GREEN}, 0 2px 8px rgba(0,0,0,0.4);
+        }
+        .volume-slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, ${KENYAN_GREEN}, ${KENYAN_GREEN}CC);
+          cursor: pointer;
+          border: 2px solid ${isLightMode ? '#FFFFFF' : '#1a1a1a'};
+          box-shadow: 0 0 10px ${KENYAN_GREEN}80, 0 2px 6px rgba(0,0,0,0.3);
+          transition: all 0.2s ease;
+        }
+        .volume-slider:disabled::-webkit-slider-thumb {
+          background: ${isLightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
+          box-shadow: none;
+        }
+        .volume-slider:disabled::-moz-range-thumb {
+          background: ${isLightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'};
+          box-shadow: none;
         }
         
         @keyframes fadeInScale {

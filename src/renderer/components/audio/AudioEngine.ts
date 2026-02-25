@@ -4,6 +4,7 @@
 
 import * as Tone from 'tone';
 import { useAppStore } from '../../store/store';
+import { getDefaultZoomLevel } from '../../utils/defaultZoom';
 
 /**
  * Supported audio file formats
@@ -285,8 +286,8 @@ export class AudioEngine {
       useAppStore.getState().setAudioBuffer(decodedBuffer);
       useAppStore.getState().setDuration(finalDuration);
       
-      // Reset viewport to show first 20% of audio (zoom level 5)
-      const DEFAULT_ZOOM = 5;
+      // Reset viewport to default zoom for current device class
+      const DEFAULT_ZOOM = getDefaultZoomLevel();
       useAppStore.getState().setViewport(0, finalDuration / DEFAULT_ZOOM);
       useAppStore.getState().setZoomLevel(DEFAULT_ZOOM);
 
@@ -569,7 +570,7 @@ export class AudioEngine {
       // Reset viewport to beginning (show first 20% of audio)
       const duration = this.getDuration();
       if (duration > 0) {
-        const DEFAULT_ZOOM_STOP = 5;
+        const DEFAULT_ZOOM_STOP = getDefaultZoomLevel();
         useAppStore.getState().setViewport(0, duration / DEFAULT_ZOOM_STOP);
         useAppStore.getState().setZoomLevel(DEFAULT_ZOOM_STOP);
       }
@@ -830,10 +831,6 @@ export class AudioEngine {
     this.loopStart = start;
     this.loopEnd = end;
     this.isLooping = true;
-
-      start, 
-      end, 
-      duration
   }
 
   /**

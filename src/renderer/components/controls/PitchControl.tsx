@@ -10,7 +10,7 @@ interface PitchControlProps {
 
 export const PitchControl: React.FC<PitchControlProps> = ({ onPitchChange, isAudioLoaded }) => {
   const pitch = useAppStore((state) => state.globalControls.pitch);
-  const isLightMode = useAppStore((state) => state.ui.isLightMode);
+  const isLightMode = useAppStore((state) => state.theme) === 'light';
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [targetPitch, setTargetPitch] = useState(0);

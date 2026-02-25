@@ -5,7 +5,6 @@ import Waveform from './components/audio/Waveform';
 import MarkerTimeline from './components/markers/MarkerTimeline';
 import PlaybackPanel from './components/controls/PlaybackPanel';
 import MarkerPanel from './components/controls/MarkerPanel';
-import MobileControlsPanel from './components/controls/MobileControlsPanel';
 import SettingsModal from './components/ui/SettingsModal';
 import WelcomeScreen from './components/ui/WelcomeScreen';
 import ErrorBoundary from './components/ui/ErrorBoundary';
@@ -19,8 +18,10 @@ import UpdateNotification from './components/ui/UpdateNotification';
 import { useAppStore } from './store/store';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useAudioEngine } from './components/audio/useAudioEngine';
+import { MarkerManager } from './components/markers/MarkerManager';
 import { getProjectLoader } from './components/project/ProjectLoader';
 import { getProjectSaver } from './components/project/ProjectSaver';
+import { getDefaultZoomLevel } from './utils/defaultZoom';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -34,6 +35,12 @@ const App: React.FC = () => {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const isMobile = useIsMobile();
   const restoreAttemptedRef = React.useRef(false);
+  const mainContentRef = React.useRef<HTMLDivElement | null>(null);
+  const focusMainContent = React.useCallback((e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, [role="button"]')) return;
+    mainContentRef.current?.focus({ preventScroll: true });
+  }, []);
   const { toasts, closeToast } = useToast();
   
   // Get export modal state from store
@@ -42,8 +49,145 @@ const App: React.FC = () => {
   
   // Initialize audio engine (but don't use its local loading state)
   // This hook should not cause re-renders
-  const { play, pause, stop, seek, getCurrentTime, setVolume, loadFile, resumeAudioContext } = useAudioEngine();
+  const { play, pause, stop, seek, getCurrentTime, setVolume, loadFile, resumeAudioContext, setLoop, disableLoop } = useAudioEngine();
+  const markerKeyDebugEnabled = true;
+  const debugMarkerKey = React.useCallback((message: string, payload?: Record<string, unknown>) => {
+    if (!markerKeyDebugEnabled) return;
+    if (payload) {
+      console.debug('[MarkerKeyDebug][renderer]', message, payload);
+      return;
+    }
+    console.debug('[MarkerKeyDebug][renderer]', message);
+  }, [markerKeyDebugEnabled]);
+
+  const isPreviousMarkerNavKey = React.useCallback((key?: string, code?: string) => {
+    const normalizedKey = (key || '').toLowerCase();
+    const normalizedCode = (code || '').toLowerCase();
+    return (
+      normalizedKey === 'arrowleft' ||
+      normalizedKey === 'left' ||
+      normalizedKey === 'a' ||
+      normalizedKey === 'keya' ||
+      normalizedKey === 'prevmarker' ||
+      normalizedCode === 'keya'
+    );
+  }, []);
+  const isNextMarkerNavKey = React.useCallback((key?: string, code?: string) => {
+    const normalizedKey = (key || '').toLowerCase();
+    const normalizedCode = (code || '').toLowerCase();
+    return (
+      normalizedKey === 'arrowright' ||
+      normalizedKey === 'right' ||
+      normalizedKey === 'd' ||
+      normalizedKey === 'keyd' ||
+      normalizedKey === 'nextmarker' ||
+      normalizedCode === 'keyd'
+    );
+  }, []);
+  const navigateMarkerByKeyboardKey = React.useCallback((key?: string, code?: string) => {
+    const isPrevious = isPreviousMarkerNavKey(key, code);
+    const isNext = isNextMarkerNavKey(key, code);
+    if (!isPrevious && !isNext) return;
+
+    try {
+      const store = useAppStore.getState();
+      const markers = MarkerManager.getAllMarkers();
+      const marker = isPrevious ? MarkerManager.getPreviousMarker() : MarkerManager.getNextMarker();
+      debugMarkerKey('navigate:resolved-target', {
+        key,
+        code,
+        direction: isPrevious ? 'previous' : 'next',
+        activeMarkerId: store.ui.selectedMarkerId,
+        markerCount: markers.length,
+        targetMarkerId: marker?.id ?? null,
+      });
+      if (marker) {
+        MarkerManager.setActiveMarker(marker.id, {
+          seekToMarker: true,
+          audioEngine: { seek, setLoop, disableLoop },
+        }).then(() => {
+          debugMarkerKey('navigate:success', {
+            targetMarkerId: marker.id,
+            direction: isPrevious ? 'previous' : 'next',
+          });
+        }).catch((error: unknown) => {
+          debugMarkerKey('navigate:error', {
+            direction: isPrevious ? 'previous' : 'next',
+            targetMarkerId: marker.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      } else {
+        debugMarkerKey('navigate:no-marker-found', {
+          direction: isPrevious ? 'previous' : 'next',
+          markerCount: markers.length,
+        });
+      }
+    } catch (error: unknown) {
+      debugMarkerKey('navigate:exception', {
+        key,
+        code,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }, [seek, setLoop, disableLoop, isPreviousMarkerNavKey, isNextMarkerNavKey, debugMarkerKey]);
   
+  // Electron: marker navigation keys via IPC (before-input-event)
+  useEffect(() => {
+    const api = window.electronAPI;
+    if (!api?.onArrowKey) return;
+    const unsubscribe = api.onArrowKey((data: { key: string }) => {
+      if (!isPreviousMarkerNavKey(data.key) && !isNextMarkerNavKey(data.key)) return;
+      const target = document.activeElement as HTMLElement;
+      const inInput = target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        !!target.closest?.('input, textarea, [contenteditable="true"]')
+      );
+      debugMarkerKey('ipc:event', {
+        key: data.key,
+        activeElementTag: target?.tagName ?? null,
+        inInput,
+      });
+      if (inInput) {
+        debugMarkerKey('ipc:ignored-in-input', { key: data.key });
+        return;
+      }
+      navigateMarkerByKeyboardKey(data.key);
+    });
+    return unsubscribe;
+  }, [navigateMarkerByKeyboardKey, isPreviousMarkerNavKey, isNextMarkerNavKey, debugMarkerKey]);
+
+  // Electron: tell main when to capture marker-nav keys (false when typing in input)
+  useEffect(() => {
+    const api = window.electronAPI;
+    const setCaptureArrows = api?.setCaptureArrows;
+    if (!setCaptureArrows) return;
+    const sync = () => {
+      requestAnimationFrame(() => {
+        const target = document.activeElement as HTMLElement;
+        const inInput = target && (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          !!target.closest?.('input, textarea, [contenteditable="true"]')
+        );
+        debugMarkerKey('ipc:set-capture-arrows', {
+          enabled: !inInput,
+          activeElementTag: target?.tagName ?? null,
+          inInput,
+        });
+        setCaptureArrows(!inInput);
+      });
+    };
+    sync();
+    document.addEventListener('focusin', sync);
+    document.addEventListener('focusout', sync);
+    return () => {
+      document.removeEventListener('focusin', sync);
+      document.removeEventListener('focusout', sync);
+    };
+  }, [debugMarkerKey]);
+
   // Track if project has been manually saved (auto-save only starts after first manual save)
   const lastManualSaveAt = useAppStore((state) => (state as any).lastManualSaveAt || 0);
   
@@ -216,14 +360,14 @@ const App: React.FC = () => {
 
       // Attempt immediate auto-save before unload
       try {
-        const projectSaver = getProjectSaver();
+        getProjectSaver(); // Ensure saver is initialized
         // Trigger immediate auto-save (synchronous localStorage write)
         const projectData = {
           version: '1.0.0',
           markers: store.markers || [],
           globalControls: store.globalControls || {},
           uiState: {
-            zoomLevel: store.ui?.zoomLevel || 1,
+            zoomLevel: store.ui?.zoomLevel || getDefaultZoomLevel(),
             viewportStart: store.ui?.viewportStart || 0,
             viewportEnd: store.ui?.viewportEnd || 0,
           },
@@ -269,8 +413,8 @@ const App: React.FC = () => {
 
   // Command Palette commands
   const commandPaletteCommands = React.useMemo(() => {
-    const projectSaver = getProjectSaver();
-    const projectLoader = getProjectLoader();
+    getProjectSaver();
+    getProjectLoader();
     const store = useAppStore.getState();
     
     return [
@@ -320,6 +464,39 @@ const App: React.FC = () => {
         return;
       }
 
+      const navPrev = isPreviousMarkerNavKey(e.key, (e as any).code);
+      const navNext = isNextMarkerNavKey(e.key, (e as any).code);
+      if (navPrev || navNext) {
+        debugMarkerKey('dom:key-candidate', {
+          key: e.key,
+          code: (e as any).code,
+          ctrl: e.ctrlKey,
+          meta: e.metaKey,
+          alt: e.altKey,
+          shift: e.shiftKey,
+          repeat: e.repeat,
+          isInputFocused,
+        });
+      }
+
+      // Marker navigation should work whenever markers exist (independent of audio-loaded state)
+      if (
+        !isInputFocused &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        (navPrev || navNext)
+      ) {
+        e.preventDefault();
+        debugMarkerKey('dom:handling-navigation', {
+          key: e.key,
+          code: (e as any).code,
+          direction: navPrev ? 'previous' : 'next',
+        });
+        navigateMarkerByKeyboardKey(e.key, (e as any).code);
+        return;
+      }
+
       // Handle undo/redo shortcuts even when audio is not loaded (they work on markers)
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'y')) {
         e.preventDefault();
@@ -358,6 +535,11 @@ const App: React.FC = () => {
           stop();
           break;
 
+        case 'Enter': // Enter - Go to beginning of song
+          e.preventDefault();
+          seek(0);
+          break;
+
         case 'm': // M key - Create marker at current position
         case 'M':
           e.preventDefault();
@@ -366,8 +548,6 @@ const App: React.FC = () => {
             const currentTimeForMarker = store.audio.currentTime || 0;
             const audioDuration = store.audio.duration || 0;
             if (audioDuration > 0) {
-              // Import MarkerManager dynamically to avoid circular deps
-              const { MarkerManager } = require('./components/markers/MarkerManager');
               const start = currentTimeForMarker;
               const end = Math.min(currentTimeForMarker + 5, audioDuration);
               if (end - start >= 0.5) {
@@ -380,21 +560,6 @@ const App: React.FC = () => {
               }
             }
           } catch (_) {}
-          break;
-
-        case 'ArrowLeft': // Left Arrow - Skip backward 5 seconds
-          e.preventDefault();
-          const currentTimeVal = getCurrentTime();
-          const newTimeBack = Math.max(0, currentTimeVal - 5);
-          seek(newTimeBack);
-          break;
-
-        case 'ArrowRight': // Right Arrow - Skip forward 5 seconds
-          e.preventDefault();
-          const currentTimeForward = getCurrentTime();
-          const audioDur = useAppStore.getState().audio.duration;
-          const newTimeForward = Math.min(audioDur, currentTimeForward + 5);
-          seek(newTimeForward);
           break;
 
         case 'ArrowUp': // Up Arrow - Volume +10%
@@ -415,12 +580,24 @@ const App: React.FC = () => {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    // Use document (same as Enter) - capture phase so we get keys before scroll/focus handlers
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, [isAudioLoaded, isPlaying, currentVolume, play, pause, stop, seek, getCurrentTime, setVolume, setVolumeStore, setShowCommandPalette]);
+  }, [isAudioLoaded, isPlaying, currentVolume, play, pause, stop, seek, getCurrentTime, setVolume, setVolumeStore, setShowCommandPalette, setLoop, disableLoop, navigateMarkerByKeyboardKey, isPreviousMarkerNavKey, isNextMarkerNavKey, debugMarkerKey]);
   
+  // Auto-focus main content when transitioning to main app so arrow keys work immediately
+  useEffect(() => {
+    if (!isAudioLoaded || showWelcome) return;
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        mainContentRef.current?.focus({ preventScroll: true });
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isAudioLoaded, showWelcome]);
+
   // Show/hide welcome screen based on audio loaded state
   // Don't show welcome when loading (user should see loading animation instead)
   useEffect(() => {
@@ -624,7 +801,12 @@ const App: React.FC = () => {
 
           {/* Main Content Area - Stacked vertically, order: Waveform → Timeline → Playback → Markers */}
           {/* Controls Panel (zoom/pitch) moved to MobileMenu dropdown */}
-          <div className="main-content mobile-content">
+          <div
+            className="main-content mobile-content"
+            tabIndex={0}
+            ref={mainContentRef}
+            onClick={focusMainContent}
+          >
             {/* Waveform Section - scrollable */}
             <div className="mobile-panel waveform-mobile-section">
               <ErrorBoundary>
@@ -689,8 +871,13 @@ const App: React.FC = () => {
           <MenuBar />
         </div>
 
-        {/* Main Content Area */}
-        <div className="main-content">
+        {/* Main Content Area - focusable so arrow keys work when user clicks waveform/timeline */}
+        <div
+          className="main-content"
+          tabIndex={0}
+          ref={mainContentRef}
+          onClick={focusMainContent}
+        >
           {/* Waveform + Marker Timeline Section (50% of screen) */}
           <div className="waveform-section adinkra-pattern panel-pattern">
             <ErrorBoundary>
@@ -743,4 +930,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
