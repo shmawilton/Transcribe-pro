@@ -678,12 +678,12 @@ const MenuBar: React.FC = () => {
   const zoomColor = KENYAN_GREEN;
   const zoomPercent = ((zoomLevel - 1) / (MAX_ZOOM - 1)) * 100;
 
-  // Handle pitch change (continuous, supports fractional values like 0.6)
+  // Handle pitch change (continuous, 0.01 semitone precision)
   const handlePitchChange = (newPitch: number) => {
     if (!isAudioLoaded) return;
     
-    // Round to 0.1 precision for smooth continuous control
-    const clampedPitch = Math.max(-2, Math.min(2, Math.round(newPitch * 10) / 10));
+    // Round to 0.01 semitone precision (1% steps)
+    const clampedPitch = Math.max(-2, Math.min(2, Math.round(newPitch * 100) / 100));
     setPitch(clampedPitch);
     setAudioPitch(clampedPitch);
     storePitch(clampedPitch);
@@ -925,14 +925,16 @@ const MenuBar: React.FC = () => {
         }
       } 
     },
+    {
+      id: 'theme',
+      icon: isLightMode ? MoonIcon : ThemeIcon,
+      label: isLightMode ? 'Dark Mode' : 'Light Mode',
+      action: () => toggleTheme(),
+    },
     { id: 'settings', icon: SettingsIcon, label: 'Settings', action: () => setIsSettingsModalOpen(true) },
   ];
 
-  // Theme-aware colors
-  const menuBg = isLightMode ? 'rgba(255, 255, 255, 0.95)' : 'rgba(26, 26, 26, 0.95)';
   const textColor = isLightMode ? '#1a1a1a' : '#ffffff';
-  const hoverBg = isLightMode ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.1)';
-  const borderColor = isLightMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
 
   return (
     <div 
@@ -943,11 +945,12 @@ const MenuBar: React.FC = () => {
         alignItems: 'center',
         height: '100%',
         width: '100%',
-        gap: '1rem',
-        justifyContent: 'space-between',
+        minWidth: 'max-content',
+        gap: '0.55rem',
+        justifyContent: 'flex-start',
         position: 'relative',
         zIndex: 999999,
-        padding: '0 2rem',
+        padding: '0 0.75rem',
         background: isLightMode 
           ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 250, 250, 0.98) 100%)'
           : 'linear-gradient(135deg, rgba(15, 15, 15, 0.85) 0%, rgba(26, 26, 26, 0.9) 100%)',
@@ -960,11 +963,20 @@ const MenuBar: React.FC = () => {
           ? '0 4px 20px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
           : '0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
         fontFamily: HANDWRITTEN_FONT,
-        overflow: 'visible',
+        overflowX: 'auto',
+        overflowY: 'visible',
         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
-      {/* Left side - Connected Neumorphic Menu Tabs */}
+      {/* Left Cluster: Menu + Project identity */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.9rem',
+        flex: 1,
+        minWidth: 0,
+      }}>
+      {/* Menu tabs */}
       <div style={{ 
         display: 'flex',
         alignItems: 'center',
@@ -989,9 +1001,9 @@ const MenuBar: React.FC = () => {
                 ref={(el) => { menuButtonRefs.current[item.id] = el; }}
                 className="menu-bar-button"
                 style={{
-                  padding: '14px 20px',
+                  padding: '12px 14px',
                   height: '48px',
-                  minWidth: '100px',
+                  minWidth: '84px',
                   background: isOpen 
                     ? (isLightMode ? '#dde4f0' : '#161616')
                     : (isLightMode ? '#e4ebf5' : '#1e1e1e'),
@@ -1056,15 +1068,13 @@ const MenuBar: React.FC = () => {
         })}
       </div>
 
-      {/* Center - Project Name with enhanced styling */}
+      {/* Project name */}
       <div
-        className="mx-auto"
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
           flex: 1,
-          padding: '0 1.5rem',
+          padding: '0 0.35rem',
           minWidth: 0,
         }}
       >
@@ -1108,13 +1118,21 @@ const MenuBar: React.FC = () => {
           />
         </div>
       </div>
+      </div>
 
-      {/* Center-Right - Compact Zoom Controls */}
+      {/* Right Cluster: quick controls + utilities */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.65rem',
+        flexShrink: 0,
+        marginLeft: 'auto',
+      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+      {/* Compact Zoom Controls */}
       <div
-          className="mx-auto flex items-center gap-0.5 flex-shrink-0"
           style={{
-            marginLeft: 'auto',
-            marginRight: 'auto',
+            display: 'flex',
             background: isLightMode
               ? 'rgba(255, 255, 255, 0.6)'
               : 'rgba(255, 255, 255, 0.08)',
@@ -1133,6 +1151,7 @@ const MenuBar: React.FC = () => {
             gap: '4px',
             height: '28px',
             alignItems: 'center',
+            flexShrink: 0,
           }}
       >
         {/* Compact Zoom Out */}
@@ -1260,11 +1279,11 @@ const MenuBar: React.FC = () => {
         </button>
       </div>
 
-      {/* Marker Navigation - Only visible when a marker is active (high-contrast, pronounced) */}
-      {selectedMarkerId && (() => {
-        const activeMarker = MarkerManager.getActiveMarker();
+      {/* Marker navigation */}
+      {(() => {
         const prevMarker = MarkerManager.getPreviousMarker();
         const nextMarker = MarkerManager.getNextMarker();
+        const hasMarkers = markers.length > 0;
         // Amber/gold accent - highly visible on both light and dark themes
         const MARKER_ACCENT = '#D97706';
         const handleMarkerNav = async (marker: { id: string } | null) => {
@@ -1281,28 +1300,32 @@ const MenuBar: React.FC = () => {
             disabled={disabled}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: '38px', height: '38px', padding: 0,
-              background: disabled ? (isLightMode ? '#e5e5e5' : '#333') : (isLightMode ? 'rgba(217, 119, 6, 0.2)' : 'rgba(217, 119, 6, 0.35)'),
+              width: '32px', height: '32px', padding: 0,
+              background: disabled
+                ? (isLightMode ? '#ededed' : '#2e2e2e')
+                : (isLightMode ? 'rgba(217, 119, 6, 0.16)' : 'rgba(217, 119, 6, 0.24)'),
               color: disabled ? (isLightMode ? '#999' : '#666') : MARKER_ACCENT,
-              border: `3px solid ${disabled ? (isLightMode ? '#ccc' : '#555') : MARKER_ACCENT}`,
-              borderRadius: '10px',
+              border: `1px solid ${disabled ? (isLightMode ? '#d4d4d4' : '#555') : `${MARKER_ACCENT}77`}`,
+              borderRadius: '8px',
               cursor: disabled ? 'not-allowed' : 'pointer',
               opacity: disabled ? 0.5 : 1,
-              boxShadow: disabled ? 'none' : (isLightMode ? '0 3px 12px rgba(217, 119, 6, 0.4)' : '0 3px 16px rgba(217, 119, 6, 0.5)'),
+              boxShadow: disabled ? 'none' : (isLightMode ? '0 2px 8px rgba(217, 119, 6, 0.25)' : '0 2px 10px rgba(217, 119, 6, 0.35)'),
               transition: 'all 0.2s ease',
             }}
             title={title}
             onMouseEnter={(e) => {
               if (!disabled) {
-                e.currentTarget.style.background = isLightMode ? 'rgba(217, 119, 6, 0.3)' : 'rgba(217, 119, 6, 0.5)';
-                e.currentTarget.style.transform = 'scale(1.12)';
-                e.currentTarget.style.boxShadow = isLightMode ? '0 4px 16px rgba(217, 119, 6, 0.5)' : '0 4px 20px rgba(217, 119, 6, 0.6)';
+                e.currentTarget.style.background = isLightMode ? 'rgba(217, 119, 6, 0.24)' : 'rgba(217, 119, 6, 0.34)';
+                e.currentTarget.style.transform = 'scale(1.06)';
+                e.currentTarget.style.boxShadow = isLightMode ? '0 3px 12px rgba(217, 119, 6, 0.35)' : '0 3px 14px rgba(217, 119, 6, 0.45)';
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = disabled ? (isLightMode ? '#e5e5e5' : '#333') : (isLightMode ? 'rgba(217, 119, 6, 0.2)' : 'rgba(217, 119, 6, 0.35)');
+              e.currentTarget.style.background = disabled
+                ? (isLightMode ? '#ededed' : '#2e2e2e')
+                : (isLightMode ? 'rgba(217, 119, 6, 0.16)' : 'rgba(217, 119, 6, 0.24)');
               e.currentTarget.style.transform = 'scale(1)';
-              e.currentTarget.style.boxShadow = disabled ? 'none' : (isLightMode ? '0 3px 12px rgba(217, 119, 6, 0.4)' : '0 3px 16px rgba(217, 119, 6, 0.5)');
+              e.currentTarget.style.boxShadow = disabled ? 'none' : (isLightMode ? '0 2px 8px rgba(217, 119, 6, 0.25)' : '0 2px 10px rgba(217, 119, 6, 0.35)');
             }}
           >
             {icon}
@@ -1313,33 +1336,37 @@ const MenuBar: React.FC = () => {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '6px 14px',
-              background: isLightMode ? 'rgba(217, 119, 6, 0.15)' : 'rgba(217, 119, 6, 0.25)',
+              gap: '7px',
+              padding: '5px 10px',
+              background: isLightMode ? 'rgba(217, 119, 6, 0.1)' : 'rgba(217, 119, 6, 0.16)',
               borderRadius: '12px',
-              border: `3px solid ${MARKER_ACCENT}`,
-              boxShadow: isLightMode ? '0 4px 16px rgba(217, 119, 6, 0.3)' : '0 4px 20px rgba(217, 119, 6, 0.4)',
+              border: `1px solid ${MARKER_ACCENT}77`,
+              boxShadow: isLightMode ? '0 2px 8px rgba(217, 119, 6, 0.18)' : '0 2px 10px rgba(217, 119, 6, 0.24)',
             }}
             title="Marker navigation"
           >
-            <span style={{ fontSize: '13px', fontWeight: 700, color: MARKER_ACCENT, marginRight: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Markers</span>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: MARKER_ACCENT, marginRight: '2px', textTransform: 'uppercase', letterSpacing: '0.45px' }}>
+              {hasMarkers ? (selectedMarkerId ? 'Active' : 'Markers') : 'No markers'}
+            </span>
             {navBtn(
               () => prevMarker && handleMarkerNav(prevMarker),
-              'Previous marker',
+              'Previous marker (Left/A)',
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
               !prevMarker
             )}
             {navBtn(
               () => nextMarker && handleMarkerNav(nextMarker),
-              'Next marker',
+              'Next marker (Right/D)',
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
               !nextMarker
             )}
           </div>
         );
       })()}
+      </div>
 
-      {/* Volume controls: slider + up/down + mute */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+      {/* Volume controls: mute + slider + step buttons */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center', 
@@ -1348,9 +1375,32 @@ const MenuBar: React.FC = () => {
         borderRadius: '12px',
         background: isLightMode ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.05)',
       }}>
-        <span style={{ display: 'flex', alignItems: 'center', color: isLightMode ? '#666' : '#aaa' }} title="Volume">
+        <button
+          type="button"
+          onClick={handleMuteToggle}
+          disabled={!isAudioLoaded}
+          title={isMuted ? 'Unmute (M)' : 'Mute (M)'}
+          style={{
+            width: '28px',
+            height: '28px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: isMuted
+              ? (isLightMode ? 'rgba(222, 41, 16, 0.16)' : 'rgba(222, 41, 16, 0.28)')
+              : 'transparent',
+            border: isMuted
+              ? `1px solid ${KENYAN_RED}55`
+              : `1px solid ${isLightMode ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.14)'}`,
+            borderRadius: '8px',
+            color: isMuted ? (isLightMode ? KENYAN_RED : '#ff8592') : (isLightMode ? '#666' : '#aaa'),
+            cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
+            opacity: isAudioLoaded ? 1 : 0.45,
+            transition: 'all 0.2s ease',
+          }}
+        >
           {isMuted ? <MuteIcon /> : <UnmuteIcon />}
-        </span>
+        </button>
         <button
           type="button"
           onClick={() => handleVolumeStep(-7)}
@@ -1418,82 +1468,6 @@ const MenuBar: React.FC = () => {
         <span style={{ fontSize: '11px', fontWeight: 600, minWidth: '28px', color: isLightMode ? '#555' : '#999' }}>
           {volumePercent}%
         </span>
-      </div>
-
-      {/* Mute/Unmute Toggle Button */}
-      <div style={{ position: 'relative' }}>
-        <button
-          onClick={handleMuteToggle}
-          disabled={!isAudioLoaded}
-          style={{
-            background: isMuted
-              ? (isLightMode 
-                  ? 'linear-gradient(135deg, rgba(222, 41, 16, 0.15), rgba(222, 41, 16, 0.08))'
-                  : 'linear-gradient(135deg, rgba(222, 41, 16, 0.25), rgba(222, 41, 16, 0.15))')
-              : (isLightMode
-                  ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(250, 250, 250, 0.95))'
-                  : 'linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.08))'),
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: isMuted
-              ? `2px solid ${KENYAN_RED}50`
-              : (isLightMode
-                  ? '1px solid rgba(0, 0, 0, 0.08)'
-                  : '1px solid rgba(255, 255, 255, 0.15)'),
-            color: isMuted 
-              ? (isLightMode ? KENYAN_RED : '#ff6b7a')
-              : (isLightMode ? '#1a1a1a' : '#ffffff'),
-            padding: '6px 12px',
-            borderRadius: '12px',
-            cursor: isAudioLoaded ? 'pointer' : 'not-allowed',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            opacity: isAudioLoaded ? 1 : 0.4,
-            boxShadow: isMuted
-              ? `0 4px 16px ${KENYAN_RED}30, inset 0 1px 0 rgba(255, 255, 255, 0.1)`
-              : (isLightMode
-                  ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
-                  : '0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'),
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-          onMouseEnter={(e) => {
-            if (isAudioLoaded) {
-              e.currentTarget.style.transform = 'translateY(-2px) scale(1.05)';
-              e.currentTarget.style.boxShadow = isMuted
-                ? `0 6px 24px ${KENYAN_RED}40, inset 0 1px 0 rgba(255, 255, 255, 0.15)`
-                : (isLightMode
-                    ? '0 6px 20px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
-                    : '0 6px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15)');
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0) scale(1)';
-            e.currentTarget.style.boxShadow = isMuted
-              ? `0 4px 16px ${KENYAN_RED}30, inset 0 1px 0 rgba(255, 255, 255, 0.1)`
-              : (isLightMode
-                  ? '0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
-                  : '0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)');
-          }}
-          title={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {/* Pulse effect when muted */}
-          {isMuted && (
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '14px',
-              background: `radial-gradient(circle, ${KENYAN_RED}20, transparent)`,
-              animation: 'pulseGlow 2s ease-in-out infinite',
-            }} />
-          )}
-          <span style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center' }}>
-            {isMuted ? <MuteIcon /> : <UnmuteIcon />}
-          </span>
-        </button>
       </div>
 
       {/* Right side - Icon buttons with enhanced styling */}
@@ -1581,7 +1555,7 @@ const MenuBar: React.FC = () => {
                   position: 'absolute',
                   inset: 0,
                   borderRadius: '12px',
-                  background: `radial-gradient(circle at center, ${btn.id === 'settings' ? KENYAN_GREEN : KENYAN_RED}20, transparent)`,
+                  background: `radial-gradient(circle at center, ${(btn.id === 'settings' || btn.id === 'theme') ? KENYAN_GREEN : KENYAN_RED}20, transparent)`,
                   opacity: 0,
                   transition: 'opacity 0.3s ease',
                   pointerEvents: 'none',
@@ -1600,6 +1574,8 @@ const MenuBar: React.FC = () => {
             </button>
           );
         })}
+      </div>
+      </div>
       </div>
 
       {/* Portal-based Dropdown Menu */}

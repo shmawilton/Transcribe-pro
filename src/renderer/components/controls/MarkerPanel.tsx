@@ -210,8 +210,8 @@ const MarkerPanel: React.FC = () => {
     }
   }, [audioDuration, currentTime]);
 
-  // TASK 15: Keyboard shortcut for marker creation (M key)
-  // NOTE: M key handler is now in App.tsx to centralize keyboard shortcuts
+  // TASK 15: Keyboard shortcut for marker creation (N key)
+  // NOTE: Global key handlers are centralized in App.tsx
 
   // Handle editing marker
   const handleStartEdit = useCallback((marker: Marker, e: React.MouseEvent) => {
@@ -570,7 +570,7 @@ const MarkerPanel: React.FC = () => {
               e.currentTarget.style.transform = 'scale(1)';
             }
           }}
-          title={audioDuration > 0 ? 'Create new marker (M)' : 'Load audio file first'}
+          title={audioDuration > 0 ? 'Create new marker (N)' : 'Load audio file first'}
         >
           <svg
             width="14"
@@ -1029,7 +1029,7 @@ const MarkerPanel: React.FC = () => {
                       alignItems: 'center',
                       color: hasLoop ? '#00AA00' : (isLightMode ? '#CC4444' : '#FF6666'),
                     }}
-                    title={hasLoop ? 'Loop enabled (click to disable)' : 'Loop disabled (click to enable)'}
+                    title={hasLoop ? 'Loop enabled (click to disable, L for active marker)' : 'Loop disabled (click to enable, L for active marker)'}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
@@ -1296,7 +1296,7 @@ const MarkerPanel: React.FC = () => {
                       userSelect: 'none',
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    title="Loop this marker section"
+                    title="Loop this marker section (L toggles active marker loop)"
                   >
                     <input
                       type="checkbox"
@@ -1327,7 +1327,7 @@ const MarkerPanel: React.FC = () => {
                       alignItems: 'center',
                       color: hasLoop ? '#00AA00' : (isLightMode ? '#CC4444' : '#FF6666'),
                     }}
-                    title={hasLoop ? 'Loop enabled (click to disable)' : 'Loop disabled (click to enable)'}
+                    title={hasLoop ? 'Loop enabled (click to disable, L for active marker)' : 'Loop disabled (click to enable, L for active marker)'}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>

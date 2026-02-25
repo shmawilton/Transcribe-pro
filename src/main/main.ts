@@ -212,15 +212,11 @@ const createWindow = (): void => {
     mainWindow = null;
   });
 
-  // Marker navigation keys: Electron often doesn't deliver arrow keydown to DOM
-  // When captureArrows=true, we prevent default and send IPC. When false (user typing), let key through.
-  const markerKeyDebugEnabled = true;
+  // Marker navigation keys: Electron often doesn't deliver arrow keydown to DOM.
+  // When captureArrows=true, prevent default and send IPC. When false (user typing), let key through.
   let captureArrows = true;
   ipcMain.on('set-capture-arrows', (_e, enabled: boolean) => {
     captureArrows = enabled;
-    if (markerKeyDebugEnabled) {
-      console.log('[MarkerKeyDebug][main] set-capture-arrows', { enabled });
-    }
   });
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const rawKey = (((input as any).key || '') as string);
@@ -229,16 +225,6 @@ const createWindow = (): void => {
     const key = rawKey.toLowerCase();
     const code = rawCode.toLowerCase();
     const keyCode = rawKeyCode.toLowerCase();
-    const isDebugCandidate = /arrow|left|right|^a$|^d$|keya|keyd/i.test(`${rawKey}|${rawCode}|${rawKeyCode}`);
-    if (markerKeyDebugEnabled && isDebugCandidate) {
-      console.log('[MarkerKeyDebug][main] before-input-event', {
-        key: rawKey,
-        code: rawCode,
-        keyCode: rawKeyCode,
-        type: (input as any).type,
-        captureArrows,
-      });
-    }
     const isPrevMarkerKey =
       key === 'arrowleft' ||
       key === 'left' ||
@@ -257,15 +243,7 @@ const createWindow = (): void => {
       if (captureArrows) {
         event.preventDefault();
         const payload = { key: isPrevMarkerKey ? 'PrevMarker' : 'NextMarker' };
-        if (markerKeyDebugEnabled) {
-          console.log('[MarkerKeyDebug][main] ipc-send', payload);
-        }
         mainWindow?.webContents.send('arrow-key', payload);
-      } else if (markerKeyDebugEnabled) {
-        console.log('[MarkerKeyDebug][main] nav-key-not-captured', {
-          key: rawKey,
-          code: rawCode,
-        });
       }
     }
   });

@@ -49,16 +49,7 @@ const App: React.FC = () => {
   
   // Initialize audio engine (but don't use its local loading state)
   // This hook should not cause re-renders
-  const { play, pause, stop, seek, getCurrentTime, setVolume, loadFile, resumeAudioContext, setLoop, disableLoop } = useAudioEngine();
-  const markerKeyDebugEnabled = true;
-  const debugMarkerKey = React.useCallback((message: string, payload?: Record<string, unknown>) => {
-    if (!markerKeyDebugEnabled) return;
-    if (payload) {
-      console.debug('[MarkerKeyDebug][renderer]', message, payload);
-      return;
-    }
-    console.debug('[MarkerKeyDebug][renderer]', message);
-  }, [markerKeyDebugEnabled]);
+  const { play, pause, stop, seek, setVolume, loadFile, resumeAudioContext, setLoop, disableLoop } = useAudioEngine();
 
   const isPreviousMarkerNavKey = React.useCallback((key?: string, code?: string) => {
     const normalizedKey = (key || '').toLowerCase();
@@ -90,47 +81,15 @@ const App: React.FC = () => {
     if (!isPrevious && !isNext) return;
 
     try {
-      const store = useAppStore.getState();
-      const markers = MarkerManager.getAllMarkers();
       const marker = isPrevious ? MarkerManager.getPreviousMarker() : MarkerManager.getNextMarker();
-      debugMarkerKey('navigate:resolved-target', {
-        key,
-        code,
-        direction: isPrevious ? 'previous' : 'next',
-        activeMarkerId: store.ui.selectedMarkerId,
-        markerCount: markers.length,
-        targetMarkerId: marker?.id ?? null,
-      });
       if (marker) {
-        MarkerManager.setActiveMarker(marker.id, {
+        void MarkerManager.setActiveMarker(marker.id, {
           seekToMarker: true,
           audioEngine: { seek, setLoop, disableLoop },
-        }).then(() => {
-          debugMarkerKey('navigate:success', {
-            targetMarkerId: marker.id,
-            direction: isPrevious ? 'previous' : 'next',
-          });
-        }).catch((error: unknown) => {
-          debugMarkerKey('navigate:error', {
-            direction: isPrevious ? 'previous' : 'next',
-            targetMarkerId: marker.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
-      } else {
-        debugMarkerKey('navigate:no-marker-found', {
-          direction: isPrevious ? 'previous' : 'next',
-          markerCount: markers.length,
         });
       }
-    } catch (error: unknown) {
-      debugMarkerKey('navigate:exception', {
-        key,
-        code,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [seek, setLoop, disableLoop, isPreviousMarkerNavKey, isNextMarkerNavKey, debugMarkerKey]);
+    } catch (_error: unknown) {}
+  }, [seek, setLoop, disableLoop, isPreviousMarkerNavKey, isNextMarkerNavKey]);
   
   // Electron: marker navigation keys via IPC (before-input-event)
   useEffect(() => {
@@ -144,19 +103,11 @@ const App: React.FC = () => {
         target.tagName === 'TEXTAREA' ||
         !!target.closest?.('input, textarea, [contenteditable="true"]')
       );
-      debugMarkerKey('ipc:event', {
-        key: data.key,
-        activeElementTag: target?.tagName ?? null,
-        inInput,
-      });
-      if (inInput) {
-        debugMarkerKey('ipc:ignored-in-input', { key: data.key });
-        return;
-      }
+      if (inInput) return;
       navigateMarkerByKeyboardKey(data.key);
     });
     return unsubscribe;
-  }, [navigateMarkerByKeyboardKey, isPreviousMarkerNavKey, isNextMarkerNavKey, debugMarkerKey]);
+  }, [navigateMarkerByKeyboardKey, isPreviousMarkerNavKey, isNextMarkerNavKey]);
 
   // Electron: tell main when to capture marker-nav keys (false when typing in input)
   useEffect(() => {
@@ -171,11 +122,6 @@ const App: React.FC = () => {
           target.tagName === 'TEXTAREA' ||
           !!target.closest?.('input, textarea, [contenteditable="true"]')
         );
-        debugMarkerKey('ipc:set-capture-arrows', {
-          enabled: !inInput,
-          activeElementTag: target?.tagName ?? null,
-          inInput,
-        });
         setCaptureArrows(!inInput);
       });
     };
@@ -186,7 +132,7 @@ const App: React.FC = () => {
       document.removeEventListener('focusin', sync);
       document.removeEventListener('focusout', sync);
     };
-  }, [debugMarkerKey]);
+  }, []);
 
   // Track if project has been manually saved (auto-save only starts after first manual save)
   const lastManualSaveAt = useAppStore((state) => (state as any).lastManualSaveAt || 0);
@@ -211,6 +157,7 @@ const App: React.FC = () => {
   const currentVolume = useAppStore((state) => state.globalControls.volume);
   const isMuted = useAppStore((state) => state.globalControls.isMuted);
   const setVolumeStore = useAppStore((state) => state.setVolume);
+  const toggleMute = useAppStore((state) => state.toggleMute);
   
   // Sync volume/mute changes with audio engine
   // This ensures mute toggle works correctly
@@ -466,18 +413,6 @@ const App: React.FC = () => {
 
       const navPrev = isPreviousMarkerNavKey(e.key, (e as any).code);
       const navNext = isNextMarkerNavKey(e.key, (e as any).code);
-      if (navPrev || navNext) {
-        debugMarkerKey('dom:key-candidate', {
-          key: e.key,
-          code: (e as any).code,
-          ctrl: e.ctrlKey,
-          meta: e.metaKey,
-          alt: e.altKey,
-          shift: e.shiftKey,
-          repeat: e.repeat,
-          isInputFocused,
-        });
-      }
 
       // Marker navigation should work whenever markers exist (independent of audio-loaded state)
       if (
@@ -488,11 +423,6 @@ const App: React.FC = () => {
         (navPrev || navNext)
       ) {
         e.preventDefault();
-        debugMarkerKey('dom:handling-navigation', {
-          key: e.key,
-          code: (e as any).code,
-          direction: navPrev ? 'previous' : 'next',
-        });
         navigateMarkerByKeyboardKey(e.key, (e as any).code);
         return;
       }
@@ -540,8 +470,8 @@ const App: React.FC = () => {
           seek(0);
           break;
 
-        case 'm': // M key - Create marker at current position
-        case 'M':
+        case 'n': // N key - Create marker at current position
+        case 'N':
           e.preventDefault();
           try {
             const store = useAppStore.getState();
@@ -558,6 +488,30 @@ const App: React.FC = () => {
                   MarkerManager.createQuickMarker(altStart, currentTimeForMarker);
                 }
               }
+            }
+          } catch (_) {}
+          break;
+
+        case 'm': // M key - Mute/unmute
+        case 'M':
+          e.preventDefault();
+          toggleMute();
+          break;
+
+        case 'l': // L key - Toggle loop on active marker
+        case 'L':
+          e.preventDefault();
+          try {
+            const activeMarker = MarkerManager.getActiveMarker();
+            if (!activeMarker) {
+              break;
+            }
+            const nextLoop = !activeMarker.loop;
+            MarkerManager.updateMarker(activeMarker.id, { loop: nextLoop });
+            if (nextLoop) {
+              setLoop(activeMarker.start, activeMarker.end);
+            } else {
+              disableLoop();
             }
           } catch (_) {}
           break;
@@ -585,7 +539,7 @@ const App: React.FC = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
-  }, [isAudioLoaded, isPlaying, currentVolume, play, pause, stop, seek, getCurrentTime, setVolume, setVolumeStore, setShowCommandPalette, setLoop, disableLoop, navigateMarkerByKeyboardKey, isPreviousMarkerNavKey, isNextMarkerNavKey, debugMarkerKey]);
+  }, [isAudioLoaded, isPlaying, currentVolume, play, pause, stop, seek, setVolume, setVolumeStore, setShowCommandPalette, setLoop, disableLoop, toggleMute, navigateMarkerByKeyboardKey, isPreviousMarkerNavKey, isNextMarkerNavKey]);
   
   // Auto-focus main content when transitioning to main app so arrow keys work immediately
   useEffect(() => {

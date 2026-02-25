@@ -171,17 +171,17 @@ const MobileMenu: React.FC = () => {
     animateZoom(MIN_ZOOM, undefined, { duration: 300, easing: 'easeOutCubic' });
   };
   
-  // Pitch handlers - matching desktop behavior (±2 semitones range, 0.1 step)
+  // Pitch handlers - matching desktop behavior (±2 semitones range, 0.01 step)
   // Uses audio engine's setPitch (same as desktop for proper audio processing)
   const handlePitchUp = () => {
     if (!isAudioLoaded || isPitchProcessing) return;
-    const newPitch = Math.min(Math.round((pitch + 0.1) * 10) / 10, 2);
+    const newPitch = Math.min(Math.round((pitch + 0.01) * 100) / 100, 2);
     setAudioPitch(newPitch); // Use audio engine's setPitch
   };
   
   const handlePitchDown = () => {
     if (!isAudioLoaded || isPitchProcessing) return;
-    const newPitch = Math.max(Math.round((pitch - 0.1) * 10) / 10, -2);
+    const newPitch = Math.max(Math.round((pitch - 0.01) * 100) / 100, -2);
     setAudioPitch(newPitch); // Use audio engine's setPitch
   };
   
@@ -629,7 +629,7 @@ const MobileMenu: React.FC = () => {
                   onClick={handlePitchDown}
                   disabled={!isAudioLoaded || isPitchProcessing || pitch <= -2}
                   style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch <= -2)}
-                  title="Lower pitch"
+                  title="Lower pitch by 1% (0.01 semitone)"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 5v14" />
@@ -650,7 +650,7 @@ const MobileMenu: React.FC = () => {
                   onClick={handlePitchUp}
                   disabled={!isAudioLoaded || isPitchProcessing || pitch >= 2}
                   style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch >= 2)}
-                  title="Raise pitch"
+                  title="Raise pitch by 1% (0.01 semitone)"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 19V5" />

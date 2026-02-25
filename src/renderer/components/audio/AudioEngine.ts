@@ -113,7 +113,7 @@ export class AudioEngine {
     const pitchFromSpeed = this.getPitchFromSpeed();
     const effectivePitch = this.currentPitch - pitchFromSpeed;
 
-    if (Math.abs(effectivePitch) < 0.05) {
+    if (Math.abs(effectivePitch) < 0.005) {
       // Bypass: no pitch shift needed - use dry signal to avoid distortion/echoes
       this.pitchShift.wet.value = 0;
       this.pitchShift.pitch = 0;
@@ -847,12 +847,12 @@ export class AudioEngine {
   /**
    * Set pitch shift in semitones - independent of speed
    * Limited to ±2 semitones for quality preservation
-   * Supports fractional values (e.g., 0.6, 1.3) for fine control
+   * Supports fine fractional values (0.01 semitone precision)
    * Does NOT interrupt playback - pitch changes smoothly during playback
    */
   public setPitch(semitones: number): void {
-    // Clamp to ±2 semitones, allow fractional values (round to 0.1 precision)
-    const clampedPitch = Math.max(-2, Math.min(2, Math.round(semitones * 10) / 10));
+    // Clamp to ±2 semitones, allow fractional values (round to 0.01 precision)
+    const clampedPitch = Math.max(-2, Math.min(2, Math.round(semitones * 100) / 100));
     this.currentPitch = clampedPitch;
 
     if (!this.pitchShift) {

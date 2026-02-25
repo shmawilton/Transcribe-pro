@@ -1058,7 +1058,9 @@ const Waveform: React.FC = () => {
 
   /**
    * Initialize viewport when duration changes (new audio loaded)
-   * Both mobile and desktop: start with 20% view (zoom level 5)
+   * Device defaults on load:
+   * - desktop/laptop: 5x
+   * - mobile/tablet/PWA web: 10x
    */
   useEffect(() => {
     if (duration > 0 && (viewportEnd === 0 || viewportEnd > duration)) {
@@ -1415,7 +1417,6 @@ const Waveform: React.FC = () => {
 };
 
 export default Waveform;
-
 
 
 
