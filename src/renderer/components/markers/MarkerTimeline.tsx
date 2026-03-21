@@ -7,7 +7,7 @@ import { Marker } from '../../types/types';
 import { MarkerManager } from './MarkerManager';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
-import { MOBILE_TABLET_DEFAULT_ZOOM } from '../../utils/defaultZoom';
+import { DESKTOP_MAX_ZOOM, MOBILE_MIN_ZOOM, PHONE_MAX_ZOOM, getDefaultZoomLevel } from '../../utils/defaultZoom';
 
 // ===== Constants for marker layout =====
 const MARKER_HEIGHT = 28; // pixels - increased for better visibility
@@ -19,6 +19,7 @@ const MAX_MARKER_AREA_HEIGHT = TIME_GRID_HEIGHT + (MAX_OVERLAPPING_MARKERS * (MA
 const EDGE_HIT_PX = 12; // pixels from left/right edge of marker to start resize (crop) instead of move
 // Padding varies by device - minimal on mobile for edge-to-edge display
 const getTimeLabelPadding = (isMobile: boolean) => isMobile ? 8 : 50;
+const MOBILE_TIMELINE_HINT_STORAGE_KEY = 'transcribe-pro-mobile-timeline-hint-dismissed';
 
 export function MarkerTimeline() {
   // ===== Setup state and refs =====
@@ -27,6 +28,7 @@ export function MarkerTimeline() {
   const [containerWidth, setContainerWidth] = useState(0);
   const [hoveredMarker, setHoveredMarker] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [showMobileScrollHint, setShowMobileScrollHint] = useState(false);
   
   // Handle window resize for mobile detection
   useEffect(() => {
@@ -74,6 +76,10 @@ export function MarkerTimeline() {
   const zoomLevel = useAppStore((state) => state.ui.zoomLevel) || 1;
   const currentTime = useAppStore((state) => state.audio.currentTime) || 0;
   const { animateZoom } = useSmoothViewport();
+  const DEFAULT_ZOOM = getDefaultZoomLevel();
+  const resolvedZoomLevel = (typeof zoomLevel === 'number' && isFinite(zoomLevel) && zoomLevel > 0)
+    ? zoomLevel
+    : DEFAULT_ZOOM;
   
   // Pinch-to-zoom and single-finger scroll refs
   const lastTouchDistanceRef = useRef<number | null>(null);
@@ -81,7 +87,7 @@ export function MarkerTimeline() {
   // Single-finger horizontal scroll tracking
   const singleTouchStartRef = useRef<{ x: number; vpStart: number; vpEnd: number } | null>(null);
   const isSingleTouchScrollRef = useRef(false);
-  const MOBILE_DEFAULT_ZOOM = MOBILE_TABLET_DEFAULT_ZOOM;
+  const MOBILE_DEFAULT_ZOOM = MOBILE_MIN_ZOOM;
   
   // Clamp viewport values to current duration (handles case when new audio is shorter)
   // Also handles stale viewport values from previous audio and NaN values
@@ -90,12 +96,34 @@ export function MarkerTimeline() {
     : 0;
   const viewportEnd = (typeof rawViewportEnd === 'number' && !isNaN(rawViewportEnd) && isFinite(rawViewportEnd) && rawViewportEnd > 0)
     ? Math.min(rawViewportEnd, duration > 0 ? duration : rawViewportEnd)
-    : (duration > 0 ? duration : 1);
+    : (duration > 0 ? duration / resolvedZoomLevel : 1);
   
   // Calculate visible duration based on viewport - ensure it's never 0 or NaN
   const visibleDuration = (viewportEnd > viewportStart && !isNaN(viewportEnd - viewportStart))
     ? (viewportEnd - viewportStart)
     : (duration > 0 ? duration : 1);
+  const canShowMobileScrollHint = isMobile && duration > visibleDuration + 0.05;
+
+  const dismissMobileScrollHint = useCallback(() => {
+    setShowMobileScrollHint(false);
+    try {
+      window.sessionStorage.setItem(MOBILE_TIMELINE_HINT_STORAGE_KEY, '1');
+    } catch (_error) {}
+  }, []);
+
+  useEffect(() => {
+    if (!canShowMobileScrollHint) {
+      setShowMobileScrollHint(false);
+      return;
+    }
+
+    try {
+      const dismissed = window.sessionStorage.getItem(MOBILE_TIMELINE_HINT_STORAGE_KEY) === '1';
+      setShowMobileScrollHint(!dismissed);
+    } catch (_error) {
+      setShowMobileScrollHint(true);
+    }
+  }, [canShowMobileScrollHint]);
   
   // Measure initial width on mount
   useEffect(() => {
@@ -218,6 +246,7 @@ export function MarkerTimeline() {
     if (!svg) return;
     
     const handleNativePinchStart = (e: TouchEvent) => {
+      dismissMobileScrollHint();
       if (e.touches.length === 2) {
         // Two-finger touch - prepare for pinch
         isSingleTouchScrollRef.current = false;
@@ -265,9 +294,10 @@ export function MarkerTimeline() {
           const currentZoom = zoomLevelRefPinch.current || (isMobileRefPinch.current ? MOBILE_DEFAULT_ZOOM : 1);
           let newZoom = currentZoom * scale;
           
-          // Clamp zoom: min 4 (1/4 view) on mobile, min 1 on desktop, max 50
+          // Clamp zoom: phones can zoom in further than desktop for detailed edits.
           const minZoom = isMobileRefPinch.current ? MOBILE_DEFAULT_ZOOM : 1;
-          newZoom = Math.max(minZoom, Math.min(50, newZoom));
+          const maxZoom = isMobileRefPinch.current ? PHONE_MAX_ZOOM : DESKTOP_MAX_ZOOM;
+          newZoom = Math.max(minZoom, Math.min(maxZoom, newZoom));
           
           if (Math.abs(newZoom - currentZoom) > 0.05) {
             // Calculate new viewport centered on pinch point
@@ -347,7 +377,7 @@ export function MarkerTimeline() {
       svg.removeEventListener('touchmove', handleNativePinchMove);
       svg.removeEventListener('touchend', handleNativePinchEnd);
     };
-  }, [setViewport, setZoomLevel]);
+  }, [dismissMobileScrollHint, setViewport, setZoomLevel]);
   
   // Two-finger horizontal scroll + trackpad/mouse wheel zoom (desktop/larger devices)
   useEffect(() => {
@@ -355,6 +385,7 @@ export function MarkerTimeline() {
     if (!container) return;
     
     const handleWheel = (e: WheelEvent) => {
+      dismissMobileScrollHint();
       const deltaX = e.deltaX || (e.shiftKey ? e.deltaY : 0);
       const deltaY = e.deltaY;
       const isBiggerDevice = typeof window !== 'undefined' && window.innerWidth > 768;
@@ -368,7 +399,7 @@ export function MarkerTimeline() {
         const currentZoom = zoomLevelRefPinch.current || 1;
         const zoomFactor = deltaY > 0 ? 1 / 1.6 : 1.6;
         let newZoom = currentZoom * zoomFactor;
-        newZoom = Math.max(1, Math.min(50, newZoom));
+        newZoom = Math.max(1, Math.min(DESKTOP_MAX_ZOOM, newZoom));
         
         if (Math.abs(newZoom - currentZoom) < 0.01) return;
         
@@ -421,7 +452,7 @@ export function MarkerTimeline() {
     return () => {
       container.removeEventListener('wheel', handleWheel);
     };
-  }, [setViewport, animateZoom]);
+  }, [setViewport, animateZoom, dismissMobileScrollHint]);
   
   // Dummy handlers for React synthetic events (pinch handled by native listeners above)
   const handleTimelineTouchStart = useCallback((_e: React.TouchEvent) => {
@@ -494,6 +525,7 @@ export function MarkerTimeline() {
   }, [maxLayer]);
   
   const svgHeight = TIME_GRID_HEIGHT + markerAreaHeight;
+  const svgPreserveAspectRatio = isMobile ? 'xMinYMin slice' : 'xMidYMin meet';
   
   // Generate time grid markers (uses viewport for zoomed view)
   const timeGridMarkers = useMemo(() => {
@@ -708,6 +740,7 @@ export function MarkerTimeline() {
   
   // Handle SVG touch start (mobile marker creation OR pinch-to-zoom)
   const handleSvgTouchStart = useCallback((e: React.TouchEvent<SVGSVGElement>) => {
+    dismissMobileScrollHint();
     // Two-finger touch - prepare for pinch-to-zoom
     if (e.touches.length === 2) {
       handleTimelineTouchStart(e);
@@ -730,7 +763,7 @@ export function MarkerTimeline() {
       setMarkerEndTime(clampedTime);
       setHasDragged(false);
     }
-  }, [isCreatingMarker, duration, pixelToTime, handleTimelineTouchStart]);
+  }, [dismissMobileScrollHint, isCreatingMarker, duration, pixelToTime, handleTimelineTouchStart]);
   
   // Format time for display - defined early as it's used by multiple callbacks
   const formatTime = useCallback((seconds: number): string => {
@@ -985,6 +1018,7 @@ export function MarkerTimeline() {
       style={{
         position: 'relative',
         width: '100%',
+        minWidth: '100%',
         flexGrow: isMobile ? 1 : 0,
         flexShrink: 0,
         flexBasis: 'auto',
@@ -999,6 +1033,15 @@ export function MarkerTimeline() {
         boxShadow: isMobile ? 'none' : 'var(--neu-raised)',
       }}
     >
+      {showMobileScrollHint && canShowMobileScrollHint && (
+        <div className="mobile-timeline-scroll-hint" aria-hidden="true">
+          <div className="mobile-timeline-scroll-hint__edge" />
+          <div className="mobile-timeline-scroll-hint__pill">
+            <span>Swipe timeline</span>
+          </div>
+        </div>
+      )}
+
       {/* Marker hover tooltip */}
       {hoveredMarker && hoveredMarkerData && tooltipPosition && !isCreatingMarker && (
         <div 
@@ -1129,6 +1172,7 @@ export function MarkerTimeline() {
       <div
         style={{
           width: '100%',
+          minWidth: '100%',
           flex: '1 1 auto',
           overflow: 'hidden',
           position: 'relative',
@@ -1141,13 +1185,15 @@ export function MarkerTimeline() {
           width={svgWidth}
           height={Math.min(svgHeight, TIME_GRID_HEIGHT + MAX_MARKER_AREA_HEIGHT)}
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          preserveAspectRatio="xMidYMin meet"
+          preserveAspectRatio={svgPreserveAspectRatio}
           style={{ 
             display: 'block', 
             cursor: isCreatingMarker ? 'crosshair' : 'default',
             overflow: 'visible',
             minHeight: '0',
             width: '100%',
+            minWidth: '100%',
+            maxWidth: '100%',
             flexShrink: 0
           }}
           onMouseMove={handleSvgMouseMove}

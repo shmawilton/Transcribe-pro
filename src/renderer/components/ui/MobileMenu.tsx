@@ -10,7 +10,7 @@ import { getProjectLoader } from '../project/ProjectLoader';
 import { showToast } from './Toast';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
 import { onPitchStatus } from '../audio/HowlerAudioEngine';
-import { getDefaultZoomLevel } from '../../utils/defaultZoom';
+import { MOBILE_MIN_ZOOM, getDefaultZoomLevel, getMaxZoomLevel } from '../../utils/defaultZoom';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -24,6 +24,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 const MobileMenu: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 390);
   const menuRef = useRef<HTMLDivElement>(null);
   
   // PWA Install state (for "Install App" menu item; global banner is in App)
@@ -74,6 +75,12 @@ const MobileMenu: React.FC = () => {
       setIsPitchProcessing(status.isProcessing);
     });
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
   
   // Neumorphic colors based on theme
@@ -149,8 +156,8 @@ const MobileMenu: React.FC = () => {
   };
   
   // Zoom handlers - minimum zoom is 5 (1/5 = 20% view)
-  const MIN_ZOOM = 5; // Shows 1/5 (20%) of the audio at minimum
-  const MAX_ZOOM = 50;
+  const MIN_ZOOM = MOBILE_MIN_ZOOM; // Shows 1/5 (20%) of the audio at minimum
+  const MAX_ZOOM = getMaxZoomLevel(windowWidth);
   
   const handleZoomIn = () => {
     if (!isAudioLoaded || !duration) return;
@@ -407,12 +414,30 @@ const MobileMenu: React.FC = () => {
   const safeZoom = typeof zoomLevel === 'number' && !isNaN(zoomLevel) && isFinite(zoomLevel) ? zoomLevel : MIN_ZOOM;
   // Format as multiplier for clarity (matches desktop behavior)
   const zoomDisplay = safeZoom >= 10 ? `${Math.round(safeZoom)}x` : `${safeZoom.toFixed(1)}x`;
-  
-  // Compact button style - LARGER for better visibility
+
+  const isCompactMobile = windowWidth <= 420;
+  const edgeInset = isCompactMobile ? '4px' : '6px';
+  const menuGap = isCompactMobile ? '4px' : '8px';
+  const menuButtonSize = isCompactMobile ? '38px' : '42px';
+  const menuButtonMinSize = isCompactMobile ? '36px' : '38px';
+  const menuIconSize = isCompactMobile ? 18 : 20;
+  const hamburgerButtonSize = isCompactMobile ? '42px' : '46px';
+  const menuBarPadding = isCompactMobile ? '8px 8px' : '10px 12px';
+  const menuBarMinHeight = isCompactMobile ? '56px' : '62px';
+  const expandedPanelPadding = isCompactMobile ? '12px' : '16px';
+  const expandedPanelMaxHeight = isCompactMobile ? 'calc(100dvh - 74px)' : 'min(72vh, calc(100dvh - 78px))';
+  const sectionLabelFontSize = isCompactMobile ? '11px' : '12px';
+  const controlRowPadding = isCompactMobile ? '8px 10px' : '10px 14px';
+  const controlLabelFontSize = isCompactMobile ? '0.82rem' : '0.9rem';
+  const controlValueFontSize = isCompactMobile ? '0.76rem' : '0.84rem';
+
+  // Compact button style sized to fit narrow phone screens without clipping the menu bar.
   const btnStyle = (isActive: boolean = false, isDisabled: boolean = false) => ({
-    width: '44px',
-    height: '44px',
-    borderRadius: '10px',
+    width: menuButtonSize,
+    height: menuButtonSize,
+    minWidth: menuButtonMinSize,
+    minHeight: menuButtonMinSize,
+    borderRadius: '9px',
     border: 'none',
     background: neuBg,
     boxShadow: isActive ? neuPressed : neuRaised,
@@ -431,13 +456,13 @@ const MobileMenu: React.FC = () => {
       ref={menuRef}
       style={{
         position: 'fixed',
-        top: '6px',
-        left: '6px',
-        right: '6px',
+        top: edgeInset,
+        left: edgeInset,
+        right: edgeInset,
         zIndex: 10000,
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: menuGap,
       }}
     >
       {/* Main Menu Bar - Taller with Zoom + Save; Settings/Theme in dropdown/Settings modal */}
@@ -445,23 +470,25 @@ const MobileMenu: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '8px',
-        padding: '10px 12px',
+        gap: menuGap,
+        padding: menuBarPadding,
         background: neuBg,
-        borderRadius: '14px',
+        borderRadius: '12px',
         boxShadow: neuRaised,
-        minHeight: '64px',
+        minHeight: menuBarMinHeight,
       }}>
         {/* Left: Hamburger */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           style={{
             ...btnStyle(isExpanded),
-            width: '48px',
-            height: '48px',
+            width: hamburgerButtonSize,
+            height: hamburgerButtonSize,
+            minWidth: hamburgerButtonSize,
+            minHeight: hamburgerButtonSize,
           }}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
+          <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 24 24" fill="none" stroke={isExpanded ? KENYAN_GREEN : textColor} strokeWidth="2.5" strokeLinecap="round">
             {isExpanded ? (
               <>
                 <line x1="18" y1="6" x2="6" y2="18" />
@@ -478,7 +505,7 @@ const MobileMenu: React.FC = () => {
         </button>
         
         {/* Center: Undo, Redo, Zoom, Save */}
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1, justifyContent: 'center', minWidth: 0 }}>
+        <div style={{ display: 'flex', gap: menuGap, alignItems: 'center', flex: 1, justifyContent: 'space-between', minWidth: 0 }}>
           {/* Undo */}
           <button
             onClick={() => canUndo() && undo()}
@@ -486,7 +513,7 @@ const MobileMenu: React.FC = () => {
             style={btnStyle(false, !canUndo())}
             title="Undo"
           >
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 16 16" fill="currentColor">
               <path fillRule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
               <path d="M8 4.466V.534a.25.25 0 0 0-.41-.192L5.23 2.308a.25.25 0 0 0 0 .384l2.36 1.966A.25.25 0 0 0 8 4.466z"/>
             </svg>
@@ -499,7 +526,7 @@ const MobileMenu: React.FC = () => {
             style={btnStyle(false, !canRedo())}
             title="Redo"
           >
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 16 16" fill="currentColor">
               <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
               <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966a.25.25 0 0 1 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
             </svg>
@@ -512,7 +539,7 @@ const MobileMenu: React.FC = () => {
             style={btnStyle(false, !isAudioLoaded || zoomLevel <= MIN_ZOOM)}
             title="Zoom out"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
@@ -523,8 +550,8 @@ const MobileMenu: React.FC = () => {
             disabled={!isAudioLoaded}
             style={{
               ...btnStyle(false, !isAudioLoaded),
-              minWidth: '52px',
-              fontSize: '13px',
+              minWidth: 'clamp(44px, 12vw, 52px)',
+              fontSize: 'clamp(11px, 3.2vw, 13px)',
               fontWeight: 700,
               color: KENYAN_GREEN,
             }}
@@ -540,7 +567,7 @@ const MobileMenu: React.FC = () => {
             style={btnStyle(false, !isAudioLoaded || zoomLevel >= MAX_ZOOM)}
             title="Zoom in"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
@@ -553,7 +580,7 @@ const MobileMenu: React.FC = () => {
             style={btnStyle(false, !isAudioLoaded)}
             title="Save project"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
               <polyline points="17 21 17 13 7 13 7 21"/>
               <polyline points="7 3 7 8 15 8"/>
@@ -566,20 +593,21 @@ const MobileMenu: React.FC = () => {
       {isExpanded && (
         <div style={{
           background: neuBg,
-          borderRadius: '14px',
+          borderRadius: '12px',
           boxShadow: neuRaised,
-          padding: '14px 16px',
-          maxHeight: '75vh',
+          padding: expandedPanelPadding,
+          maxHeight: expandedPanelMaxHeight,
           overflowY: 'auto',
+          overflowX: 'hidden',
           animation: 'slideDown 0.15s ease-out',
         }}>
           {/* File Section */}
           <div style={{ marginBottom: '12px' }}>
             <div style={{ 
-              fontSize: '13px', 
+              fontSize: sectionLabelFontSize, 
               fontWeight: 700, 
               color: KENYAN_GREEN, 
-              padding: '6px 14px',
+              padding: '4px 12px',
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}>
@@ -603,10 +631,10 @@ const MobileMenu: React.FC = () => {
           <Divider isLightMode={isLightMode} />
           <div style={{ marginBottom: '12px' }}>
             <div style={{ 
-              fontSize: '13px', 
+              fontSize: sectionLabelFontSize, 
               fontWeight: 700, 
               color: KENYAN_GREEN, 
-              padding: '6px 14px',
+              padding: '4px 12px',
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}>
@@ -618,11 +646,11 @@ const MobileMenu: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              padding: '10px 14px',
+              padding: controlRowPadding,
               gap: '10px',
               flexWrap: 'wrap',
             }}>
-              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Pitch</span>
+              <span style={{ fontSize: controlLabelFontSize, color: textColor, fontWeight: 500 }}>Pitch</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 {/* Down arrow - lower pitch */}
                 <button
@@ -637,7 +665,7 @@ const MobileMenu: React.FC = () => {
                   </svg>
                 </button>
                 <span style={{ 
-                  fontSize: '15px', 
+                  fontSize: controlLabelFontSize, 
                   fontWeight: 700, 
                   color: pitch !== 0 ? (pitch > 0 ? KENYAN_GREEN : KENYAN_RED) : textColor,
                   minWidth: '72px',
@@ -662,11 +690,11 @@ const MobileMenu: React.FC = () => {
                   disabled={!isAudioLoaded || isPitchProcessing || pitch === 0}
                   style={{ 
                     ...btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch === 0),
-                    fontSize: '12px',
+                    fontSize: 'clamp(11px, 3vw, 12px)',
                     fontWeight: 600,
                     width: 'auto',
                     padding: '0 10px',
-                    minWidth: '52px',
+                    minWidth: '48px',
                   }}
                 >
                   Reset
@@ -679,11 +707,11 @@ const MobileMenu: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              padding: '10px 14px',
+              padding: controlRowPadding,
               gap: '10px',
               flexWrap: 'wrap',
             }}>
-              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Volume</span>
+              <span style={{ fontSize: controlLabelFontSize, color: textColor, fontWeight: 500 }}>Volume</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                 <button
                   type="button"
@@ -707,7 +735,7 @@ const MobileMenu: React.FC = () => {
                   style={{
                     flex: 1,
                     minWidth: 80,
-                    height: '10px',
+                    height: '8px',
                     WebkitAppearance: 'none',
                     appearance: 'none',
                     background: 'transparent',
@@ -729,7 +757,7 @@ const MobileMenu: React.FC = () => {
                     <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
                   </svg>
                 </button>
-                <span style={{ fontSize: '14px', fontWeight: 600, minWidth: 36, color: textColor }}>
+                <span style={{ fontSize: controlValueFontSize, fontWeight: 600, minWidth: 36, color: textColor }}>
                   {volumePercent}%
                 </span>
               </div>
@@ -740,22 +768,22 @@ const MobileMenu: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              padding: '10px 14px',
+              padding: controlRowPadding,
               gap: '10px',
             }}>
-              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Sound</span>
+              <span style={{ fontSize: controlLabelFontSize, color: textColor, fontWeight: 500 }}>Sound</span>
               <button
                 onClick={handleToggleMute}
                 disabled={!isAudioLoaded}
                 style={{ 
                   ...btnStyle(isMuted, !isAudioLoaded),
                   width: 'auto',
-                  padding: '0 16px',
-                  height: '44px',
+                  padding: '0 12px',
+                  height: menuButtonSize,
                   background: isMuted ? KENYAN_RED : neuBg,
                   color: isMuted ? 'white' : textColor,
-                  minWidth: '90px',
-                  gap: '8px',
+                  minWidth: '78px',
+                  gap: '6px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -763,20 +791,20 @@ const MobileMenu: React.FC = () => {
               >
                 {isMuted ? (
                   <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                       <line x1="23" y1="9" x2="17" y2="15"/>
                       <line x1="17" y1="9" x2="23" y2="15"/>
                     </svg>
-                    <span style={{ fontSize: '14px', fontWeight: 600 }}>Muted</span>
+                    <span style={{ fontSize: controlValueFontSize, fontWeight: 600 }}>Muted</span>
                   </>
                 ) : (
                   <>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                       <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
                     </svg>
-                    <span style={{ fontSize: '14px', fontWeight: 600 }}>On</span>
+                    <span style={{ fontSize: controlValueFontSize, fontWeight: 600 }}>On</span>
                   </>
                 )}
               </button>
@@ -787,12 +815,12 @@ const MobileMenu: React.FC = () => {
               display: 'flex', 
               alignItems: 'center', 
               justifyContent: 'space-between',
-              padding: '10px 14px',
+              padding: controlRowPadding,
               gap: '10px',
             }}>
-              <span style={{ fontSize: '15px', color: textColor, fontWeight: 500 }}>Speed</span>
+              <span style={{ fontSize: controlLabelFontSize, color: textColor, fontWeight: 500 }}>Speed</span>
               <span style={{ 
-                fontSize: '14px', 
+                fontSize: controlValueFontSize, 
                 fontWeight: 600, 
                 color: playbackRate !== 1 ? KENYAN_RED : textColor,
               }}>
@@ -1165,20 +1193,20 @@ const MenuItem: React.FC<{
     style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '16px',
-      padding: '16px 16px',
+      gap: '12px',
+      padding: '12px 14px',
       background: 'transparent',
       border: 'none',
-      borderRadius: '12px',
+      borderRadius: '10px',
       width: '100%',
       color: color || 'inherit',
-      fontSize: '17px',
+      fontSize: 'clamp(0.88rem, 3.8vw, 1rem)',
       fontWeight: 500,
       cursor: disabled ? 'not-allowed' : 'pointer',
       opacity: disabled ? 0.4 : 1,
       touchAction: 'manipulation',
       textAlign: 'left',
-      minHeight: '56px',
+      minHeight: '48px',
     }}
   >
     {icon}
@@ -1186,7 +1214,7 @@ const MenuItem: React.FC<{
       <span>{label}</span>
       {subtitle && (
         <span style={{ 
-          fontSize: '14px', 
+          fontSize: 'clamp(0.72rem, 3vw, 0.82rem)', 
           opacity: 0.6, 
           fontWeight: 400,
           marginTop: '2px',
@@ -1202,13 +1230,13 @@ const Divider: React.FC<{ isLightMode: boolean }> = ({ isLightMode }) => (
   <div style={{ 
     height: '1px', 
     background: isLightMode ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)',
-    margin: '4px 10px',
+    margin: '4px 8px',
   }} />
 );
 
-// Icons - Larger size (20x20) for better mobile visibility
+// Icons sized to keep the dropdown compact on narrow phone screens.
 const NewFileIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
     <polyline points="14 2 14 8 20 8"/>
     <line x1="12" y1="18" x2="12" y2="12"/>
@@ -1217,13 +1245,13 @@ const NewFileIcon = () => (
 );
 
 const FolderIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
   </svg>
 );
 
 const SaveIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
     <polyline points="17 21 17 13 7 13 7 21"/>
     <polyline points="7 3 7 8 15 8"/>
@@ -1231,7 +1259,7 @@ const SaveIcon = () => (
 );
 
 const ExportIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
     <polyline points="17 8 12 3 7 8"/>
     <line x1="12" y1="3" x2="12" y2="15"/>
@@ -1239,7 +1267,7 @@ const ExportIcon = () => (
 );
 
 const InfoIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <circle cx="12" cy="12" r="10"/>
     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
     <line x1="12" y1="17" x2="12.01" y2="17"/>
@@ -1247,7 +1275,7 @@ const InfoIcon = () => (
 );
 
 const InstallIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
     <polyline points="7 10 12 15 17 10"/>
     <line x1="12" y1="15" x2="12" y2="3"/>
@@ -1255,7 +1283,7 @@ const InstallIcon = () => (
 );
 
 const CloseIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10"/>
     <line x1="15" y1="9" x2="9" y2="15"/>
     <line x1="9" y1="9" x2="15" y2="15"/>
@@ -1264,7 +1292,7 @@ const CloseIcon = () => (
 
 /** Gear/cog icon for Settings in dropdown */
 const SettingsGearIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
   </svg>

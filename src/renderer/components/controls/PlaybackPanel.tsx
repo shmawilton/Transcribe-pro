@@ -35,6 +35,8 @@ const PlaybackPanel: React.FC = () => {
   const isMobile = windowWidth < 768;
   const isTablet = windowWidth >= 768 && windowWidth <= 1024;
   const isMobileOrTablet = isMobile || isTablet;
+  const isCompactMobile = isMobile && windowWidth <= 420;
+  const isTinyMobile = isMobile && windowWidth <= 360;
   
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -209,13 +211,27 @@ const PlaybackPanel: React.FC = () => {
     ? (audio.currentTime / audio.duration) * 100 
     : 0;
 
+  const mobilePrimaryButtonSize = isTinyMobile ? '38px' : isCompactMobile ? '42px' : '46px';
+  const mobilePrimaryButtonMinSize = isTinyMobile ? '36px' : isCompactMobile ? '38px' : '42px';
+  const mobileSecondaryButtonSize = isTinyMobile ? '34px' : isCompactMobile ? '38px' : '42px';
+  const mobileSecondaryButtonMinSize = isTinyMobile ? '32px' : isCompactMobile ? '34px' : '38px';
+  const mobileTertiaryButtonSize = isTinyMobile ? '30px' : isCompactMobile ? '34px' : '38px';
+  const mobileTertiaryButtonMinSize = isTinyMobile ? '28px' : isCompactMobile ? '32px' : '34px';
+  const mobilePanelPadding = isTinyMobile ? '1px 2px' : isCompactMobile ? '2px 3px' : '3px 5px';
+  const mobilePanelGap = isTinyMobile ? '1px' : isCompactMobile ? '2px' : '4px';
+  const mobileFileIconSize = isTinyMobile ? '11' : isCompactMobile ? '12' : '14';
+  const mobileFileLabelSize = isTinyMobile ? '0.62rem' : isCompactMobile ? '0.66rem' : '0.7rem';
+  const mobileTimeIconSize = isTinyMobile ? '9' : isCompactMobile ? '10' : '12';
+  const mobileTimeLabelSize = isTinyMobile ? '0.62rem' : isCompactMobile ? '0.66rem' : '0.72rem';
+  const mobileTransportGap = isTinyMobile ? '2px' : isCompactMobile ? '4px' : '6px';
+
   // Neumorphic button style - responsive size for good UX
   // Larger buttons on mobile for better touch targets (44-52px)
   const glassButtonStyle = (isActive: boolean, isDisabled: boolean, color: string = textColor) => ({
-    width: isMobile ? '48px' : 'clamp(36px, 10vw, 48px)',
-    height: isMobile ? '48px' : 'clamp(36px, 10vw, 48px)',
-    minWidth: isMobile ? '44px' : '36px',
-    minHeight: isMobile ? '44px' : '36px',
+    width: isMobile ? mobilePrimaryButtonSize : 'clamp(36px, 10vw, 48px)',
+    height: isMobile ? mobilePrimaryButtonSize : 'clamp(36px, 10vw, 48px)',
+    minWidth: isMobile ? mobilePrimaryButtonMinSize : '36px',
+    minHeight: isMobile ? mobilePrimaryButtonMinSize : '36px',
     borderRadius: '50%',
     background: isLightMode ? '#e4ebf5' : '#1e1e1e',
     border: 'none',
@@ -239,15 +255,15 @@ const PlaybackPanel: React.FC = () => {
 
   return (
     <div className="playback-panel mx-auto w-full max-w-full overflow-x-auto" style={{ 
-      height: '100%',
+      height: isMobile ? 'auto' : '100%',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: isMobile ? 'space-around' : 'center',
-      gap: isMobile ? '2px' : 'clamp(0.25rem, 1vw, 0.4rem)',
-      padding: isMobile ? '4px 6px' : 'clamp(0.35rem, 1.5vw, 0.5rem) clamp(0.5rem, 2vw, 0.75rem)',
+      justifyContent: isMobile ? 'flex-start' : 'center',
+      gap: isMobile ? mobilePanelGap : 'clamp(0.25rem, 1vw, 0.4rem)',
+      padding: isMobile ? mobilePanelPadding : 'clamp(0.35rem, 1.5vw, 0.5rem) clamp(0.5rem, 2vw, 0.75rem)',
       background: isLightMode ? '#e4ebf5' : '#1a1a1a',
-      borderRadius: isMobile ? '8px' : 'clamp(12px, 3vw, 16px)',
+      borderRadius: isMobile ? '6px' : 'clamp(12px, 3vw, 16px)',
       border: 'none',
       boxShadow: isLightMode
         ? '6px 6px 12px rgba(166, 180, 200, 0.5), -4px -4px 10px rgba(255, 255, 255, 0.9)'
@@ -358,19 +374,19 @@ const PlaybackPanel: React.FC = () => {
       `}</style>
 
         {/* Mobile: Music name with clock icon */}
-      {isMobile && (
+      {isMobile && !isTinyMobile && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '6px',
-          padding: '2px 8px',
-          marginBottom: '2px',
+          gap: isTinyMobile ? '3px' : isCompactMobile ? '4px' : '6px',
+          padding: isTinyMobile ? '0 4px' : isCompactMobile ? '1px 6px' : '2px 8px',
+          marginBottom: isTinyMobile ? '0' : '1px',
         }}>
           {/* Clock/Music icon */}
           <svg 
-            width="14" 
-            height="14" 
+            width={mobileFileIconSize}
+            height={mobileFileIconSize}
             viewBox="0 0 24 24" 
             fill="none" 
             stroke={isPlaying ? KENYAN_GREEN : textColor}
@@ -384,12 +400,12 @@ const PlaybackPanel: React.FC = () => {
           {/* File name - truncated */}
           <span style={{
             color: isPlaying ? KENYAN_GREEN : textColor,
-            fontSize: '0.7rem',
+            fontSize: mobileFileLabelSize,
             fontWeight: '600',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            maxWidth: '200px',
+            maxWidth: isTinyMobile ? '132px' : isCompactMobile ? '160px' : '200px',
             fontFamily: HANDWRITTEN_FONT,
           }}>
             {audio.file?.name?.replace(/\.[^/.]+$/, '') || 'No audio'}
@@ -398,12 +414,12 @@ const PlaybackPanel: React.FC = () => {
       )}
 
         {/* Time Progress Display - Compact on mobile */}
-      <div className="mx-auto w-full max-w-full px-1" style={{
+      <div className="playback-time-display mx-auto w-full max-w-full px-1" style={{
         display: 'flex',
         flexDirection: isMobile ? 'row' : 'column',
         alignItems: isMobile ? 'center' : 'stretch',
         justifyContent: isMobile ? 'center' : 'flex-start',
-        gap: isMobile ? '8px' : '0.25rem',
+        gap: isMobile ? (isTinyMobile ? '4px' : isCompactMobile ? '6px' : '8px') : '0.25rem',
         position: 'relative',
         zIndex: 1,
         flexShrink: 0,
@@ -450,15 +466,15 @@ const PlaybackPanel: React.FC = () => {
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: isMobile ? '4px' : 'clamp(0.25rem, 1vw, 0.5rem)'
+            gap: isMobile ? (isTinyMobile ? '2px' : isCompactMobile ? '3px' : '4px') : 'clamp(0.25rem, 1vw, 0.5rem)'
           }}>
             {/* Clock icon - smaller on mobile */}
-            <svg width={isMobile ? "12" : "clamp(12px, 3vw, 16px)"} height={isMobile ? "12" : "clamp(12px, 3vw, 16px)"} viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width={isMobile ? mobileTimeIconSize : "clamp(12px, 3vw, 16px)"} height={isMobile ? mobileTimeIconSize : "clamp(12px, 3vw, 16px)"} viewBox="0 0 24 24" fill="none" stroke={KENYAN_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <polyline points="12 6 12 12 16 14"/>
             </svg>
             <span style={{
-              fontSize: isMobile ? '0.7rem' : 'clamp(0.75rem, 2.5vw, 1rem)',
+              fontSize: isMobile ? mobileTimeLabelSize : 'clamp(0.75rem, 2.5vw, 1rem)',
               fontWeight: '700',
               fontFamily: HANDWRITTEN_FONT,
               color: textColor,
@@ -497,16 +513,18 @@ const PlaybackPanel: React.FC = () => {
       </div>
 
       {/* Main Playback Controls - Compact on mobile */}
-      <div className="mx-auto flex flex-wrap justify-center items-center gap-1.5 px-2" style={{
+      <div className="playback-transport-controls mx-auto flex flex-wrap justify-center items-center gap-1.5 px-2" style={{
         flexShrink: 0,
         position: 'relative',
         zIndex: 1,
         maxWidth: '100%',
         width: '100%',
         marginTop: isMobile ? '0' : 'clamp(0.15rem, 0.5vw, 0.25rem)',
-        gap: isMobile ? '6px' : 'clamp(4px, 1.5vw, 6px)',
-        padding: isMobile ? '0 4px' : '0 clamp(4px, 1vw, 8px)',
+        gap: isMobile ? mobileTransportGap : 'clamp(4px, 1.5vw, 6px)',
+        padding: isMobile ? (isTinyMobile ? '0 1px' : isCompactMobile ? '0 2px' : '0 4px') : '0 clamp(4px, 1vw, 8px)',
         flex: isMobile ? '1 1 auto' : '0 0 auto',
+        flexWrap: isTinyMobile ? 'nowrap' : undefined,
+        justifyContent: isTinyMobile ? 'space-between' : undefined,
       }}>
         {/* Skip Backward -5s - Neumorphic */}
         <button
@@ -514,10 +532,10 @@ const PlaybackPanel: React.FC = () => {
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: isMobile ? '44px' : 'clamp(32px, 9vw, 40px)',
-            height: isMobile ? '44px' : 'clamp(32px, 9vw, 40px)',
-            minWidth: isMobile ? '40px' : '32px',
-            minHeight: isMobile ? '40px' : '32px',
+            width: isMobile ? mobileSecondaryButtonSize : 'clamp(32px, 9vw, 40px)',
+            height: isMobile ? mobileSecondaryButtonSize : 'clamp(32px, 9vw, 40px)',
+            minWidth: isMobile ? mobileSecondaryButtonMinSize : '32px',
+            minHeight: isMobile ? mobileSecondaryButtonMinSize : '32px',
           }}
           onMouseEnter={(e) => {
             if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.08)';
@@ -527,7 +545,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Skip -5 seconds"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <svg width={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} height={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} viewBox="0 0 24 24" fill="currentColor">
             <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
           </svg>
         </button>
@@ -553,7 +571,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Play"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill={KENYAN_GREEN}>
+          <svg width={isTinyMobile ? "18" : isCompactMobile ? "20" : "22"} height={isTinyMobile ? "18" : isCompactMobile ? "20" : "22"} viewBox="0 0 24 24" fill={KENYAN_GREEN}>
             <polygon points="5 3 19 12 5 21 5 3"/>
           </svg>
         </button>
@@ -573,7 +591,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Pause"
         >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <svg width={isTinyMobile ? "17" : isCompactMobile ? "19" : "21"} height={isTinyMobile ? "17" : isCompactMobile ? "19" : "21"} viewBox="0 0 24 24" fill="currentColor">
             <rect x="6" y="4" width="4" height="16"/>
             <rect x="14" y="4" width="4" height="16"/>
           </svg>
@@ -600,7 +618,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Stop"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill={KENYAN_RED}>
+          <svg width={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} height={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} viewBox="0 0 24 24" fill={KENYAN_RED}>
             <rect x="6" y="6" width="12" height="12" rx="2"/>
           </svg>
         </button>
@@ -611,10 +629,10 @@ const PlaybackPanel: React.FC = () => {
           disabled={!isAudioLoaded}
           style={{
             ...glassButtonStyle(false, !isAudioLoaded),
-            width: isMobile ? '44px' : 'clamp(32px, 9vw, 40px)',
-            height: isMobile ? '44px' : 'clamp(32px, 9vw, 40px)',
-            minWidth: isMobile ? '40px' : '32px',
-            minHeight: isMobile ? '40px' : '32px',
+            width: isMobile ? mobileSecondaryButtonSize : 'clamp(32px, 9vw, 40px)',
+            height: isMobile ? mobileSecondaryButtonSize : 'clamp(32px, 9vw, 40px)',
+            minWidth: isMobile ? mobileSecondaryButtonMinSize : '32px',
+            minHeight: isMobile ? mobileSecondaryButtonMinSize : '32px',
           }}
           onMouseEnter={(e) => {
             if (isAudioLoaded) e.currentTarget.style.transform = 'scale(1.08)';
@@ -624,7 +642,7 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Skip +5 seconds"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <svg width={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} height={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} viewBox="0 0 24 24" fill="currentColor">
             <path d="M13 6v12l8.5-6L13 6zM4 18l8.5-6L4 6v12z"/>
           </svg>
         </button>
@@ -636,10 +654,10 @@ const PlaybackPanel: React.FC = () => {
             disabled={!isAudioLoaded}
             style={{
               ...glassButtonStyle(playbackSpeed !== 1.0, !isAudioLoaded, playbackSpeed !== 1.0 ? '#f39c12' : textColor),
-              width: isMobile ? '40px' : 'clamp(28px, 8vw, 32px)',
-              height: isMobile ? '40px' : 'clamp(28px, 8vw, 32px)',
-              minWidth: isMobile ? '36px' : '28px',
-              minHeight: isMobile ? '36px' : '28px',
+              width: isMobile ? mobileTertiaryButtonSize : 'clamp(28px, 8vw, 32px)',
+              height: isMobile ? mobileTertiaryButtonSize : 'clamp(28px, 8vw, 32px)',
+              minWidth: isMobile ? mobileTertiaryButtonMinSize : '28px',
+              minHeight: isMobile ? mobileTertiaryButtonMinSize : '28px',
               border: playbackSpeed !== 1.0 ? `2px solid #f39c12` : undefined,
               boxShadow: playbackSpeed !== 1.0 ? `0 0 15px #f39c1260` : undefined,
             }}
@@ -656,7 +674,7 @@ const PlaybackPanel: React.FC = () => {
             title={`Playback Speed: ${playbackSpeed.toFixed(2)}x`}
           >
             {/* Speed Gauge Icon - More Descriptive */}
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={playbackSpeed !== 1.0 ? '#f39c12' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} height={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} viewBox="0 0 24 24" fill="none" stroke={playbackSpeed !== 1.0 ? '#f39c12' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               {/* Speedometer/Gauge */}
               <path d="M12 2v4M12 18v4M2 12h4M18 12h4" opacity="0.3"/>
               <circle cx="12" cy="12" r="9" fill="none"/>

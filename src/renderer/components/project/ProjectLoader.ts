@@ -4,7 +4,7 @@
 import { useAppStore } from '../../store/store';
 import { ProjectData, Marker, GlobalControls, RecentProject } from '../../types/types';
 import { pickAudioFile, validateAudioFile } from '../audio/audioFilePicker';
-import { getDefaultZoomLevel } from '../../utils/defaultZoom';
+import { PHONE_MAX_ZOOM, getDefaultZoomLevel } from '../../utils/defaultZoom';
 
 const PROJECT_VERSION = '1.0.0';
 const RECENT_PROJECTS_KEY = 'transcribe-pro-recent-projects';
@@ -141,7 +141,7 @@ export class ProjectLoader {
       if (data.uiState && typeof data.uiState === 'object') {
         validatedUIState = {
           zoomLevel: typeof data.uiState.zoomLevel === 'number' && !isNaN(data.uiState.zoomLevel) && data.uiState.zoomLevel > 0
-            ? Math.max(1, Math.min(50, data.uiState.zoomLevel))
+            ? Math.max(1, Math.min(PHONE_MAX_ZOOM, data.uiState.zoomLevel))
             : getDefaultZoomLevel(),
           viewportStart: typeof data.uiState.viewportStart === 'number' && !isNaN(data.uiState.viewportStart) && data.uiState.viewportStart >= 0
             ? data.uiState.viewportStart

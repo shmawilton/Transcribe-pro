@@ -61,6 +61,7 @@ const MarkerPanel: React.FC = () => {
   // Mobile/tablet detection for edit popup (like speed popup)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const isTablet = windowWidth >= 768 && windowWidth <= 1024;
+  const isTinyMobile = isMobile && windowWidth <= 360;
   const isMobileOrTablet = isMobile || isTablet;
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -385,11 +386,11 @@ const MarkerPanel: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          flexDirection: isMobile ? 'column' : 'row',
-          alignItems: isMobile ? 'stretch' : 'center',
+          flexDirection: isTinyMobile ? 'row' : isMobile ? 'column' : 'row',
+          alignItems: isTinyMobile ? 'center' : isMobile ? 'stretch' : 'center',
           justifyContent: 'space-between',
-          gap: isMobile ? '0.5rem' : 0,
-          padding: isMobile ? '0.5rem 0.6rem' : '0.5rem 0.75rem',
+          gap: isTinyMobile ? '0.3rem' : isMobile ? '0.5rem' : 0,
+          padding: isTinyMobile ? '0.35rem 0.45rem' : isMobile ? '0.5rem 0.6rem' : '0.5rem 0.75rem',
           background: isLightMode ? '#e4ebf5' : '#1a1a1a',
           borderBottom: isLightMode 
             ? '1px solid rgba(166, 180, 200, 0.3)' 
@@ -399,7 +400,7 @@ const MarkerPanel: React.FC = () => {
         <div
           style={{
             color: textColor,
-            fontSize: isMobile ? '0.9rem' : '0.85rem',
+            fontSize: isTinyMobile ? '0.78rem' : isMobile ? '0.9rem' : '0.85rem',
             fontWeight: '600',
             flexShrink: 0,
           }}
@@ -411,15 +412,15 @@ const MarkerPanel: React.FC = () => {
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          gap: isMobile ? '0.4rem' : '0.35rem',
+          gap: isTinyMobile ? '0.25rem' : isMobile ? '0.4rem' : '0.35rem',
           flexWrap: 'wrap',
-          justifyContent: isMobile ? 'flex-end' : 'flex-start',
+          justifyContent: isTinyMobile ? 'flex-end' : isMobile ? 'flex-end' : 'flex-start',
         }}>
           {/* Marker navigation - show when markers exist (navigate even without selection) */}
           {sortedMarkers.length > 0 && (() => {
             const prevMarker = MarkerManager.getPreviousMarker();
             const nextMarker = MarkerManager.getNextMarker();
-            const btnSize = isMobile ? 40 : 34;
+            const btnSize = isTinyMobile ? 32 : isMobile ? 40 : 34;
             const navBtn = (onClick: () => void, title: string, guideText: string, tooltipId: string, icon: React.ReactNode, disabled?: boolean) => (
               <FirstTimeTooltip key={tooltipId} id={tooltipId} guideText={guideText} disabled={disabled} isLightMode={isLightMode}>
                 <button
@@ -488,8 +489,8 @@ const MarkerPanel: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: isMobile ? '36px' : '28px',
-                  height: isMobile ? '36px' : '28px',
+                  width: isTinyMobile ? '32px' : isMobile ? '36px' : '28px',
+                  height: isTinyMobile ? '32px' : isMobile ? '36px' : '28px',
                   touchAction: 'manipulation',
                   padding: 0,
                   background: isLightMode ? '#e4ebf5' : '#1a1a1a',
@@ -514,8 +515,8 @@ const MarkerPanel: React.FC = () => {
                 title="Deactivate marker (return to normal speed)"
               >
               <svg
-                width="18"
-                height="18"
+                width={isTinyMobile ? "15" : "18"}
+                height={isTinyMobile ? "15" : "18"}
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -539,8 +540,8 @@ const MarkerPanel: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: isMobile ? '36px' : '28px',
-            height: isMobile ? '36px' : '28px',
+            width: isTinyMobile ? '32px' : isMobile ? '36px' : '28px',
+            height: isTinyMobile ? '32px' : isMobile ? '36px' : '28px',
             touchAction: 'manipulation',
             padding: 0,
             background: isLightMode ? '#e4ebf5' : '#1a1a1a',
@@ -573,8 +574,8 @@ const MarkerPanel: React.FC = () => {
           title={audioDuration > 0 ? 'Create new marker (N)' : 'Load audio file first'}
         >
           <svg
-            width="14"
-            height="14"
+            width={isTinyMobile ? "12" : "14"}
+            height={isTinyMobile ? "12" : "14"}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
