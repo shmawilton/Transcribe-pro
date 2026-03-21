@@ -7,7 +7,7 @@ import { Marker } from '../../types/types';
 import { MarkerManager } from './MarkerManager';
 import { useAudioEngine } from '../audio/useAudioEngine';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
-import { DESKTOP_MAX_ZOOM, MOBILE_MIN_ZOOM, PHONE_MAX_ZOOM, getDefaultZoomLevel } from '../../utils/defaultZoom';
+import { DESKTOP_MAX_ZOOM, PHONE_MAX_ZOOM, getDefaultZoomLevel } from '../../utils/defaultZoom';
 
 // ===== Constants for marker layout =====
 const MARKER_HEIGHT = 28; // pixels - increased for better visibility
@@ -73,13 +73,14 @@ export function MarkerTimeline() {
   const rawViewportEnd = useAppStore((state) => state.ui.viewportEnd);
   const setViewport = useAppStore((state) => state.setViewport);
   const setZoomLevel = useAppStore((state) => state.setZoomLevel);
-  const zoomLevel = useAppStore((state) => state.ui.zoomLevel) || 1;
+  const rawZoomLevel = useAppStore((state) => state.ui.zoomLevel);
   const currentTime = useAppStore((state) => state.audio.currentTime) || 0;
   const { animateZoom } = useSmoothViewport();
   const DEFAULT_ZOOM = getDefaultZoomLevel();
-  const resolvedZoomLevel = (typeof zoomLevel === 'number' && isFinite(zoomLevel) && zoomLevel > 0)
-    ? zoomLevel
+  const resolvedZoomLevel = (typeof rawZoomLevel === 'number' && isFinite(rawZoomLevel) && rawZoomLevel > 0)
+    ? rawZoomLevel
     : DEFAULT_ZOOM;
+  const zoomLevel = resolvedZoomLevel;
   
   // Pinch-to-zoom and single-finger scroll refs
   const lastTouchDistanceRef = useRef<number | null>(null);
@@ -87,7 +88,7 @@ export function MarkerTimeline() {
   // Single-finger horizontal scroll tracking
   const singleTouchStartRef = useRef<{ x: number; vpStart: number; vpEnd: number } | null>(null);
   const isSingleTouchScrollRef = useRef(false);
-  const MOBILE_DEFAULT_ZOOM = MOBILE_MIN_ZOOM;
+  const MOBILE_DEFAULT_ZOOM = DEFAULT_ZOOM;
   
   // Clamp viewport values to current duration (handles case when new audio is shorter)
   // Also handles stale viewport values from previous audio and NaN values

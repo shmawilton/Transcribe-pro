@@ -2500,12 +2500,29 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   min-height: 156px;
   padding: 4px !important;
   margin: 4px 4px 0 !important;
-  overflow-y: scroll;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
   border-radius: 8px !important;
   box-shadow: var(--neu-flat) !important;
+}
+
+.mobile-panel.marker-panel-section > .marker-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.mobile-panel.marker-panel-section .marker-list-container {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
 }
 
 /* Marker panel scrollbar styling */
@@ -2843,9 +2860,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   .mobile-panel.marker-panel-section {
     min-height: 156px !important;
     max-height: none !important;
-    overflow-y: scroll !important;
-    -webkit-overflow-scrolling: touch !important;
-    touch-action: pan-y;
+    overflow: hidden !important;
   }
   
   .mobile-panel.marker-panel-section button {
@@ -2967,14 +2982,16 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
     height: auto !important;
     max-height: none !important;
     margin: 2px 4px 8px !important;
-    overflow-y: scroll !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
     overflow-x: hidden !important;
-    display: block !important;
   }
 
-  .mobile-panel.marker-panel-section > * {
-    flex: initial !important;
+  .mobile-panel.marker-panel-section > .marker-panel {
+    flex: 1 1 auto !important;
     min-height: 156px !important;
+    height: 100% !important;
   }
 
   .mobile-panel.marker-panel-section .marker-list-container {

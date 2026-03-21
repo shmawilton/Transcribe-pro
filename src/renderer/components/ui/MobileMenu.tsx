@@ -39,8 +39,8 @@ const MobileMenu: React.FC = () => {
   const currentTime = useAppStore((state) => state.audio.currentTime) || 0;
   const undo = useAppStore((state) => state.undo);
   const redo = useAppStore((state) => state.redo);
-  const canUndo = useAppStore((state) => state.canUndo);
-  const canRedo = useAppStore((state) => state.canRedo);
+  const canUndo = useAppStore((state) => state.undoHistory.length > 0);
+  const canRedo = useAppStore((state) => state.redoHistory.length > 0);
   const setIsSettingsModalOpen = useAppStore((state) => state.setIsSettingsModalOpen);
   
   // Pitch and playback rate
@@ -508,9 +508,9 @@ const MobileMenu: React.FC = () => {
         <div style={{ display: 'flex', gap: menuGap, alignItems: 'center', flex: 1, justifyContent: 'space-between', minWidth: 0 }}>
           {/* Undo */}
           <button
-            onClick={() => canUndo() && undo()}
-            disabled={!canUndo()}
-            style={btnStyle(false, !canUndo())}
+            onClick={() => canUndo && undo()}
+            disabled={!canUndo}
+            style={btnStyle(false, !canUndo)}
             title="Undo"
           >
             <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 16 16" fill="currentColor">
@@ -521,9 +521,9 @@ const MobileMenu: React.FC = () => {
           
           {/* Redo */}
           <button
-            onClick={() => canRedo() && redo()}
-            disabled={!canRedo()}
-            style={btnStyle(false, !canRedo())}
+            onClick={() => canRedo && redo()}
+            disabled={!canRedo}
+            style={btnStyle(false, !canRedo)}
             title="Redo"
           >
             <svg width={menuIconSize} height={menuIconSize} viewBox="0 0 16 16" fill="currentColor">

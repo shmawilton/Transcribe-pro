@@ -5,7 +5,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useAppStore } from '../../store/store';
 import { useAudioEngine } from './useAudioEngine';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
-import { DESKTOP_MAX_ZOOM, MOBILE_MIN_ZOOM, PHONE_MAX_ZOOM, getDefaultZoomLevel } from '../../utils/defaultZoom';
+import { DESKTOP_MAX_ZOOM, PHONE_MAX_ZOOM, getDefaultZoomLevel } from '../../utils/defaultZoom';
 
 /**
  * Peak data structure
@@ -590,7 +590,7 @@ const Waveform: React.FC = () => {
     const visibleDuration = vpEnd > vpStart ? vpEnd - vpStart : actualDuration;
     
     // Get cached peaks for the current viewport - regenerates when zoomed
-    const peaks = getPeaks(bufferToUse, usableWidth, zoomLevel, vpStart, vpEnd > vpStart ? vpEnd : actualDuration);
+    const peaks = getPeaks(bufferToUse, usableWidth, resolvedZoomLevel, vpStart, vpEnd > vpStart ? vpEnd : actualDuration);
     
     if (!peaks || (Array.isArray(peaks) && peaks.length === 0)) {
       return;
@@ -883,7 +883,7 @@ const Waveform: React.FC = () => {
     // Reset transform and redraw
     ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     drawWaveformWithBuffer(ctx, canvasSize.width, canvasSize.height, audioBuffer);
-  }, [audioBuffer, zoomLevel, canvasSize, duration, animationTick, activeMarkerId, markers]); // Redraw when active marker or markers array changes
+  }, [audioBuffer, resolvedZoomLevel, canvasSize, duration, animationTick, activeMarkerId, markers]); // Redraw when active marker or markers array changes
 
   /**
    * Animation frame loop for smooth playback updates
@@ -1032,7 +1032,7 @@ const Waveform: React.FC = () => {
    * Only scrolls when playhead goes out of view (not when it's still visible)
    */
   useEffect(() => {
-    if (!isPlaying || zoomLevel <= 1 || duration <= 0) return;
+    if (!isPlaying || resolvedZoomLevel <= 1 || duration <= 0) return;
     
     const vpStart = viewportStart;
     const vpEnd = viewportEnd > 0 ? viewportEnd : duration;
@@ -1053,11 +1053,11 @@ const Waveform: React.FC = () => {
       // Use smooth animation for auto-scroll
       animateScrollToTime(currentTime, { duration: 200, easing: 'easeOutQuad' });
     }
-  }, [currentTime, isPlaying, zoomLevel, viewportStart, viewportEnd, duration, animateScrollToTime]);
+  }, [currentTime, isPlaying, resolvedZoomLevel, viewportStart, viewportEnd, duration, animateScrollToTime]);
 
   // Initial zoom defaults by device: desktop=5x, mobile/tablet=50x
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  const MOBILE_DEFAULT_ZOOM = MOBILE_MIN_ZOOM;
+  const MOBILE_DEFAULT_ZOOM = DEFAULT_ZOOM;
 
   /**
    * Initialize viewport when duration changes (new audio loaded)
@@ -1066,13 +1066,27 @@ const Waveform: React.FC = () => {
    * - mobile/tablet/PWA web: 50x
    */
   useEffect(() => {
-    if (duration > 0 && (viewportEnd === 0 || viewportEnd > duration)) {
-      const initialZoom = resolvedZoomLevel;
-      const initialEnd = duration / initialZoom;
-      setViewport(0, initialEnd);
-      setZoomLevel(initialZoom);
+    if (duration <= 0) return;
+
+    const initialZoom = resolvedZoomLevel;
+    const expectedVisibleDuration = duration / initialZoom;
+    const currentVisibleDuration = viewportEnd > viewportStart ? viewportEnd - viewportStart : 0;
+    const viewportMissing = viewportEnd === 0 || viewportEnd > duration || currentVisibleDuration <= 0;
+    const viewportDoesNotMatchZoom =
+      initialZoom > 1 &&
+      viewportStart <= 0.01 &&
+      currentVisibleDuration > expectedVisibleDuration * 1.25;
+
+    if (viewportMissing || viewportDoesNotMatchZoom) {
+      const initialEnd = Math.min(duration, expectedVisibleDuration);
+      if (initialEnd > 0) {
+        setViewport(0, initialEnd);
+      }
+      if (zoomLevel !== initialZoom) {
+        setZoomLevel(initialZoom);
+      }
     }
-  }, [duration, viewportEnd, setViewport, setZoomLevel, resolvedZoomLevel]);
+  }, [duration, viewportStart, viewportEnd, setViewport, setZoomLevel, resolvedZoomLevel, zoomLevel]);
   
   // Pinch-to-zoom and single-finger scroll for mobile/tablet - using refs for native event listeners
   const lastTouchDistanceRef = useRef<number | null>(null);
@@ -1085,16 +1099,16 @@ const Waveform: React.FC = () => {
   const durationRef = useRef(duration);
   const viewportStartRef = useRef(viewportStart);
   const viewportEndRef = useRef(viewportEnd);
-  const zoomLevelRef = useRef(zoomLevel);
+  const zoomLevelRef = useRef(resolvedZoomLevel);
   const currentTimeRef = useRef(currentTime);
   
   useEffect(() => {
     durationRef.current = duration;
     viewportStartRef.current = viewportStart;
     viewportEndRef.current = viewportEnd;
-    zoomLevelRef.current = zoomLevel;
+    zoomLevelRef.current = resolvedZoomLevel;
     currentTimeRef.current = currentTime;
-  }, [duration, viewportStart, viewportEnd, zoomLevel, currentTime]);
+  }, [duration, viewportStart, viewportEnd, resolvedZoomLevel, currentTime]);
   
   // Use native event listeners for pinch-to-zoom (required for preventDefault)
   useEffect(() => {
@@ -1248,7 +1262,7 @@ const Waveform: React.FC = () => {
         const dur = durationRef.current;
         if (dur <= 0) return;
         
-        const currentZoom = zoomLevelRef.current || 1;
+        const currentZoom = zoomLevelRef.current || DEFAULT_ZOOM;
         const zoomFactor = deltaY > 0 ? 1 / 1.6 : 1.6;
         let newZoom = currentZoom * zoomFactor;
         newZoom = Math.max(1, Math.min(DESKTOP_MAX_ZOOM, newZoom));
@@ -1420,6 +1434,4 @@ const Waveform: React.FC = () => {
 };
 
 export default Waveform;
-
-
 
