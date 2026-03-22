@@ -658,7 +658,7 @@ const MarkerPanel: React.FC = () => {
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
           overscrollBehaviorY: 'contain',
-          padding: '0.5rem',
+          padding: isMobile ? '0.25rem 0.3rem' : '0.5rem',
           minHeight: 0,
         }}
       >
@@ -722,9 +722,9 @@ const MarkerPanel: React.FC = () => {
                 flexDirection: 'row',
                 alignItems: 'center',
                 flexWrap: isMobile ? 'wrap' : 'nowrap',
-                gap: isMobile ? '0.4rem' : '0.75rem',
-                padding: isMobile ? '0.6rem 0.65rem' : '0.75rem 1rem',
-                marginBottom: isMobile ? '0.4rem' : '0.5rem',
+                gap: isMobile ? '0.3rem' : '0.75rem',
+                padding: isMobile ? '0.45rem 0.55rem' : '0.75rem 1rem',
+                marginBottom: isMobile ? '0.2rem' : '0.5rem',
                 // Active marker highlighting - Neumorphic
                 background: 'var(--neu-bg-base)',
                 border: 'none',
@@ -997,11 +997,11 @@ const MarkerPanel: React.FC = () => {
               <div style={{ 
                 display: 'flex', 
                 flexDirection: 'column',
-                gap: '0.5rem',
+                gap: '0.3rem',
                 width: '100%',
               }}>
                 {/* Row 1: Color + Name + Edit + Delete */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', minWidth: 0 }}>
                   <div
                     style={{
                       width: '16px',
@@ -1071,7 +1071,7 @@ const MarkerPanel: React.FC = () => {
                   </button>
                 </div>
                 {/* Row 2: Time range + Speed + Loop */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                   <div style={{ color: textSecondary, fontFamily: 'monospace', fontSize: '0.8rem' }}>
                     {formatTime(marker.start)} — {formatTime(marker.end)}
                   </div>

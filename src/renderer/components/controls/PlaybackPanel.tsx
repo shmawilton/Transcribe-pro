@@ -24,7 +24,8 @@ const PlaybackPanel: React.FC = () => {
     seek,
     resumeAudioContext,
     setSpeed,
-    getSpeed
+    setLoop,
+    disableLoop,
   } = useAudioEngine();
   
   const theme = useAppStore((state) => state.theme);
@@ -56,6 +57,13 @@ const PlaybackPanel: React.FC = () => {
   // Get isAudioLoaded and isPlaying from store for reactivity
   const isAudioLoaded = audio.isLoaded;
   const isPlaying = audio.isPlaying;
+  const markers = useAppStore((state) => state.markers);
+  const selectedMarkerId = useAppStore((state) => state.ui.selectedMarkerId);
+  const activeMarker = selectedMarkerId
+    ? markers.find((marker) => marker.id === selectedMarkerId) ?? null
+    : null;
+  const hasMarkers = markers.length > 0;
+  const isActiveMarkerLooping = !!activeMarker?.loop;
   
   const storedSpeed = useAppStore((state) => state.globalControls.playbackRate);
   const [playbackSpeed, setPlaybackSpeed] = useState(storedSpeed || 1.0);
@@ -163,10 +171,53 @@ const PlaybackPanel: React.FC = () => {
     }
   };
 
+  const handlePlayPauseToggle = () => {
+    if (!isAudioLoaded) return;
+    if (isPlaying) {
+      handlePause();
+      return;
+    }
+    void handlePlay();
+  };
+
   const handleStop = () => {
     try {
       stop();
     } catch (err) {
+    }
+  };
+
+  const handleMarkerNavigation = (direction: 'previous' | 'next') => {
+    if (!hasMarkers) return;
+
+    try {
+      const marker = direction === 'previous'
+        ? MarkerManager.getPreviousMarker()
+        : MarkerManager.getNextMarker();
+
+      if (!marker) return;
+
+      void MarkerManager.setActiveMarker(marker.id, {
+        seekToMarker: true,
+        audioEngine: { seek, setLoop, disableLoop },
+      });
+    } catch (_err) {
+    }
+  };
+
+  const handleToggleActiveMarkerLoop = () => {
+    if (!activeMarker) return;
+
+    try {
+      const nextLoop = !activeMarker.loop;
+      MarkerManager.updateMarker(activeMarker.id, { loop: nextLoop });
+
+      if (nextLoop) {
+        setLoop(activeMarker.start, activeMarker.end);
+      } else {
+        disableLoop();
+      }
+    } catch (_err) {
     }
   };
 
@@ -224,6 +275,10 @@ const PlaybackPanel: React.FC = () => {
   const mobileTimeIconSize = isTinyMobile ? '9' : isCompactMobile ? '10' : '12';
   const mobileTimeLabelSize = isTinyMobile ? '0.62rem' : isCompactMobile ? '0.66rem' : '0.72rem';
   const mobileTransportGap = isTinyMobile ? '2px' : isCompactMobile ? '4px' : '6px';
+  const mobilePrimaryIconSize = isTinyMobile ? '17' : isCompactMobile ? '19' : '21';
+  const mobileSecondaryIconSize = isTinyMobile ? '16' : isCompactMobile ? '18' : '20';
+  const mobileTransportStackGap = isTinyMobile ? '3px' : isCompactMobile ? '4px' : '5px';
+  const markerLoopColor = isActiveMarkerLooping ? KENYAN_GREEN : KENYAN_RED;
 
   // Neumorphic button style - responsive size for good UX
   // Larger buttons on mobile for better touch targets (44-52px)
@@ -526,6 +581,23 @@ const PlaybackPanel: React.FC = () => {
         flexWrap: isTinyMobile ? 'nowrap' : undefined,
         justifyContent: isTinyMobile ? 'space-between' : undefined,
       }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: isMobile ? mobileTransportStackGap : 0,
+          width: '100%',
+          minWidth: 0,
+        }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: isMobile ? mobileTransportGap : 'clamp(4px, 1.5vw, 6px)',
+          width: isMobile ? '100%' : 'auto',
+          minWidth: 0,
+        }}>
         {/* Skip Backward -5s - Neumorphic */}
         <button
           onClick={handleSkipBackward}
@@ -545,58 +617,97 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Skip -5 seconds"
         >
-          <svg width={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} height={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} viewBox="0 0 24 24" fill="currentColor">
+          <svg width={mobileSecondaryIconSize} height={mobileSecondaryIconSize} viewBox="0 0 24 24" fill="currentColor">
             <path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/>
           </svg>
         </button>
 
-        {/* Play Button - Neumorphic */}
-        <button
-          onClick={handlePlay}
-          disabled={!isAudioLoaded || isPlaying}
-          style={glassButtonStyle(false, !isAudioLoaded || isPlaying, KENYAN_GREEN)}
-          onMouseEnter={(e) => {
-            if (isAudioLoaded && !isPlaying) {
-              e.currentTarget.style.transform = 'scale(1.08)';
-              e.currentTarget.style.boxShadow = isLightMode
-                ? '8px 8px 16px rgba(163, 177, 198, 0.5), -8px -8px 16px rgba(255, 255, 255, 0.8), 0 0 20px rgba(0, 102, 68, 0.3)'
-                : '8px 8px 16px rgba(0, 0, 0, 0.4), -6px -6px 12px rgba(50, 50, 50, 0.3), 0 0 20px rgba(0, 102, 68, 0.3)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = isLightMode
-              ? '6px 6px 12px rgba(163, 177, 198, 0.5), -6px -6px 12px rgba(255, 255, 255, 0.8)'
-              : '6px 6px 12px rgba(0, 0, 0, 0.4), -4px -4px 10px rgba(50, 50, 50, 0.2)';
-          }}
-          title="Play"
-        >
-          <svg width={isTinyMobile ? "18" : isCompactMobile ? "20" : "22"} height={isTinyMobile ? "18" : isCompactMobile ? "20" : "22"} viewBox="0 0 24 24" fill={KENYAN_GREEN}>
-            <polygon points="5 3 19 12 5 21 5 3"/>
-          </svg>
-        </button>
-        
-        {/* Pause Button - Neumorphic */}
-        <button
-          onClick={handlePause}
-          disabled={!isAudioLoaded || !isPlaying}
-          style={glassButtonStyle(isPlaying, !isAudioLoaded || !isPlaying, textColor)}
-          onMouseEnter={(e) => {
-            if (isAudioLoaded && isPlaying) {
-              e.currentTarget.style.transform = 'scale(1.08)';
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-          }}
-          title="Pause"
-        >
-          <svg width={isTinyMobile ? "17" : isCompactMobile ? "19" : "21"} height={isTinyMobile ? "17" : isCompactMobile ? "19" : "21"} viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16"/>
-            <rect x="14" y="4" width="4" height="16"/>
-          </svg>
-        </button>
-        
+        {isMobile ? (
+          <>
+            <button
+              onClick={() => handleMarkerNavigation('previous')}
+              disabled={!hasMarkers}
+              style={{
+                ...glassButtonStyle(false, !hasMarkers, KENYAN_GREEN),
+                width: mobileSecondaryButtonSize,
+                height: mobileSecondaryButtonSize,
+                minWidth: mobileSecondaryButtonMinSize,
+                minHeight: mobileSecondaryButtonMinSize,
+              }}
+              title={hasMarkers ? 'Previous marker' : 'No markers available'}
+            >
+              <svg width={mobileSecondaryIconSize} height={mobileSecondaryIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+            </button>
+
+            <button
+              onClick={handlePlayPauseToggle}
+              disabled={!isAudioLoaded}
+              style={glassButtonStyle(isPlaying, !isAudioLoaded, KENYAN_GREEN)}
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? (
+                <svg width={mobilePrimaryIconSize} height={mobilePrimaryIconSize} viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="4" width="4" height="16"/>
+                  <rect x="14" y="4" width="4" height="16"/>
+                </svg>
+              ) : (
+                <svg width={mobilePrimaryIconSize} height={mobilePrimaryIconSize} viewBox="0 0 24 24" fill={KENYAN_GREEN}>
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+              )}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={handlePlay}
+              disabled={!isAudioLoaded || isPlaying}
+              style={glassButtonStyle(false, !isAudioLoaded || isPlaying, KENYAN_GREEN)}
+              onMouseEnter={(e) => {
+                if (isAudioLoaded && !isPlaying) {
+                  e.currentTarget.style.transform = 'scale(1.08)';
+                  e.currentTarget.style.boxShadow = isLightMode
+                    ? '8px 8px 16px rgba(163, 177, 198, 0.5), -8px -8px 16px rgba(255, 255, 255, 0.8), 0 0 20px rgba(0, 102, 68, 0.3)'
+                    : '8px 8px 16px rgba(0, 0, 0, 0.4), -6px -6px 12px rgba(50, 50, 50, 0.3), 0 0 20px rgba(0, 102, 68, 0.3)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = isLightMode
+                  ? '6px 6px 12px rgba(163, 177, 198, 0.5), -6px -6px 12px rgba(255, 255, 255, 0.8)'
+                  : '6px 6px 12px rgba(0, 0, 0, 0.4), -4px -4px 10px rgba(50, 50, 50, 0.2)';
+              }}
+              title="Play"
+            >
+              <svg width={isTinyMobile ? "18" : isCompactMobile ? "20" : "22"} height={isTinyMobile ? "18" : isCompactMobile ? "20" : "22"} viewBox="0 0 24 24" fill={KENYAN_GREEN}>
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+            </button>
+
+            <button
+              onClick={handlePause}
+              disabled={!isAudioLoaded || !isPlaying}
+              style={glassButtonStyle(isPlaying, !isAudioLoaded || !isPlaying, textColor)}
+              onMouseEnter={(e) => {
+                if (isAudioLoaded && isPlaying) {
+                  e.currentTarget.style.transform = 'scale(1.08)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title="Pause"
+            >
+              <svg width={isTinyMobile ? "17" : isCompactMobile ? "19" : "21"} height={isTinyMobile ? "17" : isCompactMobile ? "19" : "21"} viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16"/>
+                <rect x="14" y="4" width="4" height="16"/>
+              </svg>
+            </button>
+          </>
+        )}
+
         {/* Stop Button - Neumorphic */}
         <button
           onClick={handleStop}
@@ -618,10 +729,52 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Stop"
         >
-          <svg width={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} height={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} viewBox="0 0 24 24" fill={KENYAN_RED}>
+          <svg width={isMobile ? mobileSecondaryIconSize : "20"} height={isMobile ? mobileSecondaryIconSize : "20"} viewBox="0 0 24 24" fill={KENYAN_RED}>
             <rect x="6" y="6" width="12" height="12" rx="2"/>
           </svg>
         </button>
+
+        {isMobile && (
+          <>
+            <button
+              onClick={() => handleMarkerNavigation('next')}
+              disabled={!hasMarkers}
+              style={{
+                ...glassButtonStyle(false, !hasMarkers, KENYAN_GREEN),
+                width: mobileSecondaryButtonSize,
+                height: mobileSecondaryButtonSize,
+                minWidth: mobileSecondaryButtonMinSize,
+                minHeight: mobileSecondaryButtonMinSize,
+              }}
+              title={hasMarkers ? 'Next marker' : 'No markers available'}
+            >
+              <svg width={mobileSecondaryIconSize} height={mobileSecondaryIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+
+            <button
+              onClick={handleToggleActiveMarkerLoop}
+              disabled={!activeMarker}
+              style={{
+                ...glassButtonStyle(isActiveMarkerLooping, !activeMarker, markerLoopColor),
+                width: mobileSecondaryButtonSize,
+                height: mobileSecondaryButtonSize,
+                minWidth: mobileSecondaryButtonMinSize,
+                minHeight: mobileSecondaryButtonMinSize,
+                border: `2px solid ${markerLoopColor}`,
+              }}
+              title={activeMarker ? `${isActiveMarkerLooping ? 'Disable' : 'Enable'} loop for active marker` : 'Select a marker to loop it'}
+            >
+              <svg width={mobileSecondaryIconSize} height={mobileSecondaryIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 1l4 4-4 4"/>
+                <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                <path d="M7 23l-4-4 4-4"/>
+                <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+              </svg>
+            </button>
+          </>
+        )}
 
         {/* Skip Forward +5s - Neumorphic */}
         <button
@@ -642,13 +795,14 @@ const PlaybackPanel: React.FC = () => {
           }}
           title="Skip +5 seconds"
         >
-          <svg width={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} height={isTinyMobile ? "16" : isCompactMobile ? "18" : "20"} viewBox="0 0 24 24" fill="currentColor">
+          <svg width={mobileSecondaryIconSize} height={mobileSecondaryIconSize} viewBox="0 0 24 24" fill="currentColor">
             <path d="M13 6v12l8.5-6L13 6zM4 18l8.5-6L4 6v12z"/>
           </svg>
         </button>
+        </div>
 
         {/* Speed Control Button */}
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', width: isMobile ? '100%' : 'auto' }}>
           <button
             onClick={() => setShowSpeedPopup(!showSpeedPopup)}
             disabled={!isAudioLoaded}
@@ -857,6 +1011,7 @@ const PlaybackPanel: React.FC = () => {
               </div>
             );
           })()}
+        </div>
         </div>
       </div>
 

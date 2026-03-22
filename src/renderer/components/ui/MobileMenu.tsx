@@ -417,6 +417,9 @@ const MobileMenu: React.FC = () => {
 
   const isCompactMobile = windowWidth <= 420;
   const edgeInset = isCompactMobile ? '4px' : '6px';
+  const safeMenuTop = `calc(env(safe-area-inset-top, 0px) + ${edgeInset})`;
+  const safeMenuLeft = `calc(env(safe-area-inset-left, 0px) + ${edgeInset})`;
+  const safeMenuRight = `calc(env(safe-area-inset-right, 0px) + ${edgeInset})`;
   const menuGap = isCompactMobile ? '4px' : '8px';
   const menuButtonSize = isCompactMobile ? '38px' : '42px';
   const menuButtonMinSize = isCompactMobile ? '36px' : '38px';
@@ -425,7 +428,9 @@ const MobileMenu: React.FC = () => {
   const menuBarPadding = isCompactMobile ? '8px 8px' : '10px 12px';
   const menuBarMinHeight = isCompactMobile ? '56px' : '62px';
   const expandedPanelPadding = isCompactMobile ? '12px' : '16px';
-  const expandedPanelMaxHeight = isCompactMobile ? 'calc(100dvh - 74px)' : 'min(72vh, calc(100dvh - 78px))';
+  const expandedPanelMaxHeight = isCompactMobile
+    ? 'calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 74px)'
+    : 'min(72vh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 78px))';
   const sectionLabelFontSize = isCompactMobile ? '11px' : '12px';
   const controlRowPadding = isCompactMobile ? '8px 10px' : '10px 14px';
   const controlLabelFontSize = isCompactMobile ? '0.82rem' : '0.9rem';
@@ -456,9 +461,9 @@ const MobileMenu: React.FC = () => {
       ref={menuRef}
       style={{
         position: 'fixed',
-        top: edgeInset,
-        left: edgeInset,
-        right: edgeInset,
+        top: safeMenuTop,
+        left: safeMenuLeft,
+        right: safeMenuRight,
         zIndex: 10000,
         display: 'flex',
         flexDirection: 'column',

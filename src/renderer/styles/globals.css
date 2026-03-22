@@ -2383,9 +2383,9 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 /* Waveform section on mobile – 50% taller for easier zoom (was 150–250px, now 225–375px) */
 .mobile-panel.waveform-mobile-section {
   flex: 0 0 auto;
-  height: clamp(105px, 15vh, 124px);
-  min-height: clamp(105px, 15vh, 124px);
-  max-height: 128px;
+  height: clamp(131px, 19vh, 155px);
+  min-height: clamp(131px, 19vh, 155px);
+  max-height: 160px;
   padding: 4px 4px 0 4px;
   margin: 0 4px !important;
   overflow: hidden;
@@ -2416,7 +2416,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 /* Timeline section on mobile – container 1.5× waveform height (150px → 225px), fluid: grows with content; no gap above (touches waveform) */
 .mobile-panel.timeline-mobile-section {
   flex: 0 1 auto;
-  min-height: 176px;
+  min-height: 220px;
   max-height: none;
   padding: 0 !important;
   padding-left: 4px !important;
@@ -2433,7 +2433,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 /* Inner wrapper – same min-height so timeline isn’t cut off; grows with content */
 .mobile-panel.timeline-mobile-section > div {
   flex: 1 0 auto;
-  min-height: 176px;
+  min-height: 220px;
   height: auto;
   max-height: none;
   width: 100% !important;
@@ -2442,7 +2442,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 
 /* Timeline element inside container: allow growth, never cap (overrides inline and other media rules) */
 .mobile-panel.timeline-mobile-section .marker-timeline {
-  min-height: 176px !important;
+  min-height: 220px !important;
   height: auto !important;
   max-height: none !important;
   overflow: visible !important;
@@ -2729,7 +2729,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 
   /* Inside timeline section: allow growth so markers aren’t cut off (overrides fill above) */
   .mobile-panel.timeline-mobile-section .marker-timeline {
-    min-height: 176px !important;
+    min-height: 220px !important;
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
@@ -2955,24 +2955,24 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   }
 
   .mobile-panel.waveform-mobile-section {
-    height: clamp(82px, 11vh, 92px) !important;
-    min-height: clamp(82px, 11vh, 92px) !important;
-    max-height: 92px !important;
+    height: clamp(103px, 14vh, 115px) !important;
+    min-height: clamp(103px, 14vh, 115px) !important;
+    max-height: 115px !important;
   }
 
   .mobile-panel.timeline-mobile-section {
-    flex: 0 0 136px !important;
-    min-height: 136px !important;
-    height: 136px !important;
-    max-height: 136px !important;
+    flex: 0 0 170px !important;
+    min-height: 170px !important;
+    height: 170px !important;
+    max-height: 170px !important;
     overflow: hidden !important;
   }
 
   .mobile-panel.timeline-mobile-section > div,
   .mobile-panel.timeline-mobile-section .marker-timeline {
-    min-height: 136px !important;
-    height: 136px !important;
-    max-height: 136px !important;
+    min-height: 170px !important;
+    height: 170px !important;
+    max-height: 170px !important;
     overflow: hidden !important;
   }
 
@@ -2995,7 +2995,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   }
 
   .mobile-panel.marker-panel-section .marker-list-container {
-    padding: 0.35rem !important;
+    padding: 0.2rem 0.25rem !important;
   }
 }
 
