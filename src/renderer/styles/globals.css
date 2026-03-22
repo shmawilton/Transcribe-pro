@@ -2383,9 +2383,9 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 /* Waveform section on mobile – 50% taller for easier zoom (was 150–250px, now 225–375px) */
 .mobile-panel.waveform-mobile-section {
   flex: 0 0 auto;
-  height: clamp(131px, 19vh, 155px);
-  min-height: clamp(131px, 19vh, 155px);
-  max-height: 160px;
+  height: clamp(145px, 21vh, 172px);
+  min-height: clamp(145px, 21vh, 172px);
+  max-height: 176px;
   padding: 4px 4px 0 4px;
   margin: 0 4px !important;
   overflow: hidden;
@@ -2955,9 +2955,9 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
   }
 
   .mobile-panel.waveform-mobile-section {
-    height: clamp(103px, 14vh, 115px) !important;
-    min-height: clamp(103px, 14vh, 115px) !important;
-    max-height: 115px !important;
+    height: clamp(114px, 15.5vh, 128px) !important;
+    min-height: clamp(114px, 15.5vh, 128px) !important;
+    max-height: 128px !important;
   }
 
   .mobile-panel.timeline-mobile-section {
