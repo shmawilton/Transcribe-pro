@@ -15,6 +15,8 @@ import { MOBILE_MIN_ZOOM, getDefaultZoomLevel, getMaxZoomLevel } from '../../uti
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
 const KENYAN_GREEN = '#006644';
+const PITCH_PRESETS = [-2, -1, 0, 1, 2] as const;
+const PITCH_FINE_STEP = 0.1;
 
 // PWA install prompt interface
 interface BeforeInstallPromptEvent extends Event {
@@ -178,23 +180,17 @@ const MobileMenu: React.FC = () => {
     animateZoom(MIN_ZOOM, undefined, { duration: 300, easing: 'easeOutCubic' });
   };
   
-  // Pitch handlers - matching desktop behavior (±2 semitones range, 0.01 step)
-  // Uses audio engine's setPitch (same as desktop for proper audio processing)
-  const handlePitchUp = () => {
+  // Pitch handlers - direct semitone jumps for faster mobile access
+  const handlePitchPreset = (targetPitch: number) => {
     if (!isAudioLoaded || isPitchProcessing) return;
-    const newPitch = Math.min(Math.round((pitch + 0.01) * 100) / 100, 2);
-    setAudioPitch(newPitch); // Use audio engine's setPitch
+    const clampedPitch = Math.max(-2, Math.min(2, Math.round(targetPitch * 100) / 100));
+    setAudioPitch(clampedPitch);
   };
-  
-  const handlePitchDown = () => {
+
+  const handlePitchStep = (delta: number) => {
     if (!isAudioLoaded || isPitchProcessing) return;
-    const newPitch = Math.max(Math.round((pitch - 0.01) * 100) / 100, -2);
-    setAudioPitch(newPitch); // Use audio engine's setPitch
-  };
-  
-  const handlePitchReset = () => {
-    if (!isAudioLoaded || isPitchProcessing) return;
-    setAudioPitch(0); // Use audio engine's setPitch
+    const nextPitch = Math.max(-2, Math.min(2, Math.round((pitch + delta) * 100) / 100));
+    setAudioPitch(nextPitch);
   };
   
   // Mute toggle handler
@@ -219,12 +215,16 @@ const MobileMenu: React.FC = () => {
     handleVolumeChange(volume + step);
   };
   
-  // Format pitch display (100% = 1 semitone) - matches GlobalControlsPanel "Original" for 0
   const formatPitchDisplay = (value: number): string => {
-    if (value === 0) return 'Original';
-    const pct = Math.round(value * 100);
-    const sign = pct > 0 ? '+' : '';
-    return `${sign}${pct}%`;
+    if (Math.abs(value) < 0.005) return '0 st';
+    const formatted = Math.abs(value % 1) < 0.005 ? value.toFixed(0) : value.toFixed(1);
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${formatted} st`;
+  };
+
+  const formatPitchPresetLabel = (value: number): string => {
+    if (value === 0) return '0';
+    return value > 0 ? `+${value}` : `${value}`;
   };
   
   const handleNewProject = async () => {
@@ -646,64 +646,112 @@ const MobileMenu: React.FC = () => {
               Audio
             </div>
             
-            {/* Pitch Control - Up/Down arrows + normalization display (matches GlobalControlsPanel) */}
+            {/* Pitch Control - responsive fine adjust row plus preset grid */}
             <div style={{ 
               display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'space-between',
+              flexDirection: 'column',
               padding: controlRowPadding,
               gap: '10px',
-              flexWrap: 'wrap',
             }}>
-              <span style={{ fontSize: controlLabelFontSize, color: textColor, fontWeight: 500 }}>Pitch</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                {/* Down arrow - lower pitch */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: controlLabelFontSize, color: textColor, fontWeight: 500 }}>Pitch</span>
+              </div>
+              <div style={{ 
+                display: 'grid',
+                gridTemplateColumns: `${menuButtonSize} minmax(0, 1fr) ${menuButtonSize}`,
+                gap: '8px',
+                alignItems: 'center',
+                width: '100%',
+              }}>
                 <button
-                  onClick={handlePitchDown}
+                  onClick={() => handlePitchStep(-PITCH_FINE_STEP)}
                   disabled={!isAudioLoaded || isPitchProcessing || pitch <= -2}
-                  style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch <= -2)}
-                  title="Lower pitch by 1% (0.01 semitone)"
+                  style={{
+                    ...btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch <= -2),
+                    width: menuButtonSize,
+                    minWidth: menuButtonMinSize,
+                    color: KENYAN_RED,
+                    border: `1px solid ${KENYAN_RED}33`,
+                  }}
+                  title="Decrease pitch by 0.1 st"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 5v14" />
                     <path d="M19 12l-7 7-7-7" />
                   </svg>
                 </button>
-                <span style={{ 
-                  fontSize: controlLabelFontSize, 
-                  fontWeight: 700, 
-                  color: pitch !== 0 ? (pitch > 0 ? KENYAN_GREEN : KENYAN_RED) : textColor,
-                  minWidth: '72px',
-                  textAlign: 'center',
+                <div style={{
+                  minWidth: 0,
+                  minHeight: menuButtonSize,
+                  borderRadius: '10px',
+                  background: isLightMode
+                    ? `linear-gradient(135deg, ${pitch !== 0 ? (pitch > 0 ? KENYAN_GREEN : KENYAN_RED) : '#1a1a1a'}15, rgba(255, 255, 255, 0.65))`
+                    : `linear-gradient(135deg, ${pitch !== 0 ? (pitch > 0 ? KENYAN_GREEN : KENYAN_RED) : '#ffffff'}18, rgba(255, 255, 255, 0.05))`,
+                  border: `1px solid ${pitch !== 0 ? (pitch > 0 ? `${KENYAN_GREEN}33` : `${KENYAN_RED}33`) : (isLightMode ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)')}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 10px',
                 }}>
-                  {isPitchProcessing ? '...' : formatPitchDisplay(pitch)}
-                </span>
-                {/* Up arrow - raise pitch */}
+                  <span style={{ 
+                    fontSize: controlLabelFontSize, 
+                    fontWeight: 700, 
+                    color: pitch !== 0 ? (pitch > 0 ? KENYAN_GREEN : KENYAN_RED) : textColor,
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {isPitchProcessing ? '...' : formatPitchDisplay(pitch)}
+                  </span>
+                </div>
                 <button
-                  onClick={handlePitchUp}
+                  onClick={() => handlePitchStep(PITCH_FINE_STEP)}
                   disabled={!isAudioLoaded || isPitchProcessing || pitch >= 2}
-                  style={btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch >= 2)}
-                  title="Raise pitch by 1% (0.01 semitone)"
+                  style={{
+                    ...btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch >= 2),
+                    width: menuButtonSize,
+                    minWidth: menuButtonMinSize,
+                    color: KENYAN_GREEN,
+                    border: `1px solid ${KENYAN_GREEN}33`,
+                  }}
+                  title="Increase pitch by 0.1 st"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 19V5" />
                     <path d="M5 12l7-7 7 7" />
                   </svg>
                 </button>
-                <button
-                  onClick={handlePitchReset}
-                  disabled={!isAudioLoaded || isPitchProcessing || pitch === 0}
-                  style={{ 
-                    ...btnStyle(false, !isAudioLoaded || isPitchProcessing || pitch === 0),
-                    fontSize: 'clamp(11px, 3vw, 12px)',
-                    fontWeight: 600,
-                    width: 'auto',
-                    padding: '0 10px',
-                    minWidth: '48px',
-                  }}
-                >
-                  Reset
-                </button>
+              </div>
+              <div style={{ 
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(44px, 1fr))',
+                gap: '6px',
+                width: '100%',
+              }}>
+                {PITCH_PRESETS.map((preset) => {
+                  const isActivePreset = Math.abs(pitch - preset) < 0.005;
+                  const presetColor = preset === 0 ? textColor : preset > 0 ? KENYAN_GREEN : KENYAN_RED;
+                  return (
+                    <button
+                      key={preset}
+                      onClick={() => handlePitchPreset(preset)}
+                      disabled={!isAudioLoaded || isPitchProcessing}
+                      style={{
+                        ...btnStyle(isActivePreset, !isAudioLoaded || isPitchProcessing),
+                        width: '100%',
+                        minWidth: 0,
+                        padding: 0,
+                        fontSize: controlValueFontSize,
+                        fontWeight: 700,
+                        color: isActivePreset ? '#FFFFFF' : presetColor,
+                        background: isActivePreset ? presetColor : neuBg,
+                        border: `1px solid ${isActivePreset ? presetColor : `${presetColor}33`}`,
+                      }}
+                      title={`Set pitch to ${formatPitchDisplay(preset)}`}
+                    >
+                      {formatPitchPresetLabel(preset)}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             
