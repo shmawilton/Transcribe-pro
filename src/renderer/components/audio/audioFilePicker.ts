@@ -7,14 +7,6 @@
  * @param accept - MIME types to accept (default: all supported audio formats)
  * @returns Promise that resolves with selected File or null if cancelled
  */
-function isIOSDevice(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const userAgent = (navigator.userAgent || '').toLowerCase();
-  const isIOSUA = /iphone|ipad|ipod/.test(userAgent);
-  const isIPadDesktopUA = /macintosh/.test(userAgent) && (navigator.maxTouchPoints || 0) > 1;
-  return isIOSUA || isIPadDesktopUA;
-}
-
 function applyHiddenFileInputStyles(input: HTMLInputElement): void {
   input.style.position = 'fixed';
   input.style.left = '-9999px';
@@ -31,7 +23,7 @@ export async function pickAudioFile(
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = isIOSDevice() ? `${accept},application/octet-stream,*/*` : accept;
+    input.accept = accept;
     applyHiddenFileInputStyles(input);
 
     const safeCleanup = () => {
@@ -102,4 +94,3 @@ export function validateAudioFile(file: File): { valid: boolean; error?: string 
 
   return { valid: true };
 }
-

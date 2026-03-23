@@ -11,6 +11,7 @@ import { showToast } from './Toast';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
 import { onPitchStatus } from '../audio/HowlerAudioEngine';
 import { MOBILE_MIN_ZOOM, getDefaultZoomLevel, getMaxZoomLevel } from '../../utils/defaultZoom';
+import { isIOSDevice } from '../../utils/platform';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -27,6 +28,7 @@ interface BeforeInstallPromptEvent extends Event {
 const MobileMenu: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 390);
+  const [isIOS] = useState(() => isIOSDevice());
   const menuRef = useRef<HTMLDivElement>(null);
   
   // PWA Install state (for "Install App" menu item; global banner is in App)
@@ -239,7 +241,6 @@ const MobileMenu: React.FC = () => {
       store.setZoomLevel(getDefaultZoomLevel());
       getProjectSaver().setCurrentProjectId(null);
 
-      await resumeAudioContext();
       const file = await pickAudioFile();
       if (!file) return;
       
@@ -249,6 +250,7 @@ const MobileMenu: React.FC = () => {
         return;
       }
       
+      await resumeAudioContext();
       await loadFile(file);
       setIsExpanded(false);
       showToast('Audio loaded', 'success');
@@ -259,6 +261,12 @@ const MobileMenu: React.FC = () => {
   
   const handleLoadProject = async () => {
     try {
+      if (isIOS) {
+        setIsExpanded(false);
+        showToast('Use My Projects on iPhone and iPad to open saved work.', 'info');
+        return;
+      }
+
       await resumeAudioContext();
       const loader = getProjectLoader();
       // On phones: hint to select .tsproj (picker cannot open Downloads by default on web)
@@ -620,7 +628,7 @@ const MobileMenu: React.FC = () => {
             </div>
             
             <MenuItem icon={<NewFileIcon />} label="New Project" onClick={handleNewProject} color={KENYAN_GREEN} />
-            <MenuItem icon={<FolderIcon />} label="Load Project" onClick={handleLoadProject} color={KENYAN_RED} />
+            {!isIOS && <MenuItem icon={<FolderIcon />} label="Load Project" onClick={handleLoadProject} color={KENYAN_RED} />}
             <MenuItem icon={<FolderIcon />} label="My Projects" onClick={handleOpenMyProjects} color={KENYAN_GREEN} subtitle="Saved on this device" />
             <MenuItem icon={<SaveIcon />} label="Save As" onClick={handleSaveAs} disabled={!isAudioLoaded} color={KENYAN_GREEN} subtitle="New name or download file" />
             <MenuItem icon={<ExportIcon />} label="Export/Share" onClick={handleExportProject} disabled={!isAudioLoaded} subtitle="Download .tsproj file" />

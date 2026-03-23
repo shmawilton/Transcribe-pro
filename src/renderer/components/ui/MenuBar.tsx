@@ -16,6 +16,7 @@ import LoadingSpinner from './LoadingSpinner';
 import WorkspaceLayoutModal from './WorkspaceLayoutModal';
 import RecentProjectsModal from './RecentProjectsModal';
 import { useSmoothViewport } from '../../hooks/useSmoothViewport';
+import { isIOSDevice } from '../../utils/platform';
 
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
@@ -322,6 +323,7 @@ const EditableProjectName: React.FC<{
 };
 
 const MenuBar: React.FC = () => {
+  const [isIOS] = useState(() => isIOSDevice());
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [pitch, setPitch] = useState(0);
@@ -540,6 +542,12 @@ const MenuBar: React.FC = () => {
 
   const handleLoadProject = async () => {
     try {
+      if (isIOS) {
+        showToast('Use My Projects on iPhone and iPad to open saved work.', 'info', 3200);
+        setOpenMenu(null);
+        return;
+      }
+
       // Check if project has unsaved changes
       const hasUnsavedChanges = isAudioLoaded && !projectSaver.hasSavedProject();
       
@@ -747,7 +755,7 @@ const MenuBar: React.FC = () => {
       color: KENYAN_RED,
       items: [
         { id: 'open', label: 'Start New Project', icon: NewProjectIcon, shortcut: `${shortcutModifier}+O`, action: handleStartNewProject },
-        { id: 'load-project', label: 'Load Project', icon: FolderOpenIcon, shortcut: `${shortcutModifier}+L`, action: handleLoadProject },
+        ...(!isIOS ? [{ id: 'load-project', label: 'Load Project', icon: FolderOpenIcon, shortcut: `${shortcutModifier}+L`, action: handleLoadProject }] : []),
         { id: 'recent-projects', label: 'Recent Projects...', icon: FolderOpenIcon, action: () => { setIsRecentProjectsModalOpen(true); setOpenMenu(null); } },
         { id: 'divider1', label: '', divider: true },
         { id: 'save', label: 'Save Project', icon: SaveIcon, shortcut: `${shortcutModifier}+S`, action: handleSaveProject },

@@ -9,6 +9,7 @@ import { getProjectLoader } from '../project/ProjectLoader';
 import { getProjectSaver, StoredProject, deleteProjectFromIndexedDB } from '../project/ProjectSaver';
 import { useAppStore } from '../../store/store';
 import { getDefaultZoomLevel } from '../../utils/defaultZoom';
+import { isIOSDevice } from '../../utils/platform';
 import QuickStartGuide from './QuickStartGuide';
 import { showToast } from './Toast';
 
@@ -96,7 +97,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
   }, []);
   
   // iOS file tips
-  const [isIOS] = useState(() => /iPad|iPhone|iPod/.test(navigator.userAgent));
+  const [isIOS] = useState(() => isIOSDevice());
   const [showIOSTips, setShowIOSTips] = useState(false); // Always start collapsed
   
   const theme = useAppStore((state) => state.theme);
@@ -258,7 +259,6 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       // Start with default zoom for current device class
       store.setZoomLevel(getDefaultZoomLevel());
       
-      await resumeAudioContext();
       const file = await pickAudioFile();
       if (!file) return;
 
@@ -268,6 +268,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
         return;
       }
 
+      await resumeAudioContext();
       await loadFile(file);
       // Audio engine will set the 20% (1/5) initial viewport
       
@@ -279,6 +280,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
 
   const handleLoadProject = async () => {
     try {
+      if (isIOS) {
+        setShowStoredProjects(true);
+        showToast('On iPhone and iPad, open saved work from My Projects.', 'info', 3200);
+        return;
+      }
+
       setError(null);
       setIsLoadingProject(true);
       await resumeAudioContext();
@@ -709,101 +716,102 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
             )}
           </button>
 
-          {/* Load Project Button */}
-          <button
-            onClick={handleLoadProject}
-            onMouseEnter={() => setHoveredButton('load')}
-            onMouseLeave={() => setHoveredButton(null)}
-            disabled={isLoading || isLoadingProject}
-            style={{
-              width: '100%',
-              padding: isMobile ? actionButtonPadding : '0.9rem 1.25rem',
-              border: 'none',
-              borderRadius: isMobile ? actionButtonRadius : 14,
-              display: 'flex',
-              alignItems: 'center',
-              gap: isMobile ? '0.55rem' : '1rem',
-              cursor: (isLoading || isLoadingProject) ? 'wait' : 'pointer',
-              background: neuBg,
-              transition: 'all 0.2s ease',
-              boxShadow: (isLoadingProject || hoveredButton === 'load') ? neuPressed : neuRaised,
-              transform: (isLoadingProject || hoveredButton === 'load') ? 'scale(0.98)' : 'scale(1)',
-              opacity: (isLoading || isLoadingProject) ? 0.6 : 1,
-              fontFamily: HANDWRITTEN_FONT,
-              minHeight: isMobile ? actionButtonMinHeight : 64,
-              touchAction: 'manipulation'
-            }}
-          >
-            {isLoadingProject ? (
-              <>
-                <div style={{
-                  width: isMobile ? actionIconBoxSize : 40,
-                  height: isMobile ? actionIconBoxSize : 40,
-                  borderRadius: '50%',
-                  background: neuBg,
-                  boxShadow: neuPressed,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
+          {!isIOS && (
+            <button
+              onClick={handleLoadProject}
+              onMouseEnter={() => setHoveredButton('load')}
+              onMouseLeave={() => setHoveredButton(null)}
+              disabled={isLoading || isLoadingProject}
+              style={{
+                width: '100%',
+                padding: isMobile ? actionButtonPadding : '0.9rem 1.25rem',
+                border: 'none',
+                borderRadius: isMobile ? actionButtonRadius : 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: isMobile ? '0.55rem' : '1rem',
+                cursor: (isLoading || isLoadingProject) ? 'wait' : 'pointer',
+                background: neuBg,
+                transition: 'all 0.2s ease',
+                boxShadow: (isLoadingProject || hoveredButton === 'load') ? neuPressed : neuRaised,
+                transform: (isLoadingProject || hoveredButton === 'load') ? 'scale(0.98)' : 'scale(1)',
+                opacity: (isLoading || isLoadingProject) ? 0.6 : 1,
+                fontFamily: HANDWRITTEN_FONT,
+                minHeight: isMobile ? actionButtonMinHeight : 64,
+                touchAction: 'manipulation'
+              }}
+            >
+              {isLoadingProject ? (
+                <>
                   <div style={{
-                    width: isMobile ? Math.max(14, actionIconSize - 4) : 20,
-                    height: isMobile ? Math.max(14, actionIconSize - 4) : 20,
-                    border: `3px solid ${KENYAN_RED}30`,
-                    borderTopColor: KENYAN_RED,
+                    width: isMobile ? actionIconBoxSize : 40,
+                    height: isMobile ? actionIconBoxSize : 40,
                     borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite'
-                  }} />
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <p style={{ 
-                    color: isLightMode ? '#2d3748' : KENYAN_WHITE, 
-                    fontSize: isMobile ? actionTitleSize : '0.9rem',
-                    fontWeight: '600',
-                    margin: 0
-                  }}>Loading project...</p>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{
-                  width: isMobile ? actionIconBoxSize : 48,
-                  height: isMobile ? actionIconBoxSize : 48,
-                  borderRadius: isMobile ? 10 : 12,
-                  background: neuBg,
-                  boxShadow: `3px 3px 6px ${shadowDark}, -2px -2px 4px ${shadowLight}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  <FolderIcon size={isMobile ? actionIconSize : 32} />
-                </div>
-                <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
-                  <p style={{
-                    color: isLightMode ? '#2d3748' : KENYAN_WHITE,
-                    fontSize: isMobile ? actionTitleSize : '1.05rem',
-                    fontWeight: '600',
-                    margin: 0,
-                    marginBottom: '2px'
+                    background: neuBg,
+                    boxShadow: neuPressed,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
                   }}>
-                    Load Project
-                  </p>
-                  <p style={{
-                    color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
-                    fontSize: isMobile ? actionSubtitleSize : '0.8rem',
-                    margin: 0
+                    <div style={{
+                      width: isMobile ? Math.max(14, actionIconSize - 4) : 20,
+                      height: isMobile ? Math.max(14, actionIconSize - 4) : 20,
+                      border: `3px solid ${KENYAN_RED}30`,
+                      borderTopColor: KENYAN_RED,
+                      borderRadius: '50%',
+                      animation: 'spin 0.8s linear infinite'
+                    }} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <p style={{ 
+                      color: isLightMode ? '#2d3748' : KENYAN_WHITE, 
+                      fontSize: isMobile ? actionTitleSize : '0.9rem',
+                      fontWeight: '600',
+                      margin: 0
+                    }}>Loading project...</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{
+                    width: isMobile ? actionIconBoxSize : 48,
+                    height: isMobile ? actionIconBoxSize : 48,
+                    borderRadius: isMobile ? 10 : 12,
+                    background: neuBg,
+                    boxShadow: `3px 3px 6px ${shadowDark}, -2px -2px 4px ${shadowLight}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
                   }}>
-                    Open saved .tsproj file
-                  </p>
-                </div>
-                <svg width={isMobile ? 16 : 20} height={isMobile ? 16 : 20} viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </>
-            )}
-          </button>
+                    <FolderIcon size={isMobile ? actionIconSize : 32} />
+                  </div>
+                  <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
+                    <p style={{
+                      color: isLightMode ? '#2d3748' : KENYAN_WHITE,
+                      fontSize: isMobile ? actionTitleSize : '1.05rem',
+                      fontWeight: '600',
+                      margin: 0,
+                      marginBottom: '2px'
+                    }}>
+                      Load Project
+                    </p>
+                    <p style={{
+                      color: isLightMode ? '#718096' : 'rgba(255, 255, 255, 0.5)',
+                      fontSize: isMobile ? actionSubtitleSize : '0.8rem',
+                      margin: 0
+                    }}>
+                      Open saved .tsproj file
+                    </p>
+                  </div>
+                  <svg width={isMobile ? 16 : 20} height={isMobile ? 16 : 20} viewBox="0 0 24 24" fill="none" stroke={KENYAN_RED} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Restore Last Session Button - shown if autosave data exists */}
           {hasAutosaveData && onRestoreAutosave && (
