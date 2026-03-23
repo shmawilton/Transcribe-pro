@@ -10,16 +10,17 @@ import { useSmoothViewport } from '../../hooks/useSmoothViewport';
 import { DESKTOP_MAX_ZOOM, PHONE_MAX_ZOOM, getDefaultZoomLevel } from '../../utils/defaultZoom';
 
 // ===== Constants for marker layout =====
-const MARKER_HEIGHT = 28; // pixels - increased for better visibility
-const MARKER_GAP = 6; // pixels between layers - increased for better spacing
-const TIME_GRID_HEIGHT = 35; // Increased height for time grid
-const MIN_MARKER_AREA_HEIGHT = 100; // Minimum height with good padding
+const MARKER_HEIGHT = 28; // desktop/default marker height
+const MARKER_GAP = 6; // desktop/default gap between marker rows
+const TIME_GRID_HEIGHT = 35; // desktop/default time grid height
+const MIN_MARKER_AREA_HEIGHT = 100; // desktop/default minimum marker area height
 const MAX_OVERLAPPING_MARKERS = 5; // Support up to 5 overlapping markers
 const MAX_MARKER_AREA_HEIGHT = TIME_GRID_HEIGHT + (MAX_OVERLAPPING_MARKERS * (MARKER_HEIGHT + MARKER_GAP)) + 20; // Height for 5 markers + padding
 const EDGE_HIT_PX = 12; // pixels from left/right edge of marker to start resize (crop) instead of move
 // Padding varies by device - minimal on mobile for edge-to-edge display
 const getTimeLabelPadding = (isMobile: boolean) => isMobile ? 8 : 50;
 const MOBILE_TIMELINE_HINT_STORAGE_KEY = 'transcribe-pro-mobile-timeline-hint-dismissed';
+const TIMELINE_TEXT_FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 export function MarkerTimeline() {
   // ===== Setup state and refs =====
@@ -28,14 +29,30 @@ export function MarkerTimeline() {
   const [containerWidth, setContainerWidth] = useState(0);
   const [hoveredMarker, setHoveredMarker] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMobileLayout, setIsMobileLayout] = useState(window.innerWidth <= 1024);
   const [showMobileScrollHint, setShowMobileScrollHint] = useState(false);
   
   // Handle window resize for mobile detection
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsMobileLayout(window.innerWidth <= 1024);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const markerHeight = isMobile ? 18 : MARKER_HEIGHT;
+  const markerGap = isMobile ? 3 : MARKER_GAP;
+  const timeGridHeight = isMobile ? 24 : TIME_GRID_HEIGHT;
+  const markerAreaPadding = isMobile ? 10 : 20;
+  const minMarkerAreaHeight = isMobile ? 52 : MIN_MARKER_AREA_HEIGHT;
+  const maxMarkerAreaHeight = useMemo(() => {
+    return (MAX_OVERLAPPING_MARKERS * (markerHeight + markerGap)) + markerAreaPadding;
+  }, [markerGap, markerHeight, markerAreaPadding]);
+  const maxSvgHeight = timeGridHeight + maxMarkerAreaHeight;
+  const markerCornerRadius = isMobile ? 3 : 4;
+  const markerStrokeWidth = isMobile ? 1.5 : 2;
   
   // ===== Marker creation state =====
   const [isCreatingMarker, setIsCreatingMarker] = useState(false);
@@ -64,6 +81,7 @@ export function MarkerTimeline() {
   const markers = useAppStore((state) => state.markers);
   const duration = useAppStore((state) => state.audio.duration || 0);
   const activeMarkerId = useAppStore((state) => state.ui.selectedMarkerId);
+  const markersAreInteractive = true;
   
   // Get AudioEngine methods for applying marker settings
   const { seek, setLoop, disableLoop } = useAudioEngine();
@@ -503,8 +521,8 @@ export function MarkerTimeline() {
   
   // Calculate Y position from layer (below time grid)
   const getMarkerY = useCallback((layer: number): number => {
-    return TIME_GRID_HEIGHT + layer * (MARKER_HEIGHT + MARKER_GAP);
-  }, []);
+    return timeGridHeight + layer * (markerHeight + markerGap);
+  }, [markerGap, markerHeight, timeGridHeight]);
   
   // Calculate marker layers (memoized)
   const markerLayers = useMemo(() => {
@@ -519,14 +537,18 @@ export function MarkerTimeline() {
   
   const markerAreaHeight = useMemo(() => {
     // Calculate needed height based on layers, with good padding
-    const neededHeight = (maxLayer + 1) * (MARKER_HEIGHT + MARKER_GAP) + 20; // +20 for padding
-    const calculatedHeight = Math.max(neededHeight, MIN_MARKER_AREA_HEIGHT);
+    const neededHeight = (maxLayer + 1) * (markerHeight + markerGap) + markerAreaPadding;
+    const calculatedHeight = Math.max(neededHeight, minMarkerAreaHeight);
     // Cap at max height for 5 overlapping markers
-    return Math.min(calculatedHeight, MAX_MARKER_AREA_HEIGHT);
-  }, [maxLayer]);
+    return Math.min(calculatedHeight, maxMarkerAreaHeight);
+  }, [markerAreaPadding, markerGap, markerHeight, maxMarkerAreaHeight, maxLayer, minMarkerAreaHeight]);
   
-  const svgHeight = TIME_GRID_HEIGHT + markerAreaHeight;
-  const svgPreserveAspectRatio = isMobile ? 'xMinYMin slice' : 'xMidYMin meet';
+  const svgHeight = timeGridHeight + markerAreaHeight;
+  const svgRenderHeight = isMobileLayout ? svgHeight : Math.min(svgHeight, maxSvgHeight);
+  const svgPreserveAspectRatio = isMobile ? 'xMinYMin meet' : 'xMidYMin meet';
+  const timelineLabelFontSize = isMobileLayout ? 10 : 12;
+  const previewLabelFontSize = isMobileLayout ? 9 : 11;
+  const helperLabelFontSize = isMobileLayout ? 8 : 11;
   
   // Generate time grid markers (uses viewport for zoomed view)
   const timeGridMarkers = useMemo(() => {
@@ -719,6 +741,7 @@ export function MarkerTimeline() {
 
   // Handle SVG mouse down (start marker creation drag)
   const handleSvgMouseDown = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!markersAreInteractive) return;
     if ((e.target as SVGElement).closest('g[data-marker-id]')) {
       return;
     }
@@ -737,7 +760,7 @@ export function MarkerTimeline() {
       setMarkerEndTime(clampedTime);
       setHasDragged(false);
     }
-  }, [isCreatingMarker, duration, pixelToTime]);
+  }, [isCreatingMarker, duration, pixelToTime, markersAreInteractive]);
   
   // Handle SVG touch start (mobile marker creation OR pinch-to-zoom)
   const handleSvgTouchStart = useCallback((e: React.TouchEvent<SVGSVGElement>) => {
@@ -747,6 +770,7 @@ export function MarkerTimeline() {
       handleTimelineTouchStart(e);
       return;
     }
+    if (!markersAreInteractive) return;
     
     // Single touch - marker creation
     if ((e.target as SVGElement).closest('g[data-marker-id]')) return;
@@ -764,7 +788,7 @@ export function MarkerTimeline() {
       setMarkerEndTime(clampedTime);
       setHasDragged(false);
     }
-  }, [dismissMobileScrollHint, isCreatingMarker, duration, pixelToTime, handleTimelineTouchStart]);
+  }, [dismissMobileScrollHint, isCreatingMarker, duration, pixelToTime, handleTimelineTouchStart, markersAreInteractive]);
   
   // Format time for display - defined early as it's used by multiple callbacks
   const formatTime = useCallback((seconds: number): string => {
@@ -962,6 +986,7 @@ export function MarkerTimeline() {
   
   // Click handler to activate marker (skip if user just finished dragging)
   const handleMarkerClick = useCallback(async (e: React.MouseEvent, markerId: string) => {
+    if (!markersAreInteractive) return;
     e.stopPropagation();
     if (didDragRef.current) {
       didDragRef.current = false;
@@ -977,7 +1002,7 @@ export function MarkerTimeline() {
       });
     } catch (error) {
     }
-  }, [seek, setLoop, disableLoop]);
+  }, [seek, setLoop, disableLoop, markersAreInteractive]);
   
   // Get hovered marker data for tooltip
   const hoveredMarkerData = useMemo(() => {
@@ -1020,18 +1045,21 @@ export function MarkerTimeline() {
         position: 'relative',
         width: '100%',
         minWidth: '100%',
-        flexGrow: isMobile ? 1 : 0,
-        flexShrink: 0,
+        flexGrow: isMobileLayout ? 1 : (isMobile ? 1 : 0),
+        flexShrink: isMobileLayout ? 1 : 0,
         flexBasis: 'auto',
-        minHeight: isMobile ? '100%' : '100px',
-        maxHeight: isMobile ? '100%' : undefined,
-        height: isMobile ? '100%' : 'auto',
+        minHeight: isMobileLayout ? '100%' : (isMobile ? '100%' : '100px'),
+        maxHeight: isMobileLayout ? 'none' : (isMobile ? '100%' : undefined),
+        height: isMobileLayout ? 'auto' : (isMobile ? '100%' : 'auto'),
         display: 'flex',
         flexDirection: 'column',
         background: 'rgba(0, 102, 68, 0.08)',
         borderRadius: isMobile ? '0' : '16px',
-        overflow: isMobile ? 'hidden' : 'visible',
+        overflowX: 'hidden',
+        overflowY: isMobileLayout ? 'auto' : (isMobile ? 'hidden' : 'visible'),
         boxShadow: isMobile ? 'none' : 'var(--neu-raised)',
+        WebkitOverflowScrolling: isMobileLayout ? 'touch' : undefined,
+        overscrollBehaviorY: isMobileLayout ? 'contain' : undefined,
       }}
     >
       {showMobileScrollHint && canShowMobileScrollHint && (
@@ -1044,7 +1072,7 @@ export function MarkerTimeline() {
       )}
 
       {/* Marker hover tooltip */}
-      {hoveredMarker && hoveredMarkerData && tooltipPosition && !isCreatingMarker && (
+      {markersAreInteractive && hoveredMarker && hoveredMarkerData && tooltipPosition && !isCreatingMarker && (
         <div 
           className="marker-tooltip"
           style={{
@@ -1089,7 +1117,7 @@ export function MarkerTimeline() {
       )}
 
       {/* Time tooltip - Shows time range during drag or current time when hovering */}
-      {showTimeTooltip && hoverTime !== null && mousePosition && (
+      {markersAreInteractive && showTimeTooltip && hoverTime !== null && mousePosition && (
         <div 
           className="time-tooltip"
           style={{
@@ -1175,8 +1203,11 @@ export function MarkerTimeline() {
           width: '100%',
           minWidth: '100%',
           flex: '1 1 auto',
-          overflow: 'hidden',
+          overflowX: 'hidden',
+          overflowY: isMobileLayout ? 'auto' : 'hidden',
           position: 'relative',
+          minHeight: 0,
+          WebkitOverflowScrolling: isMobileLayout ? 'touch' : undefined,
         }}
       >
       {/* Render SVG - width matches container (same as waveform) */}
@@ -1184,7 +1215,7 @@ export function MarkerTimeline() {
         <svg 
           ref={svgRef}
           width={svgWidth}
-          height={Math.min(svgHeight, TIME_GRID_HEIGHT + MAX_MARKER_AREA_HEIGHT)}
+          height={svgRenderHeight}
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           preserveAspectRatio={svgPreserveAspectRatio}
           style={{ 
@@ -1192,6 +1223,7 @@ export function MarkerTimeline() {
             cursor: isCreatingMarker ? 'crosshair' : 'default',
             overflow: 'visible',
             minHeight: '0',
+            height: `${svgRenderHeight}px`,
             width: '100%',
             minWidth: '100%',
             maxWidth: '100%',
@@ -1209,16 +1241,16 @@ export function MarkerTimeline() {
             x={0}
             y={0}
             width={svgWidth}
-            height={TIME_GRID_HEIGHT}
+            height={timeGridHeight}
             fill="rgba(0, 0, 0, 0.3)"
           />
           
           {/* Time Grid Line */}
           <line
             x1={TIME_LABEL_PADDING}
-            y1={TIME_GRID_HEIGHT}
+            y1={timeGridHeight}
             x2={svgWidth - TIME_LABEL_PADDING}
-            y2={TIME_GRID_HEIGHT}
+            y2={timeGridHeight}
             stroke="rgba(0, 102, 68, 0.6)"
             strokeWidth={2}
           />
@@ -1229,28 +1261,41 @@ export function MarkerTimeline() {
               {/* Vertical tick */}
               <line
                 x1={marker.x}
-                y1={TIME_GRID_HEIGHT - 8}
+                y1={timeGridHeight - (isMobile ? 6 : 8)}
                 x2={marker.x}
-                y2={TIME_GRID_HEIGHT}
+                y2={timeGridHeight}
                 stroke="rgba(255, 255, 255, 0.6)"
                 strokeWidth={1.5}
               />
               {/* Time label */}
               <text
-                x={marker.x}
-                y={TIME_GRID_HEIGHT - 12}
+                x={
+                  isMobileLayout && marker.x < TIME_LABEL_PADDING + 24
+                    ? marker.x + 4
+                    : isMobileLayout && marker.x > containerWidth - TIME_LABEL_PADDING - 24
+                      ? marker.x - 4
+                      : marker.x
+                }
+                y={timeGridHeight - (isMobile ? 10 : 12)}
                 fill="rgba(255, 255, 255, 0.8)"
-                fontSize="12"
-                textAnchor="middle"
-                fontFamily="'Gochi Hand', 'Annie Use Your Telescope', cursive"
-                fontWeight="normal"
+                fontSize={timelineLabelFontSize}
+                textAnchor={
+                  isMobileLayout && marker.x < TIME_LABEL_PADDING + 24
+                    ? 'start'
+                    : isMobileLayout && marker.x > containerWidth - TIME_LABEL_PADDING - 24
+                      ? 'end'
+                      : 'middle'
+                }
+                fontFamily={TIMELINE_TEXT_FONT}
+                fontWeight="600"
+                letterSpacing="0.01em"
               >
                 {marker.label}
               </text>
               {/* Vertical guide line (subtle) */}
               <line
                 x1={marker.x}
-                y1={TIME_GRID_HEIGHT}
+                y1={timeGridHeight}
                 x2={marker.x}
                 y2={svgHeight}
                 stroke="rgba(255, 255, 255, 0.1)"
@@ -1265,39 +1310,39 @@ export function MarkerTimeline() {
             <g>
               <rect
                 x={previewMarkerDims.x}
-                y={TIME_GRID_HEIGHT}
+                y={timeGridHeight}
                 width={previewMarkerDims.width}
-                height={MARKER_HEIGHT}
+                height={markerHeight}
                 fill={MarkerManager.getNextColor()}
                 opacity={0.5}
                 stroke={MarkerManager.getNextColor()}
                 strokeWidth={2}
                 strokeDasharray="4,4"
-                rx={4}
-                ry={4}
+                rx={markerCornerRadius}
+                ry={markerCornerRadius}
               />
               {/* Preview time labels */}
               {markerStartTime !== null && markerEndTime !== null && (
                 <>
                   <text
                     x={previewMarkerDims.x + 4}
-                    y={TIME_GRID_HEIGHT + 16}
+                    y={timeGridHeight + (isMobile ? 13 : 16)}
                     fill="white"
-                    fontSize="11"
-                    fontWeight="normal"
-                    fontFamily="'Gochi Hand', 'Annie Use Your Telescope', cursive"
+                    fontSize={previewLabelFontSize}
+                    fontWeight="600"
+                    fontFamily={TIMELINE_TEXT_FONT}
                     style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
                   >
                     {formatTime(Math.min(markerStartTime, markerEndTime))}
                   </text>
                   <text
                     x={previewMarkerDims.x + previewMarkerDims.width - 4}
-                    y={TIME_GRID_HEIGHT + 16}
+                    y={timeGridHeight + (isMobile ? 13 : 16)}
                     fill="white"
-                    fontSize="11"
-                    fontWeight="normal"
+                    fontSize={previewLabelFontSize}
+                    fontWeight="600"
                     textAnchor="end"
-                    fontFamily="'Gochi Hand', 'Annie Use Your Telescope', cursive"
+                    fontFamily={TIMELINE_TEXT_FONT}
                     style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}
                   >
                     {formatTime(Math.max(markerStartTime, markerEndTime))}
@@ -1308,13 +1353,13 @@ export function MarkerTimeline() {
               {hoverTime !== null && (
                 <text
                   x={timeToPixel(hoverTime)}
-                  y={TIME_GRID_HEIGHT + MARKER_HEIGHT + 20}
+                  y={timeGridHeight + markerHeight + (isMobile ? 16 : 20)}
                   fill="#D4AF37"
-                  fontSize="11"
+                  fontSize={helperLabelFontSize}
                   fontWeight="600"
                   textAnchor="middle"
                   pointerEvents="none"
-                  style={{ fontFamily: "'Gochi Hand', 'Annie Use Your Telescope', cursive" }}
+                  style={{ fontFamily: TIMELINE_TEXT_FONT, letterSpacing: '0.01em' }}
                 >
                   Release to create marker
                 </text>
@@ -1330,20 +1375,24 @@ export function MarkerTimeline() {
             const isActive = marker.id === activeMarkerId;
             
             return (
-              <g key={marker.id} data-marker-id={marker.id}>
+              <g
+                key={marker.id}
+                data-marker-id={marker.id}
+                style={{ pointerEvents: markersAreInteractive ? 'auto' : 'none' }}
+              >
                 {/* Marker rectangle */}
                 <rect
                   x={dimensions.x}
                   y={y}
                   width={dimensions.width}
-                  height={MARKER_HEIGHT}
+                  height={markerHeight}
                   fill={marker.color || '#4CAF50'}
-                  opacity={isActive ? 0.95 : 0.7}
-                  stroke={isActive ? '#FFD700' : 'rgba(255,255,255,0.3)'}
-                  strokeWidth={isActive ? 2 : 1}
+                  opacity={markersAreInteractive ? (isActive ? 0.95 : 0.7) : 0.35}
+                  stroke={markersAreInteractive ? (isActive ? '#FFD700' : 'rgba(255,255,255,0.3)') : 'rgba(255,255,255,0.16)'}
+                  strokeWidth={isActive ? markerStrokeWidth : 1}
                   strokeDasharray={marker.loop ? '4 2' : 'none'}
-                  rx={4}
-                  ry={4}
+                  rx={markerCornerRadius}
+                  ry={markerCornerRadius}
                   onMouseDown={(e) => handleMarkerRectMouseDown(e, marker)}
                   onTouchStart={(e) => handleMarkerRectTouchStart(e, marker)}
                   onClick={(e) => handleMarkerClick(e, marker.id)}
@@ -1351,7 +1400,9 @@ export function MarkerTimeline() {
                   onMouseLeave={() => setHoveredMarker(null)}
                   style={{
                     cursor:
-                      resizingMarkerId === marker.id
+                      !markersAreInteractive
+                        ? 'default'
+                        : resizingMarkerId === marker.id
                         ? 'ew-resize'
                         : draggingMarkerId === marker.id
                           ? 'grabbing'
@@ -1364,7 +1415,7 @@ export function MarkerTimeline() {
                     x={dimensions.x}
                     y={y}
                     width={EDGE_HIT_PX}
-                    height={MARKER_HEIGHT}
+                    height={markerHeight}
                     fill="transparent"
                     onMouseDown={(e) => handleMarkerRectMouseDown(e, marker)}
                     onTouchStart={(e) => handleMarkerRectTouchStart(e, marker)}
@@ -1377,7 +1428,7 @@ export function MarkerTimeline() {
                     x={dimensions.x + dimensions.width - EDGE_HIT_PX}
                     y={y}
                     width={EDGE_HIT_PX}
-                    height={MARKER_HEIGHT}
+                    height={markerHeight}
                     fill="transparent"
                     onMouseDown={(e) => handleMarkerRectMouseDown(e, marker)}
                     onTouchStart={(e) => handleMarkerRectTouchStart(e, marker)}
@@ -1386,32 +1437,32 @@ export function MarkerTimeline() {
                 )}
                 
                 {/* Loop indicator icon - circular arrow (only show if marker is wide enough) */}
-                {marker.loop && dimensions.width > 30 && (
+                {marker.loop && dimensions.width > (isMobile ? 26 : 30) && (
                   <g>
                     {/* Loop icon background circle */}
                     <circle
-                      cx={dimensions.x + dimensions.width - 12}
-                      cy={y + 14}
-                      r={8}
+                      cx={dimensions.x + dimensions.width - (isMobile ? 10 : 12)}
+                      cy={y + (isMobile ? 10 : 14)}
+                      r={isMobile ? 6 : 8}
                       fill="rgba(255, 215, 0, 0.9)"
                       stroke="rgba(0, 0, 0, 0.3)"
                       strokeWidth={1}
                     />
                     {/* Loop arrow - simplified circular arrow */}
                     <path
-                      d={`M ${dimensions.x + dimensions.width - 16} ${y + 14} 
-                          A 4 4 0 1 1 ${dimensions.x + dimensions.width - 8} ${y + 14}`}
+                      d={`M ${dimensions.x + dimensions.width - (isMobile ? 13 : 16)} ${y + (isMobile ? 10 : 14)} 
+                          A ${isMobile ? 3 : 4} ${isMobile ? 3 : 4} 0 1 1 ${dimensions.x + dimensions.width - (isMobile ? 7 : 8)} ${y + (isMobile ? 10 : 14)}`}
                       fill="none"
                       stroke="rgba(0, 0, 0, 0.9)"
-                      strokeWidth="1.5"
+                      strokeWidth={isMobile ? "1.2" : "1.5"}
                       strokeLinecap="round"
                       pointerEvents="none"
                     />
                     {/* Arrow head */}
                     <path
-                      d={`M ${dimensions.x + dimensions.width - 8} ${y + 14} 
-                          L ${dimensions.x + dimensions.width - 6} ${y + 12}
-                          L ${dimensions.x + dimensions.width - 6} ${y + 16}
+                      d={`M ${dimensions.x + dimensions.width - (isMobile ? 7 : 8)} ${y + (isMobile ? 10 : 14)} 
+                          L ${dimensions.x + dimensions.width - (isMobile ? 5 : 6)} ${y + (isMobile ? 8 : 12)}
+                          L ${dimensions.x + dimensions.width - (isMobile ? 5 : 6)} ${y + (isMobile ? 12 : 16)}
                           Z`}
                       fill="rgba(0, 0, 0, 0.9)"
                       pointerEvents="none"

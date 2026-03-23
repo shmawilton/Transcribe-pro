@@ -2,9 +2,11 @@ import { Capacitor } from '@capacitor/core';
 
 export const DESKTOP_DEFAULT_ZOOM = 5;
 export const MOBILE_MIN_ZOOM = 5;
+export const PHONE_DEFAULT_ZOOM = 30;
 export const MOBILE_TABLET_DEFAULT_ZOOM = 50;
 export const DESKTOP_MAX_ZOOM = 50;
 export const PHONE_MAX_ZOOM = 100;
+export const PHONE_LAYOUT_BREAKPOINT = 768;
 export const MOBILE_LAYOUT_BREAKPOINT = 1024;
 
 function isMobileOrTabletWebRuntime(): boolean {
@@ -26,9 +28,19 @@ function usesMobileLayoutViewport(): boolean {
   return window.innerWidth <= MOBILE_LAYOUT_BREAKPOINT;
 }
 
+function usesPhoneLayoutViewport(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.innerWidth < PHONE_LAYOUT_BREAKPOINT;
+}
+
 export function getDefaultZoomLevel(): number {
   if (typeof window === 'undefined') {
     return DESKTOP_DEFAULT_ZOOM;
+  }
+
+  const isPhoneViewport = usesPhoneLayoutViewport();
+  if (isPhoneViewport) {
+    return PHONE_DEFAULT_ZOOM;
   }
 
   try {

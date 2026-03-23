@@ -50,7 +50,6 @@ const App: React.FC = () => {
   // Initialize audio engine (but don't use its local loading state)
   // This hook should not cause re-renders
   const { play, pause, stop, seek, setVolume, loadFile, resumeAudioContext, setLoop, disableLoop } = useAudioEngine();
-
   const isPreviousMarkerNavKey = React.useCallback((key?: string, code?: string) => {
     const normalizedKey = (key || '').toLowerCase();
     const normalizedCode = (code || '').toLowerCase();
@@ -204,6 +203,51 @@ const App: React.FC = () => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // iOS/Safari PWAs can foreground with audio contexts suspended or interrupted.
+  // Rearm Web Audio on the first interaction after page show/focus so restored
+  // projects can play immediately after the app is reopened.
+  useEffect(() => {
+    const isElectron = !!(window as any).electronAPI ||
+      (typeof process !== 'undefined' && (process as any).versions && (process as any).versions.electron);
+    if (isElectron) return;
+
+    let needsAudioRearm = true;
+
+    const markForRearm = () => {
+      needsAudioRearm = true;
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        markForRearm();
+      }
+    };
+
+    const handleUserInteraction = () => {
+      if (!needsAudioRearm) return;
+      needsAudioRearm = false;
+      void resumeAudioContext().catch(() => {
+        needsAudioRearm = true;
+      });
+    };
+
+    window.addEventListener('pageshow', markForRearm);
+    window.addEventListener('focus', markForRearm);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('pointerdown', handleUserInteraction, true);
+    document.addEventListener('touchstart', handleUserInteraction, true);
+    document.addEventListener('keydown', handleUserInteraction, true);
+
+    return () => {
+      window.removeEventListener('pageshow', markForRearm);
+      window.removeEventListener('focus', markForRearm);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('pointerdown', handleUserInteraction, true);
+      document.removeEventListener('touchstart', handleUserInteraction, true);
+      document.removeEventListener('keydown', handleUserInteraction, true);
+    };
+  }, [resumeAudioContext]);
 
 
   // Track if auto-restore is pending (failed due to audio context)
@@ -805,17 +849,10 @@ const App: React.FC = () => {
               </ErrorBoundary>
             </div>
 
-            {/* Marker Timeline Section - takes most space for stacked markers */}
+            {/* Marker Timeline Section - takes the remaining mobile space */}
             <div className="mobile-panel timeline-mobile-section">
               <ErrorBoundary>
                 <MarkerTimeline />
-              </ErrorBoundary>
-            </div>
-
-            {/* Marker Panel - fixed height, shows 2.5 markers, scrollable */}
-            <div className="mobile-panel marker-panel-section">
-              <ErrorBoundary>
-                <MarkerPanel />
               </ErrorBoundary>
             </div>
           </div>

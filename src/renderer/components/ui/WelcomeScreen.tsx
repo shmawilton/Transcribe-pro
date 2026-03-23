@@ -222,6 +222,16 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
       }
     }
   };
+
+  const handleStoredProjectKeyDown = (
+    e: React.KeyboardEvent<HTMLDivElement>,
+    project: StoredProject
+  ) => {
+    if (loadingStoredId !== null) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    void handleLoadStoredProject(project);
+  };
   
   // Format date for display
   const formatDate = (dateStr: string) => {
@@ -932,10 +942,16 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
                 marginTop: '0.5rem',
               }}>
                 {storedProjects.map((project) => (
-                  <button
+                  <div
                     key={project.id}
-                    onClick={() => handleLoadStoredProject(project)}
-                    disabled={loadingStoredId !== null}
+                    onClick={() => {
+                      if (loadingStoredId !== null) return;
+                      void handleLoadStoredProject(project);
+                    }}
+                    onKeyDown={(e) => handleStoredProjectKeyDown(e, project)}
+                    role="button"
+                    tabIndex={loadingStoredId !== null ? -1 : 0}
+                    aria-disabled={loadingStoredId !== null}
                     style={{
                       width: '100%',
                       padding: isMobile ? '0.65rem' : '0.75rem',
@@ -1006,6 +1022,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
                     
                     {/* Delete button */}
                     <button
+                      type="button"
                       onClick={(e) => handleDeleteStoredProject(e, project.id)}
                       style={{
                         width: isMobile ? '24px' : '28px',
@@ -1029,7 +1046,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onAudioLoaded, onProjectL
                         <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                       </svg>
                     </button>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
