@@ -42,11 +42,11 @@ export function MarkerTimeline() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const markerHeight = isMobile ? 18 : MARKER_HEIGHT;
-  const markerGap = isMobile ? 3 : MARKER_GAP;
-  const timeGridHeight = isMobile ? 24 : TIME_GRID_HEIGHT;
-  const markerAreaPadding = isMobile ? 10 : 20;
-  const minMarkerAreaHeight = isMobile ? 52 : MIN_MARKER_AREA_HEIGHT;
+  const markerHeight = isMobile ? 16 : MARKER_HEIGHT;
+  const markerGap = isMobile ? 2 : MARKER_GAP;
+  const timeGridHeight = isMobile ? 20 : TIME_GRID_HEIGHT;
+  const markerAreaPadding = isMobile ? 8 : 20;
+  const minMarkerAreaHeight = isMobile ? 36 : MIN_MARKER_AREA_HEIGHT;
   const maxMarkerAreaHeight = useMemo(() => {
     return (MAX_OVERLAPPING_MARKERS * (markerHeight + markerGap)) + markerAreaPadding;
   }, [markerGap, markerHeight, markerAreaPadding]);
@@ -546,9 +546,15 @@ export function MarkerTimeline() {
   const svgHeight = timeGridHeight + markerAreaHeight;
   const svgRenderHeight = isMobileLayout ? svgHeight : Math.min(svgHeight, maxSvgHeight);
   const svgPreserveAspectRatio = isMobile ? 'xMinYMin meet' : 'xMidYMin meet';
-  const timelineLabelFontSize = isMobileLayout ? 10 : 12;
-  const previewLabelFontSize = isMobileLayout ? 9 : 11;
-  const helperLabelFontSize = isMobileLayout ? 8 : 11;
+  const timelineLabelFontSize = isMobile ? 8.5 : (isMobileLayout ? 10 : 12);
+  const previewLabelFontSize = isMobile ? 8 : (isMobileLayout ? 9 : 11);
+  const helperLabelFontSize = isMobile ? 7.5 : (isMobileLayout ? 8 : 11);
+  const tooltipMaxWidth = isMobile ? 'min(76vw, 188px)' : (isMobileLayout ? 'min(60vw, 228px)' : '320px');
+  const tooltipPadding = isMobile ? '5px 8px' : (isMobileLayout ? '6px 10px' : '8px 12px');
+  const tooltipFontSize = isMobile ? '10px' : (isMobileLayout ? '11px' : '12px');
+  const tooltipMetaFontSize = isMobile ? '9px' : (isMobileLayout ? '10px' : '11px');
+  const tooltipBorderRadius = isMobile ? '5px' : '6px';
+  const compactCreationTooltip = isMobileLayout;
   
   // Generate time grid markers (uses viewport for zoomed view)
   const timeGridMarkers = useMemo(() => {
@@ -1045,10 +1051,10 @@ export function MarkerTimeline() {
         position: 'relative',
         width: '100%',
         minWidth: '100%',
-        flexGrow: isMobileLayout ? 1 : (isMobile ? 1 : 0),
+        flexGrow: isMobileLayout ? 0 : (isMobile ? 1 : 0),
         flexShrink: isMobileLayout ? 1 : 0,
         flexBasis: 'auto',
-        minHeight: isMobileLayout ? '100%' : (isMobile ? '100%' : '100px'),
+        minHeight: isMobileLayout ? 'auto' : (isMobile ? '100%' : '100px'),
         maxHeight: isMobileLayout ? 'none' : (isMobile ? '100%' : undefined),
         height: isMobileLayout ? 'auto' : (isMobile ? '100%' : 'auto'),
         display: 'flex',
@@ -1078,38 +1084,46 @@ export function MarkerTimeline() {
           style={{
             position: 'absolute',
             left: `${tooltipPosition.x}px`,
-            top: '-10px', // Moved closer to timeline (was -40px)
+            top: isMobileLayout ? '6px' : '-10px',
             transform: 'translateX(-50%)',
             background: 'rgba(0, 0, 0, 0.95)',
             color: '#FFD700',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            fontSize: '12px',
+            padding: tooltipPadding,
+            borderRadius: tooltipBorderRadius,
+            fontSize: tooltipFontSize,
             fontWeight: '500',
             pointerEvents: 'none',
-            zIndex: 10000, // Increased z-index to bring forward
-            whiteSpace: 'nowrap',
+            zIndex: 10000,
+            whiteSpace: isMobileLayout ? 'normal' : 'nowrap',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.8)',
-            border: '1px solid rgba(255, 215, 0, 0.3)'
+            border: '1px solid rgba(255, 215, 0, 0.3)',
+            maxWidth: tooltipMaxWidth,
+            width: 'max-content',
+            lineHeight: 1.2,
           }}
         >
-          <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+          <div style={{ fontWeight: '600', marginBottom: isMobileLayout ? '2px' : '4px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {hoveredMarkerData.name}
           </div>
           <div style={{ 
-            fontSize: '11px', 
+            fontSize: tooltipMetaFontSize,
             color: 'rgba(255, 255, 255, 0.9)',
-            fontFamily: 'monospace'
+            fontFamily: TIMELINE_TEXT_FONT,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: isMobileLayout ? '2px 6px' : '4px 8px',
+            whiteSpace: 'normal',
           }}>
-            {formatTime(hoveredMarkerData.start)} - {formatTime(hoveredMarkerData.end)}
+            <span>{formatTime(hoveredMarkerData.start)} - {formatTime(hoveredMarkerData.end)}</span>
             {hoveredMarkerData.speed && hoveredMarkerData.speed !== 1.0 && (
-              <span style={{ marginLeft: '8px', color: '#4CAF50' }}>
-                • {hoveredMarkerData.speed.toFixed(2)}x
+              <span style={{ color: '#4CAF50' }}>
+                {hoveredMarkerData.speed.toFixed(2)}x
               </span>
             )}
             {hoveredMarkerData.loop && (
-              <span style={{ marginLeft: '8px', color: '#FFD700' }}>
-                🔁 Loop
+              <span style={{ color: '#FFD700' }}>
+                Loop
               </span>
             )}
           </div>
@@ -1123,36 +1137,54 @@ export function MarkerTimeline() {
           style={{
             position: 'fixed',
             left: `${mousePosition.x}px`,
-            top: `${mousePosition.y - 45}px`,
+            top: `${mousePosition.y - (isMobileLayout ? 38 : 45)}px`,
             transform: 'translateX(-50%)',
             background: 'rgba(0, 0, 0, 0.95)',
             color: '#FFFFFF',
-            padding: isCreatingMarker && hasDragged ? '8px 14px' : '6px 12px',
-            borderRadius: '6px',
-            fontSize: '12px',
+            padding: isCreatingMarker && hasDragged
+              ? (isMobileLayout ? '6px 9px' : '8px 14px')
+              : (isMobileLayout ? '5px 8px' : '6px 12px'),
+            borderRadius: tooltipBorderRadius,
+            fontSize: tooltipFontSize,
             fontWeight: '500',
             pointerEvents: 'none',
-            zIndex: 10001, // Higher than marker tooltip
-            whiteSpace: 'nowrap',
+            zIndex: 10001,
+            whiteSpace: isMobileLayout ? 'normal' : 'nowrap',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.8)',
             border: isCreatingMarker && hasDragged 
               ? `2px solid ${MarkerManager.getNextColor()}` 
               : '1px solid rgba(212, 175, 55, 0.4)',
-            fontFamily: 'monospace',
+            fontFamily: TIMELINE_TEXT_FONT,
+            maxWidth: tooltipMaxWidth,
+            width: 'max-content',
+            lineHeight: 1.15,
           }}
         >
           {isCreatingMarker && hasDragged && markerStartTime !== null && markerEndTime !== null ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>Creating marker</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ color: '#4CAF50' }}>{formatTime(Math.min(markerStartTime, markerEndTime))}</span>
-                <span style={{ color: 'rgba(255,255,255,0.5)' }}>→</span>
-                <span style={{ color: '#FF9800' }}>{formatTime(Math.max(markerStartTime, markerEndTime))}</span>
+            compactCreationTooltip ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', flexWrap: 'wrap' }}>
+                  <span style={{ color: '#4CAF50' }}>{formatTime(Math.min(markerStartTime, markerEndTime))}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.52)' }}>-</span>
+                  <span style={{ color: '#FF9800' }}>{formatTime(Math.max(markerStartTime, markerEndTime))}</span>
+                </div>
+                <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.64)' }}>
+                  {formatTime(Math.abs(markerEndTime - markerStartTime))} duration
+                </div>
               </div>
-              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>
-                ({formatTime(Math.abs(markerEndTime - markerStartTime))} duration)
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>Creating marker</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ color: '#4CAF50' }}>{formatTime(Math.min(markerStartTime, markerEndTime))}</span>
+                  <span style={{ color: 'rgba(255,255,255,0.5)' }}>-</span>
+                  <span style={{ color: '#FF9800' }}>{formatTime(Math.max(markerStartTime, markerEndTime))}</span>
+                </div>
+                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>
+                  {formatTime(Math.abs(markerEndTime - markerStartTime))} duration
+                </div>
               </div>
-            </div>
+            )
           ) : (
             formatTime(hoverTime)
           )}
