@@ -34,6 +34,10 @@ const App: React.FC = () => {
   const [showWelcome, setShowWelcome] = useState(true);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const isMobile = useIsMobile();
+  const [viewportSize, setViewportSize] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1024,
+    height: typeof window !== 'undefined' ? window.innerHeight : 768,
+  }));
   const restoreAttemptedRef = React.useRef(false);
   const mainContentRef = React.useRef<HTMLDivElement | null>(null);
   const focusMainContent = React.useCallback((e: React.MouseEvent) => {
@@ -42,6 +46,19 @@ const App: React.FC = () => {
     mainContentRef.current?.focus({ preventScroll: true });
   }, []);
   const { toasts, closeToast } = useToast();
+  const isLandscapeMobile = isMobile && viewportSize.width > viewportSize.height;
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   
   // Get export modal state from store
   const isExportModalOpen = useAppStore((state) => state.ui.isExportModalOpen);
@@ -823,38 +840,68 @@ const App: React.FC = () => {
   if (isMobile) {
     return (
       <ErrorBoundary>
-        <div className="app-container mobile-layout">
+        <div className={`app-container mobile-layout${isLandscapeMobile ? ' mobile-landscape-layout' : ''}`}>
           {/* Mobile Menu */}
           <MobileMenu />
 
           {/* Main Content Area - Stacked vertically, order: Waveform → Timeline → Playback → Markers */}
           {/* Controls Panel (zoom/pitch) moved to MobileMenu dropdown */}
           <div
-            className="main-content mobile-content"
+            className={`main-content mobile-content${isLandscapeMobile ? ' mobile-landscape-content' : ''}`}
             tabIndex={0}
             ref={mainContentRef}
             onClick={focusMainContent}
           >
-            {/* Playback Panel - placed directly below the mobile menu */}
-            <div className="mobile-panel playback-section">
-              <ErrorBoundary>
-                <PlaybackPanel />
-              </ErrorBoundary>
-            </div>
+            {isLandscapeMobile ? (
+              <>
+                <div className="mobile-panel waveform-mobile-section mobile-landscape-waveform">
+                  <ErrorBoundary>
+                    <Waveform />
+                  </ErrorBoundary>
+                </div>
 
-            {/* Waveform Section - scrollable */}
-            <div className="mobile-panel waveform-mobile-section">
-              <ErrorBoundary>
-                <Waveform />
-              </ErrorBoundary>
-            </div>
+                <div className="mobile-landscape-bottom">
+                  <div className="mobile-landscape-primary">
+                    <div className="mobile-panel timeline-mobile-section mobile-landscape-timeline">
+                      <ErrorBoundary>
+                        <MarkerTimeline />
+                      </ErrorBoundary>
+                    </div>
+                  </div>
 
-            {/* Marker Timeline Section - takes the remaining mobile space */}
-            <div className="mobile-panel timeline-mobile-section">
-              <ErrorBoundary>
-                <MarkerTimeline />
-              </ErrorBoundary>
-            </div>
+                  <div className="mobile-landscape-sidebar">
+                    <div className="mobile-panel playback-section mobile-landscape-playback">
+                      <ErrorBoundary>
+                        <PlaybackPanel forceCompactLayout />
+                      </ErrorBoundary>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Playback Panel - placed directly below the mobile menu */}
+                <div className="mobile-panel playback-section">
+                  <ErrorBoundary>
+                    <PlaybackPanel />
+                  </ErrorBoundary>
+                </div>
+
+                {/* Waveform Section - scrollable */}
+                <div className="mobile-panel waveform-mobile-section">
+                  <ErrorBoundary>
+                    <Waveform />
+                  </ErrorBoundary>
+                </div>
+
+                {/* Marker Timeline Section - takes the remaining mobile space */}
+                <div className="mobile-panel timeline-mobile-section">
+                  <ErrorBoundary>
+                    <MarkerTimeline />
+                  </ErrorBoundary>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Modals */}

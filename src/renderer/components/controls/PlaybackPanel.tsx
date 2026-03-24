@@ -25,7 +25,11 @@ interface MarkerEditDraft {
   loop: boolean;
 }
 
-const PlaybackPanel: React.FC = () => {
+interface PlaybackPanelProps {
+  forceCompactLayout?: boolean;
+}
+
+const PlaybackPanel: React.FC<PlaybackPanelProps> = ({ forceCompactLayout = false }) => {
   const { 
     play, 
     pause, 
@@ -42,11 +46,11 @@ const PlaybackPanel: React.FC = () => {
   
   // Mobile and tablet detection for responsive speed popup
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
-  const isMobile = windowWidth < 768;
-  const isTablet = windowWidth >= 768 && windowWidth <= 1024;
+  const isMobile = forceCompactLayout || windowWidth < 768;
+  const isTablet = !forceCompactLayout && windowWidth >= 768 && windowWidth <= 1024;
   const isMobileOrTablet = isMobile || isTablet;
-  const isCompactMobile = isMobile && windowWidth <= 420;
-  const isTinyMobile = isMobile && windowWidth <= 360;
+  const isCompactMobile = isMobile && (forceCompactLayout || windowWidth <= 420);
+  const isTinyMobile = isMobile && (forceCompactLayout || windowWidth <= 360);
   
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
