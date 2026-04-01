@@ -3060,7 +3060,7 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 .app-container.mobile-layout .mobile-panel.timeline-mobile-section {
   flex: 1 1 auto !important;
   flex-basis: auto !important;
-  min-height: clamp(124px, 20vh, 148px) !important;
+  min-height: clamp(496px, 80vh, 592px) !important;
   height: auto !important;
   max-height: none !important;
   overflow-y: auto !important;
@@ -3087,6 +3087,12 @@ button, .button, .neu-btn, .neu-icon-btn, .neu-play-btn, .neu-tab {
 
 .app-container.mobile-layout .mobile-panel.playback-section {
   min-height: 142px !important;
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-container.mobile-layout .mobile-panel.timeline-mobile-section {
+    min-height: clamp(704px, 88vh, 864px) !important;
+  }
 }
 
 /* Rotated phone layout: waveform on top, timeline 75%, playback/details 25% */

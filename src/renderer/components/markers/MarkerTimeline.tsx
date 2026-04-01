@@ -15,7 +15,7 @@ const MARKER_GAP = 6; // desktop/default gap between marker rows
 const TIME_GRID_HEIGHT = 35; // desktop/default time grid height
 const MIN_MARKER_AREA_HEIGHT = 100; // desktop/default minimum marker area height
 const MAX_OVERLAPPING_MARKERS = 5; // Support up to 5 overlapping markers
-const MAX_MARKER_AREA_HEIGHT = TIME_GRID_HEIGHT + (MAX_OVERLAPPING_MARKERS * (MARKER_HEIGHT + MARKER_GAP)) + 20; // Height for 5 markers + padding
+const MOBILE_LAYOUT_TIMELINE_HEIGHT_MULTIPLIER = 4; // Mobile layout renders the marker stack at 4x the original height
 const EDGE_HIT_PX = 12; // pixels from left/right edge of marker to start resize (crop) instead of move
 // Padding varies by device - minimal on mobile for edge-to-edge display
 const getTimeLabelPadding = (isMobile: boolean) => isMobile ? 8 : 50;
@@ -47,9 +47,11 @@ export function MarkerTimeline() {
   const timeGridHeight = isMobile ? 20 : TIME_GRID_HEIGHT;
   const markerAreaPadding = isMobile ? 8 : 20;
   const minMarkerAreaHeight = isMobile ? 36 : MIN_MARKER_AREA_HEIGHT;
+  const markerAreaHeightMultiplier = isMobileLayout ? MOBILE_LAYOUT_TIMELINE_HEIGHT_MULTIPLIER : 1;
   const maxMarkerAreaHeight = useMemo(() => {
-    return (MAX_OVERLAPPING_MARKERS * (markerHeight + markerGap)) + markerAreaPadding;
-  }, [markerGap, markerHeight, markerAreaPadding]);
+    const baseHeight = (MAX_OVERLAPPING_MARKERS * (markerHeight + markerGap)) + markerAreaPadding;
+    return baseHeight * markerAreaHeightMultiplier;
+  }, [markerAreaHeightMultiplier, markerGap, markerHeight, markerAreaPadding]);
   const maxSvgHeight = timeGridHeight + maxMarkerAreaHeight;
   const markerCornerRadius = isMobile ? 3 : 4;
   const markerStrokeWidth = isMobile ? 1.5 : 2;
@@ -538,10 +540,10 @@ export function MarkerTimeline() {
   const markerAreaHeight = useMemo(() => {
     // Calculate needed height based on layers, with good padding
     const neededHeight = (maxLayer + 1) * (markerHeight + markerGap) + markerAreaPadding;
-    const calculatedHeight = Math.max(neededHeight, minMarkerAreaHeight);
-    // Cap at max height for 5 overlapping markers
+    const calculatedHeight = Math.max(neededHeight, minMarkerAreaHeight * markerAreaHeightMultiplier);
+    // Cap mobile layout at a 200%-taller version of the previous stack height limit.
     return Math.min(calculatedHeight, maxMarkerAreaHeight);
-  }, [markerAreaPadding, markerGap, markerHeight, maxMarkerAreaHeight, maxLayer, minMarkerAreaHeight]);
+  }, [markerAreaHeightMultiplier, markerAreaPadding, markerGap, markerHeight, maxMarkerAreaHeight, maxLayer, minMarkerAreaHeight]);
   
   const svgHeight = timeGridHeight + markerAreaHeight;
   const svgRenderHeight = isMobileLayout ? svgHeight : Math.min(svgHeight, maxSvgHeight);
