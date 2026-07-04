@@ -1307,8 +1307,8 @@ const MenuBar: React.FC = () => {
 
       {/* Marker navigation */}
       {(() => {
-        const prevMarker = MarkerManager.getPreviousMarker();
-        const nextMarker = MarkerManager.getNextMarker();
+        const prevMarker = MarkerManager.getPreviousMarkerForPlayback(currentTime);
+        const nextMarker = MarkerManager.getNextMarkerForPlayback(currentTime);
         const hasMarkers = markers.length > 0;
         // Amber/gold accent - highly visible on both light and dark themes
         const MARKER_ACCENT = '#D97706';
@@ -1376,7 +1376,7 @@ const MenuBar: React.FC = () => {
             </span>
             {navBtn(
               () => prevMarker && handleMarkerNav(prevMarker),
-              'Previous marker (Left/A)',
+              'Restart current marker (Left/A)',
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
               !prevMarker
             )}

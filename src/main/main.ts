@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { spawn } from 'child_process';
 import { pathToFileURL } from 'url';
-import { autoUpdater, UpdateInfo, ProgressInfo } from 'electron-updater';
 
 // Get FFmpeg path - works with ffmpeg-static
 let ffmpegPath: string;
@@ -20,23 +19,48 @@ let mainWindow: BrowserWindow | null = null;
 // AUTO-UPDATER CONFIGURATION
 // ============================================
 
-// Configure auto-updater logging (no-op in production to avoid leaking info)
-autoUpdater.logger = {
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-  debug: () => {},
-};
+interface UpdateInfo {
+  version: string;
+  releaseDate?: string;
+  releaseNotes?: string;
+}
 
-// Don't auto-download - let user choose
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
+interface ProgressInfo {
+  percent: number;
+  bytesPerSecond: number;
+  transferred: number;
+  total: number;
+}
 
 // Track update state
 let updateAvailable = false;
 let downloadedUpdate = false;
 let updateInfo: UpdateInfo | null = null;
 let downloadProgress: ProgressInfo | null = null;
+let autoUpdater: any = null;
+let autoUpdaterInitialized = false;
+
+function getAutoUpdater(): any | null {
+  if (!app.isPackaged) {
+    return null;
+  }
+
+  if (!autoUpdater) {
+    autoUpdater = require('electron-updater').autoUpdater;
+    // Configure auto-updater logging (no-op in production to avoid leaking info)
+    autoUpdater.logger = {
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {},
+    };
+    // Don't auto-download - let user choose
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+  }
+
+  return autoUpdater;
+}
 
 // Send update events to renderer
 function sendUpdateStatus(status: string, data?: any) {
@@ -47,13 +71,20 @@ function sendUpdateStatus(status: string, data?: any) {
 
 // Initialize auto-updater event handlers
 function initAutoUpdater() {
+  const updater = getAutoUpdater();
+  if (!updater || autoUpdaterInitialized) {
+    return;
+  }
+
+  autoUpdaterInitialized = true;
+
   // Check for updates error
-  autoUpdater.on('error', (error) => {
+  updater.on('error', (error: Error) => {
     sendUpdateStatus('error', { message: error.message });
   });
 
   // Update available
-  autoUpdater.on('update-available', (info: UpdateInfo) => {
+  updater.on('update-available', (info: UpdateInfo) => {
     updateAvailable = true;
     updateInfo = info;
     sendUpdateStatus('update-available', {
@@ -64,12 +95,12 @@ function initAutoUpdater() {
   });
 
   // No update available
-  autoUpdater.on('update-not-available', (info: UpdateInfo) => {
+  updater.on('update-not-available', (info: UpdateInfo) => {
     sendUpdateStatus('update-not-available', { version: info.version });
   });
 
   // Download progress
-  autoUpdater.on('download-progress', (progress: ProgressInfo) => {
+  updater.on('download-progress', (progress: ProgressInfo) => {
     downloadProgress = progress;
     sendUpdateStatus('download-progress', {
       percent: progress.percent,
@@ -80,7 +111,7 @@ function initAutoUpdater() {
   });
 
   // Update downloaded
-  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+  updater.on('update-downloaded', (info: UpdateInfo) => {
     downloadedUpdate = true;
     sendUpdateStatus('update-downloaded', {
       version: info.version,
@@ -104,7 +135,9 @@ async function checkForUpdates(silent: boolean = false) {
       sendUpdateStatus('checking');
     }
     
-    await autoUpdater.checkForUpdates();
+    const updater = getAutoUpdater();
+    if (!updater) return;
+    await updater.checkForUpdates();
   } catch (error) {
     if (!silent) {
       sendUpdateStatus('error', { message: (error as Error).message });
@@ -228,20 +261,26 @@ const createWindow = (): void => {
     const isPrevMarkerKey =
       key === 'arrowleft' ||
       key === 'left' ||
+      code === 'arrowleft' ||
       key === 'a' ||
       key === 'keya' ||
       code === 'keya' ||
-      keyCode === 'keya';
+      keyCode === 'keya' ||
+      keyCode === '37';
     const isNextMarkerKey =
       key === 'arrowright' ||
       key === 'right' ||
+      code === 'arrowright' ||
       key === 'd' ||
       key === 'keyd' ||
       code === 'keyd' ||
-      keyCode === 'keyd';
+      keyCode === 'keyd' ||
+      keyCode === '39';
     if (isPrevMarkerKey || isNextMarkerKey) {
       if (captureArrows) {
-        event.preventDefault();
+        if (input.type !== 'keyDown' || input.isAutoRepeat) {
+          return;
+        }
         const payload = { key: isPrevMarkerKey ? 'PrevMarker' : 'NextMarker' };
         mainWindow?.webContents.send('arrow-key', payload);
       }
@@ -867,8 +906,12 @@ app.whenReady().then(() => {
     if (!updateAvailable) {
       return { success: false, error: 'No update available' };
     }
+    const updater = getAutoUpdater();
+    if (!updater) {
+      return { success: false, error: 'Updates disabled in development mode' };
+    }
     try {
-      await autoUpdater.downloadUpdate();
+      await updater.downloadUpdate();
       return { success: true };
     } catch (error) {
       return { success: false, error: (error as Error).message };
@@ -880,8 +923,12 @@ app.whenReady().then(() => {
     if (!downloadedUpdate) {
       return { success: false, error: 'Update not downloaded' };
     }
+    const updater = getAutoUpdater();
+    if (!updater) {
+      return { success: false, error: 'Updates disabled in development mode' };
+    }
     // Quit and install
-    autoUpdater.quitAndInstall(false, true);
+    updater.quitAndInstall(false, true);
     return { success: true };
   });
 

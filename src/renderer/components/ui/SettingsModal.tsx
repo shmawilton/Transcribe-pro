@@ -542,7 +542,7 @@ const SettingsModal: React.FC = () => {
               { key: 'Ctrl+Y', desc: 'Redo' },
               { key: 'Ctrl+S', desc: 'Save Project' },
               { key: 'Ctrl+O', desc: 'Open Project' },
-              { key: 'Left/Right or A/D', desc: 'Navigate markers' },
+              { key: 'Left/A, Right/D', desc: 'Restart marker, next marker' },
               { key: '↑/↓', desc: 'Volume' },
             ].map((shortcut, idx) => (
               <div

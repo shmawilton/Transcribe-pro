@@ -43,7 +43,7 @@ const HelpModal: React.FC = () => {
             { key: 'N', desc: 'Add marker at current time' },
             { key: 'M', desc: 'Mute / unmute' },
             { key: 'L', desc: 'Toggle loop on active marker' },
-            { key: 'Left / Right or A / D', desc: 'Navigate markers' },
+            { key: 'Left/A, Right/D', desc: 'Restart marker, next marker' },
             { key: 'Up', desc: 'Increase volume (+10%)' },
             { key: 'Down', desc: 'Decrease volume (-10%)' },
           ].map((shortcut, idx) => (

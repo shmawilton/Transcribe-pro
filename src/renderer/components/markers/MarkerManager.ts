@@ -87,6 +87,8 @@ export const DEFAULT_MARKER_COLOR = PRESET_COLORS[0];
  * All methods are static since markers are global to the app
  */
 export class MarkerManager {
+  private static readonly MARKER_TIME_TOLERANCE_SECONDS = 0.05;
+
   /**
    * Validates marker data according to all validation rules
    * @param markerData - Marker data to validate (can be partial for updates)
@@ -587,6 +589,105 @@ export class MarkerManager {
     }
     
     return sortedMarkers[previousIndex];
+  }
+
+  private static getSortedMarkerIndex(markers: Marker[], markerId: string): number {
+    return markers.findIndex((m) => m.id === markerId);
+  }
+
+  private static getMarkerAtTime(markers: Marker[], time: number): Marker | null {
+    let match: Marker | null = null;
+    const tolerance = MarkerManager.MARKER_TIME_TOLERANCE_SECONDS;
+
+    for (const marker of markers) {
+      if (time >= marker.start - tolerance && time <= marker.end + tolerance) {
+        match = marker;
+      }
+    }
+
+    return match;
+  }
+
+  private static getPreviousMarkerByTime(markers: Marker[], time: number): Marker | null {
+    const tolerance = MarkerManager.MARKER_TIME_TOLERANCE_SECONDS;
+
+    for (let i = markers.length - 1; i >= 0; i--) {
+      if (markers[i].start < time - tolerance) {
+        return markers[i];
+      }
+    }
+
+    return null;
+  }
+
+  private static getNextMarkerByTime(markers: Marker[], time: number): Marker | null {
+    const tolerance = MarkerManager.MARKER_TIME_TOLERANCE_SECONDS;
+
+    for (const marker of markers) {
+      if (marker.start > time + tolerance) {
+        return marker;
+      }
+    }
+
+    return markers[0] || null;
+  }
+
+  /**
+   * Playback-style left navigation: restart the active/current marker.
+   * Repeated left presses intentionally stay on the same marker instead of walking backward.
+   */
+  static getPreviousMarkerForPlayback(currentTime?: number): Marker | null {
+    const sortedMarkers = MarkerManager.getAllMarkers();
+
+    if (sortedMarkers.length === 0) {
+      return null;
+    }
+
+    const store = useAppStore.getState();
+    const playheadTime = Number.isFinite(currentTime)
+      ? currentTime as number
+      : store.audio.currentTime || 0;
+    const activeMarker = MarkerManager.getActiveMarker();
+
+    if (activeMarker && MarkerManager.getSortedMarkerIndex(sortedMarkers, activeMarker.id) !== -1) {
+      return activeMarker;
+    }
+
+    const markerAtPlayhead = MarkerManager.getMarkerAtTime(sortedMarkers, playheadTime);
+
+    if (markerAtPlayhead) {
+      return markerAtPlayhead;
+    }
+
+    return MarkerManager.getPreviousMarkerByTime(sortedMarkers, playheadTime) || sortedMarkers[0];
+  }
+
+  /**
+   * Playback-style next navigation anchors to the playhead when no marker is active.
+   */
+  static getNextMarkerForPlayback(currentTime?: number): Marker | null {
+    const sortedMarkers = MarkerManager.getAllMarkers();
+
+    if (sortedMarkers.length === 0) {
+      return null;
+    }
+
+    const store = useAppStore.getState();
+    const playheadTime = Number.isFinite(currentTime)
+      ? currentTime as number
+      : store.audio.currentTime || 0;
+    const markerAtPlayhead = MarkerManager.getMarkerAtTime(sortedMarkers, playheadTime);
+    const activeMarker = MarkerManager.getActiveMarker();
+    const anchorMarker = markerAtPlayhead || activeMarker;
+
+    if (anchorMarker) {
+      const currentIndex = MarkerManager.getSortedMarkerIndex(sortedMarkers, anchorMarker.id);
+      if (currentIndex !== -1) {
+        return sortedMarkers[currentIndex + 1] || sortedMarkers[0];
+      }
+    }
+
+    return MarkerManager.getNextMarkerByTime(sortedMarkers, playheadTime);
   }
 
   /**

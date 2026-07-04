@@ -26,6 +26,7 @@ import { getDefaultZoomLevel } from './utils/defaultZoom';
 // Kenyan colors
 const KENYAN_RED = '#DE2910';
 const KENYAN_GREEN = '#006644';
+const MARKER_NAV_DUPLICATE_WINDOW_MS = 180;
 
 const App: React.FC = () => {
   const theme = useAppStore((state) => state.theme);
@@ -47,6 +48,7 @@ const App: React.FC = () => {
   }, []);
   const { toasts, closeToast } = useToast();
   const isLandscapeMobile = isMobile && viewportSize.width > viewportSize.height;
+  const lastMarkerNavRef = React.useRef<{ direction: 'previous' | 'next'; at: number } | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -73,6 +75,7 @@ const App: React.FC = () => {
     return (
       normalizedKey === 'arrowleft' ||
       normalizedKey === 'left' ||
+      normalizedCode === 'arrowleft' ||
       normalizedKey === 'a' ||
       normalizedKey === 'keya' ||
       normalizedKey === 'prevmarker' ||
@@ -85,6 +88,7 @@ const App: React.FC = () => {
     return (
       normalizedKey === 'arrowright' ||
       normalizedKey === 'right' ||
+      normalizedCode === 'arrowright' ||
       normalizedKey === 'd' ||
       normalizedKey === 'keyd' ||
       normalizedKey === 'nextmarker' ||
@@ -95,9 +99,20 @@ const App: React.FC = () => {
     const isPrevious = isPreviousMarkerNavKey(key, code);
     const isNext = isNextMarkerNavKey(key, code);
     if (!isPrevious && !isNext) return;
+    const direction = isPrevious ? 'previous' : 'next';
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const lastNav = lastMarkerNavRef.current;
+
+    if (lastNav && lastNav.direction === direction && now - lastNav.at < MARKER_NAV_DUPLICATE_WINDOW_MS) {
+      return;
+    }
+
+    lastMarkerNavRef.current = { direction, at: now };
 
     try {
-      const marker = isPrevious ? MarkerManager.getPreviousMarker() : MarkerManager.getNextMarker();
+      const marker = isPrevious
+        ? MarkerManager.getPreviousMarkerForPlayback()
+        : MarkerManager.getNextMarkerForPlayback();
       if (marker) {
         void MarkerManager.setActiveMarker(marker.id, {
           seekToMarker: true,
@@ -484,6 +499,7 @@ const App: React.FC = () => {
         (navPrev || navNext)
       ) {
         e.preventDefault();
+        if (e.repeat) return;
         navigateMarkerByKeyboardKey(e.key, (e as any).code);
         return;
       }

@@ -209,8 +209,8 @@ const PlaybackPanel: React.FC<PlaybackPanelProps> = ({ forceCompactLayout = fals
 
     try {
       const marker = direction === 'previous'
-        ? MarkerManager.getPreviousMarker()
-        : MarkerManager.getNextMarker();
+        ? MarkerManager.getPreviousMarkerForPlayback()
+        : MarkerManager.getNextMarkerForPlayback();
 
       if (!marker) return;
 
@@ -775,7 +775,7 @@ const PlaybackPanel: React.FC<PlaybackPanelProps> = ({ forceCompactLayout = fals
               title={
                 !hasMarkers
                   ? 'No markers available'
-                  : 'Previous marker'
+                  : 'Restart current marker'
               }
             >
               <svg width={mobileSecondaryIconSize} height={mobileSecondaryIconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

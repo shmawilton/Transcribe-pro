@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:react\" \"wait-on http://localhost:3000 && npm run dev:electron\"",
     "dev:react": "vite",
-    "dev:electron": "cross-env NODE_ENV=development npm run build:electron && electron .",
-    "dev:debug": "concurrently \"npm run dev:react\" \"wait-on http://localhost:3000 && cross-env NODE_ENV=development OPEN_DEVTOOLS=1 npm run build:electron && electron .\"",
+    "dev:electron": "npm run build:electron && node scripts/launch-electron-dev.js",
+    "dev:debug": "concurrently \"npm run dev:react\" \"wait-on http://localhost:3000 && npm run build:electron && cross-env OPEN_DEVTOOLS=1 node scripts/launch-electron-dev.js\"",
     "build": "npm run build:electron && vite build",
     "build:electron": "tsc -p tsconfig.main.json",
     "build:web": "vite build",

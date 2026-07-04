@@ -708,6 +708,7 @@ const MarkerPanel: React.FC = () => {
         {/* Loop through each marker, creating a list item for each one. Use marker.id as the React key. */}
         {sortedMarkers.map((marker) => {
           const isSelected = marker.id === selectedMarkerId;
+          const isEditing = editingMarkerId === marker.id && !!editFormData;
           const duration = getMarkerDuration(marker);
           const markerSpeed = marker.speed !== undefined ? marker.speed : 1.0;
           const hasLoop = marker.loop === true;
@@ -719,11 +720,11 @@ const MarkerPanel: React.FC = () => {
               style={{
                 // Compact horizontal layout - more compact on mobile
                 display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'center',
-                flexWrap: isMobile ? 'wrap' : 'nowrap',
+                flexDirection: !isMobile && isEditing ? 'column' : 'row',
+                alignItems: !isMobile && isEditing ? 'stretch' : 'center',
+                flexWrap: isMobile || isEditing ? 'wrap' : 'nowrap',
                 gap: isMobile ? '0.3rem' : '0.75rem',
-                padding: isMobile ? '0.45rem 0.55rem' : '0.75rem 1rem',
+                padding: isMobile ? '0.45rem 0.55rem' : isEditing ? '0.85rem 1rem' : '0.75rem 1rem',
                 marginBottom: isMobile ? '0.2rem' : '0.5rem',
                 // Active marker highlighting - Neumorphic
                 background: 'var(--neu-bg-base)',
@@ -1100,11 +1101,13 @@ const MarkerPanel: React.FC = () => {
               ) : (
               /* Desktop: Compact horizontal layout with per-marker arrows */
               <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem', 
+                display: 'flex',
+                alignItems: editingMarkerId === marker.id && editFormData ? 'stretch' : 'center',
+                flexWrap: editingMarkerId === marker.id && editFormData ? 'wrap' : 'nowrap',
+                gap: editingMarkerId === marker.id && editFormData ? '0.65rem' : '0.5rem',
                 fontSize: '0.75rem',
-                flex: '0 0 auto',
+                flex: editingMarkerId === marker.id && editFormData ? '1 1 100%' : '1 1 auto',
+                width: editingMarkerId === marker.id && editFormData ? '100%' : 'auto',
                 minWidth: 0,
               }}>
                 {/* Color indicator - clickable when editing to cycle colors */}
@@ -1142,15 +1145,18 @@ const MarkerPanel: React.FC = () => {
                     onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
                     placeholder="Marker name"
                     style={{
-                      width: isMobile ? '60px' : '80px',
-                      padding: '0.2rem 0.3rem',
+                      flex: '1 1 180px',
+                      minWidth: '140px',
+                      maxWidth: '100%',
+                      padding: '0.42rem 0.55rem',
                       background: 'var(--neu-bg-base)',
                       border: '2px solid var(--text-accent-green)',
-                      borderRadius: '3px',
+                      borderRadius: '6px',
                       color: textColor,
-                      fontSize: isMobile ? '0.7rem' : '0.8rem',
+                      fontSize: '0.82rem',
                       fontWeight: '600',
                       boxShadow: 'var(--neu-pressed)',
+                      boxSizing: 'border-box',
                     }}
                     onClick={(e) => e.stopPropagation()}
                     autoFocus
@@ -1175,7 +1181,22 @@ const MarkerPanel: React.FC = () => {
 
                 {/* Time range - editable Minutes : Seconds for Start and End (within audio length) */}
                 {editingMarkerId === marker.id && editFormData ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      flex: '1 1 240px',
+                      minWidth: 0,
+                      flexWrap: 'wrap',
+                      padding: '0.35rem 0.45rem',
+                      borderRadius: '8px',
+                      background: isLightMode ? 'rgba(0,0,0,0.035)' : 'rgba(255,255,255,0.045)',
+                      border: `1px solid ${borderColor}`,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <span style={{ color: textSecondary, fontSize: '0.68rem', fontWeight: 700, marginRight: '0.15rem' }}>Time</span>
                     <input
                       type="number"
                       min={0}
@@ -1184,7 +1205,7 @@ const MarkerPanel: React.FC = () => {
                       onChange={(e) => setStartMinStr(e.target.value.replace(/\D/g, '').slice(0, 3))}
                       onBlur={commitTimeInputs}
                       placeholder="m"
-                      style={{ width: '32px', padding: '0.2rem 0.15rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '3px', color: textColor, fontSize: '0.7rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                      style={{ width: '42px', padding: '0.32rem 0.2rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '5px', color: textColor, fontSize: '0.74rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
                       onClick={(e) => e.stopPropagation()}
                     />
                     <span style={{ color: textSecondary, fontSize: '0.7rem' }}>:</span>
@@ -1196,7 +1217,7 @@ const MarkerPanel: React.FC = () => {
                       onChange={(e) => setStartSecStr(e.target.value.replace(/\D/g, '').slice(0, 2))}
                       onBlur={commitTimeInputs}
                       placeholder="s"
-                      style={{ width: '28px', padding: '0.2rem 0.15rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '3px', color: textColor, fontSize: '0.7rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                      style={{ width: '38px', padding: '0.32rem 0.2rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '5px', color: textColor, fontSize: '0.74rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
                       onClick={(e) => e.stopPropagation()}
                     />
                     <span style={{ color: textSecondary, fontSize: '0.65rem', marginLeft: '0.1rem' }}>—</span>
@@ -1208,7 +1229,7 @@ const MarkerPanel: React.FC = () => {
                       onChange={(e) => setEndMinStr(e.target.value.replace(/\D/g, '').slice(0, 3))}
                       onBlur={commitTimeInputs}
                       placeholder="m"
-                      style={{ width: '32px', padding: '0.2rem 0.15rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '3px', color: textColor, fontSize: '0.7rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                      style={{ width: '42px', padding: '0.32rem 0.2rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '5px', color: textColor, fontSize: '0.74rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
                       onClick={(e) => e.stopPropagation()}
                     />
                     <span style={{ color: textSecondary, fontSize: '0.7rem' }}>:</span>
@@ -1220,7 +1241,7 @@ const MarkerPanel: React.FC = () => {
                       onChange={(e) => setEndSecStr(e.target.value.replace(/\D/g, '').slice(0, 2))}
                       onBlur={commitTimeInputs}
                       placeholder="s"
-                      style={{ width: '28px', padding: '0.2rem 0.15rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '3px', color: textColor, fontSize: '0.7rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
+                      style={{ width: '38px', padding: '0.32rem 0.2rem', background: 'var(--neu-bg-base)', border: 'none', borderRadius: '5px', color: textColor, fontSize: '0.74rem', fontFamily: 'monospace', textAlign: 'center', boxShadow: 'var(--neu-pressed)' }}
                       onClick={(e) => e.stopPropagation()}
                     />
                   </div>
